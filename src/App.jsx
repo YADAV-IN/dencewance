@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import { useDevice } from './hooks/useDevice';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { DesktopSidebar } from './components/DesktopSidebar';
@@ -122,7 +124,7 @@ const resolveMediaUrl = (value) => {
 };
 
 const getWordCount = (value = '') => {
-  const normalized = value.trim();
+  const normalized = value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   return normalized ? normalized.split(/\s+/).length : 0;
 };
 
@@ -154,6 +156,8 @@ const compressImageToDataUrl = (file, { maxDimension = 640, quality = 0.82 } = {
   });
 
 function App() {
+  const avatarInputRef = useRef(null);
+  const coverInputRef = useRef(null);
   const device = useDevice();
   const [news, setNews] = useState([]);
   const [featured, setFeatured] = useState([]);
@@ -229,6 +233,25 @@ function App() {
     return localStorage.getItem('alok_language_override') === 'true';
   });
   const [showTranslationTool, setShowTranslationTool] = useState(false);
+  const [cropper, setCropper] = useState({ open: false, src: '', target: 'avatar', aspect: 1 });
+  const [cropZoom, setCropZoom] = useState(1.1);
+  const [isApplyingCrop, setIsApplyingCrop] = useState(false);
+  const [isAvatarDragActive, setIsAvatarDragActive] = useState(false);
+  const [isCoverDragActive, setIsCoverDragActive] = useState(false);
+
+  const quillModules = useMemo(() => ({
+    toolbar: [
+      [{ header: [2, 3, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ list: 'ordered' }, { list: 'bullet' }],
+      ['blockquote', 'link'],
+      ['clean'],
+    ],
+  }), []);
+
+  const quillFormats = [
+    'header', 'bold', 'italic', 'underline', 'strike', 'list', 'bullet', 'blockquote', 'link',
+  ];
 
   const categories = useMemo(() => {
     const set = new Set(news.map((item) => item.category));
@@ -280,12 +303,17 @@ function App() {
     return Math.round((checkpoints.filter(Boolean).length / checkpoints.length) * 100);
   }, [newsForm, editorTags.length]);
 
+  const currentRole = adminProfile?.role || 'guest';
+  const canWriteNews = ['admin', 'editor', 'author'].includes(currentRole);
+  const canPublishNews = ['admin', 'editor'].includes(currentRole);
+
   const editorPublishTone = useMemo(() => {
+    if (!canPublishNews && canWriteNews) return 'Author mode: auto-saved as draft';
     if (newsForm.status === 'published') return 'Ready for live readers';
     if (newsForm.status === 'scheduled') return 'Scheduled for a timed release';
     if (newsForm.status === 'archived') return 'Stored in archive mode';
     return 'Still in draft mode';
-  }, [newsForm.status]);
+  }, [newsForm.status, canPublishNews, canWriteNews]);
 
   const editorPreviewImage =
     resolveMediaUrl(newsForm.cover_image_url) ||
@@ -361,6 +389,24 @@ function App() {
       </section>
 
       <section className="editor-card">
+        <p className="editor-card-kicker">Role Access</p>
+        <div className="editor-brief-list">
+          <div>
+            <span>Current role</span>
+            <strong>{currentRole}</strong>
+          </div>
+          <div>
+            <span>Write news</span>
+            <strong>{canWriteNews ? 'Allowed' : 'Restricted'}</strong>
+          </div>
+          <div>
+            <span>Publish / Feature</span>
+            <strong>{canPublishNews ? 'Allowed' : 'Draft only'}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section className="editor-card">
         <p className="editor-card-kicker">Checklist</p>
         <div className="editor-checklist">
           <div className={newsForm.title.trim() ? 'done' : ''}>Headline is ready</div>
@@ -375,6 +421,120 @@ function App() {
       </section>
     </aside>
   );
+
+  const openCropperForFile = async (file, target) => {
+    try {
+      const base64Image = await compressImageToDataUrl(file, { maxDimension: 1600, quality: 0.9 });
+      setCropZoom(1.1);
+      setCropper({
+        open: true,
+        src: base64Image,
+        target,
+        aspect: target === 'avatar' ? 1 : 16 / 9,
+      });
+    } catch (error) {
+      setStatus({ state: 'error', message: error?.message || 'इमेज प्रोसेस नहीं हो पाई।' });
+    }
+  };
+
+  const handleAvatarUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file || !adminToken) return;
+    await openCropperForFile(file, 'avatar');
+    event.target.value = '';
+  };
+
+  const handleCoverUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file || !adminToken) return;
+    await openCropperForFile(file, 'cover');
+    event.target.value = '';
+  };
+
+  const handleAvatarDrop = async (event) => {
+    event.preventDefault();
+    setIsAvatarDragActive(false);
+    if (!adminToken) return;
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+    await openCropperForFile(file, 'avatar');
+  };
+
+  const handleCoverDrop = async (event) => {
+    event.preventDefault();
+    setIsCoverDragActive(false);
+    if (!adminToken) return;
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+    await openCropperForFile(file, 'cover');
+  };
+
+  const applyCroppedImage = async () => {
+    if (!cropper.open || !cropper.src) return;
+    setIsApplyingCrop(true);
+    try {
+      const image = new Image();
+      image.src = cropper.src;
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = reject;
+      });
+
+      const outputWidth = cropper.target === 'avatar' ? 360 : 1280;
+      const outputHeight = cropper.target === 'avatar' ? 360 : 720;
+      const canvas = document.createElement('canvas');
+      canvas.width = outputWidth;
+      canvas.height = outputHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('इमेज एडिटर उपलब्ध नहीं है।');
+
+      const targetAspect = outputWidth / outputHeight;
+      const zoom = Math.max(1, Number(cropZoom) || 1);
+      let srcWidth = image.width / zoom;
+      let srcHeight = image.height / zoom;
+
+      if (srcWidth / srcHeight > targetAspect) {
+        srcWidth = srcHeight * targetAspect;
+      } else {
+        srcHeight = srcWidth / targetAspect;
+      }
+
+      const sx = (image.width - srcWidth) / 2;
+      const sy = (image.height - srcHeight) / 2;
+      ctx.drawImage(image, sx, sy, srcWidth, srcHeight, 0, 0, outputWidth, outputHeight);
+
+      const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+
+      if (cropper.target === 'avatar') {
+        const response = await fetch(`${API_URL}/api/profile`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            name: profileForm.name || adminProfile?.name || '',
+            email: profileForm.email || adminProfile?.email || '',
+            bio: profileForm.bio || adminProfile?.bio || '',
+            avatar_url: croppedDataUrl,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Upload failed');
+        setAdminProfile(payload.data);
+        setStatus({ state: 'online', message: 'प्रोफाइल फोटो अपडेट हो गई!' });
+      } else {
+        setNewsForm((prev) => ({ ...prev, cover_image_url: croppedDataUrl }));
+        setStatus({ state: 'online', message: 'कवर इमेज तैयार है।' });
+      }
+
+      setCropper({ open: false, src: '', target: 'avatar', aspect: 1 });
+    } catch (error) {
+      setStatus({ state: 'error', message: error?.message || 'क्रॉप लागू नहीं हो सका।' });
+    } finally {
+      setIsApplyingCrop(false);
+    }
+  };
 
   useEffect(() => {
     const loadNews = async () => {
@@ -614,9 +774,18 @@ function App() {
   const handleNewsCreate = async (event) => {
     event.preventDefault();
     if (!adminToken) return;
+
+    if (!canWriteNews) {
+      setStatus({ state: 'error', message: 'आपके रोल को खबर लिखने की अनुमति नहीं है।' });
+      return;
+    }
+
     const payload = {
       ...newsForm,
       tags: newsForm.tags.split(',').map((tag) => tag.trim()),
+      status: canPublishNews ? newsForm.status : 'draft',
+      is_featured: canPublishNews ? newsForm.is_featured : false,
+      is_breaking: canPublishNews ? newsForm.is_breaking : false,
     };
     try {
       const response = await fetch(`${API_URL}/api/news`, {
@@ -719,38 +888,6 @@ function App() {
     }
   };
 
-  const handleAvatarUpload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file || !adminToken) return;
-
-    setStatus({ state: 'loading', message: 'इमेज अपलोड हो रही है...' });
-
-    try {
-      const base64Image = await compressImageToDataUrl(file);
-      const response = await fetch(`${API_URL}/api/profile`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({
-          name: profileForm.name || adminProfile?.name || '',
-          email: profileForm.email || adminProfile?.email || '',
-          bio: profileForm.bio || adminProfile?.bio || '',
-          avatar_url: base64Image,
-        }),
-      });
-
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || 'Upload failed');
-
-      setAdminProfile(payload.data);
-      setStatus({ state: 'online', message: 'प्रोफाइल फोटो अपडेट हो गई!' });
-    } catch (error) {
-      setStatus({ state: 'error', message: error?.message || 'अपलोड असफल रहा।' });
-    }
-  };
-
   const handleMediaUpload = async (event, field) => {
     const file = event.target.files?.[0];
     if (!file || !adminToken) return;
@@ -842,6 +979,11 @@ function App() {
     event.preventDefault();
     if (!adminToken || !editingNews) return;
 
+    if (!canWriteNews) {
+      setStatus({ state: 'error', message: 'आपके रोल को खबर संपादित करने की अनुमति नहीं है।' });
+      return;
+    }
+
     setStatus({ state: 'loading', message: 'खबर अपडेट हो रही है...' });
 
     try {
@@ -855,6 +997,9 @@ function App() {
         body: JSON.stringify({
           ...newsForm,
           tags,
+          status: canPublishNews ? newsForm.status : 'draft',
+          is_featured: canPublishNews ? newsForm.is_featured : false,
+          is_breaking: canPublishNews ? newsForm.is_breaking : false,
         }),
       });
 
@@ -1182,7 +1327,14 @@ function App() {
                     </div>
                   )}
                   <div className="detail-body">
-                    <p>{selectedStory.content}</p>
+                    {/<[a-z][\s\S]*>/i.test(selectedStory.content || '') ? (
+                      <div
+                        className="story-html-content"
+                        dangerouslySetInnerHTML={{ __html: selectedStory.content }}
+                      />
+                    ) : (
+                      <p>{selectedStory.content}</p>
+                    )}
                     <div className="detail-summary">
                       <strong>सारांश:</strong>
                       <p>{selectedStory.ai_summary}</p>
@@ -1293,7 +1445,15 @@ function App() {
                   <div className="admin-content">
                     <div className="admin-profile">
                       <div className="profile-card">
-                        <div className="avatar-wrapper">
+                        <div
+                          className={`avatar-wrapper ${isAvatarDragActive ? 'drag-active' : ''}`}
+                          onDragOver={(event) => {
+                            event.preventDefault();
+                            setIsAvatarDragActive(true);
+                          }}
+                          onDragLeave={() => setIsAvatarDragActive(false)}
+                          onDrop={handleAvatarDrop}
+                        >
                           <img
                             src={
                               resolveMediaUrl(adminProfile?.avatar_url) ||
@@ -1303,7 +1463,7 @@ function App() {
                           />
                           <label className="avatar-change-btn" title={t('changePhoto', language)}>
                             📷
-                            <input type="file" accept="image/*" onChange={handleAvatarUpload} style={{ display: 'none' }} />
+                            <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} style={{ display: 'none' }} />
                           </label>
                         </div>
                         <div>
@@ -1483,7 +1643,15 @@ function App() {
             <div className="admin-content">
               <div className="admin-profile">
                 <div className="profile-card">
-                  <div className="avatar-wrapper">
+                  <div
+                    className={`avatar-wrapper ${isAvatarDragActive ? 'drag-active' : ''}`}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      setIsAvatarDragActive(true);
+                    }}
+                    onDragLeave={() => setIsAvatarDragActive(false)}
+                    onDrop={handleAvatarDrop}
+                  >
                     <img
                       src={
                         resolveMediaUrl(adminProfile?.avatar_url) ||
@@ -1493,7 +1661,7 @@ function App() {
                     />
                     <label className="avatar-change-btn" title={t('changePhoto', language)}>
                       📷
-                      <input type="file" accept="image/*" onChange={handleAvatarUpload} style={{ display: 'none' }} />
+                      <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} style={{ display: 'none' }} />
                     </label>
                   </div>
                   <div>
@@ -1816,7 +1984,16 @@ function App() {
                   </label>
                   <label>
                     कंटेंट *
-                    <textarea rows="6" value={newsForm.content} onChange={(e) => setNewsForm((prev) => ({ ...prev, content: e.target.value }))} required placeholder="पूरी खबर यहां लिखें..." />
+                    <div className="rich-editor-shell">
+                      <ReactQuill
+                        theme="snow"
+                        value={newsForm.content}
+                        onChange={(value) => setNewsForm((prev) => ({ ...prev, content: value }))}
+                        modules={quillModules}
+                        formats={quillFormats}
+                        placeholder="पूरी खबर यहां लिखें..."
+                      />
+                    </div>
                   </label>
                   <label>
                     टैग्स (comma separated)
@@ -1829,12 +2006,22 @@ function App() {
                   <h4>🎬 मीडिया फाइल्स</h4>
                   <label>
                     कवर इमेज (Upload or URL)
-                    <div className="upload-input-group">
+                    <div
+                      className={`upload-input-group upload-dropzone ${isCoverDragActive ? 'drag-active' : ''}`}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        setIsCoverDragActive(true);
+                      }}
+                      onDragLeave={() => setIsCoverDragActive(false)}
+                      onDrop={handleCoverDrop}
+                    >
                       <input
+                        ref={coverInputRef}
                         type="file"
                         accept="image/*"
-                        onChange={(e) => handleMediaUpload(e, 'cover_image_url')}
+                        onChange={handleCoverUpload}
                       />
+                      <p>इमेज drag-drop करें या चुनें, crop करके auto-fit होगी</p>
                     </div>
                     <input
                       value={newsForm.cover_image_url}
@@ -1958,10 +2145,13 @@ function App() {
                 {/* PUBLISHING OPTIONS */}
                 <div className="form-section">
                   <h4>⚙️ पब्लिशिंग सेटिंग्स</h4>
+                  {!canPublishNews && (
+                    <p className="permission-note">Author mode: आपकी खबर draft में सेव होगी। Publish, Featured, Breaking controls editor/admin के लिए हैं।</p>
+                  )}
                   <div className="form-row">
                     <label style={{ flex: 1 }}>
                       स्टेटस
-                      <select value={newsForm.status} onChange={(e) => setNewsForm((prev) => ({ ...prev, status: e.target.value }))}>
+                      <select value={newsForm.status} onChange={(e) => setNewsForm((prev) => ({ ...prev, status: e.target.value }))} disabled={!canPublishNews}>
                         <option value="draft">Draft (मसौदा)</option>
                         <option value="published">Published (प्रकाशित)</option>
                         <option value="scheduled">Scheduled (निर्धारित)</option>
@@ -1990,11 +2180,11 @@ function App() {
                   </div>
                   <div className="form-row" style={{ gap: '16px' }}>
                     <label className="switch">
-                      <input type="checkbox" checked={newsForm.is_featured} onChange={(e) => setNewsForm((prev) => ({ ...prev, is_featured: e.target.checked }))} />
+                      <input type="checkbox" checked={newsForm.is_featured} onChange={(e) => setNewsForm((prev) => ({ ...prev, is_featured: e.target.checked }))} disabled={!canPublishNews} />
                       <span>⭐ फ़ीचर्ड रखें</span>
                     </label>
                     <label className="switch">
-                      <input type="checkbox" checked={newsForm.is_breaking} onChange={(e) => setNewsForm((prev) => ({ ...prev, is_breaking: e.target.checked }))} />
+                      <input type="checkbox" checked={newsForm.is_breaking} onChange={(e) => setNewsForm((prev) => ({ ...prev, is_breaking: e.target.checked }))} disabled={!canPublishNews} />
                       <span>🔴 Breaking News रखें</span>
                     </label>
                   </div>
@@ -2078,7 +2268,16 @@ function App() {
                 </label>
                 <label>
                   पूरी सामग्री *
-                  <textarea required rows="6" value={newsForm.content} onChange={(e) => setNewsForm((prev) => ({ ...prev, content: e.target.value }))} />
+                  <div className="rich-editor-shell">
+                    <ReactQuill
+                      theme="snow"
+                      value={newsForm.content}
+                      onChange={(value) => setNewsForm((prev) => ({ ...prev, content: value }))}
+                      modules={quillModules}
+                      formats={quillFormats}
+                      placeholder="पूरी खबर यहां लिखें..."
+                    />
+                  </div>
                 </label>
                 <label>
                   टैग्स (कॉमा से अलग)
@@ -2090,8 +2289,25 @@ function App() {
               <div className="form-section">
                 <h4>🎬 मीडिया</h4>
                 <label>
-                  कवर इमेज URL
-                  <input type="url" value={newsForm.cover_image_url} onChange={(e) => setNewsForm((prev) => ({ ...prev, cover_image_url: e.target.value }))} />
+                  कवर इमेज (Upload, Drag-Drop या URL)
+                  <div
+                    className={`upload-input-group upload-dropzone ${isCoverDragActive ? 'drag-active' : ''}`}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      setIsCoverDragActive(true);
+                    }}
+                    onDragLeave={() => setIsCoverDragActive(false)}
+                    onDrop={handleCoverDrop}
+                  >
+                    <input
+                      ref={coverInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCoverUpload}
+                    />
+                    <p>इमेज drag-drop करें या चुनें, crop करके auto-fit होगी</p>
+                  </div>
+                  <input type="url" value={newsForm.cover_image_url} onChange={(e) => setNewsForm((prev) => ({ ...prev, cover_image_url: e.target.value }))} className="upload-url-field" />
                 </label>
                 <label>
                   गैलरी URLs (comma separated)
@@ -2196,10 +2412,13 @@ function App() {
               {/* PUBLISHING */}
               <div className="form-section">
                 <h4>⚙️ पब्लिशिंग</h4>
+                {!canPublishNews && (
+                  <p className="permission-note">Author mode: edit कर सकते हैं, लेकिन final save हमेशा draft रहेगा।</p>
+                )}
                 <div className="form-row">
                   <label style={{ flex: 1 }}>
                     स्टेटस
-                    <select value={newsForm.status} onChange={(e) => setNewsForm((prev) => ({ ...prev, status: e.target.value }))}>
+                    <select value={newsForm.status} onChange={(e) => setNewsForm((prev) => ({ ...prev, status: e.target.value }))} disabled={!canPublishNews}>
                       <option value="draft">Draft</option>
                       <option value="published">Published</option>
                       <option value="scheduled">Scheduled</option>
@@ -2228,11 +2447,11 @@ function App() {
                 </div>
                 <div className="form-row" style={{ gap: '16px' }}>
                   <label className="switch">
-                    <input type="checkbox" checked={newsForm.is_featured} onChange={(e) => setNewsForm((prev) => ({ ...prev, is_featured: e.target.checked }))} />
+                    <input type="checkbox" checked={newsForm.is_featured} onChange={(e) => setNewsForm((prev) => ({ ...prev, is_featured: e.target.checked }))} disabled={!canPublishNews} />
                     <span>फ़ीचर्ड रखें</span>
                   </label>
                   <label className="switch">
-                    <input type="checkbox" checked={newsForm.is_breaking} onChange={(e) => setNewsForm((prev) => ({ ...prev, is_breaking: e.target.checked }))} />
+                    <input type="checkbox" checked={newsForm.is_breaking} onChange={(e) => setNewsForm((prev) => ({ ...prev, is_breaking: e.target.checked }))} disabled={!canPublishNews} />
                     <span>🔴 Breaking News रखें</span>
                   </label>
                 </div>
@@ -2256,6 +2475,43 @@ function App() {
               </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {cropper.open && (
+        <div className="modal-overlay" onClick={() => setCropper({ open: false, src: '', target: 'avatar', aspect: 1 })}>
+          <div className="modal-content crop-modal" onClick={(event) => event.stopPropagation()}>
+            <button className="close-btn" onClick={() => setCropper({ open: false, src: '', target: 'avatar', aspect: 1 })}>✕</button>
+            <h2>{cropper.target === 'avatar' ? 'प्रोफाइल फोटो क्रॉप करें' : 'कवर इमेज क्रॉप करें'}</h2>
+            <div className="crop-stage" style={{ aspectRatio: `${cropper.aspect}` }}>
+              <img src={cropper.src} alt="Crop preview" style={{ transform: `scale(${cropZoom})` }} />
+            </div>
+            <div className="crop-controls">
+              <label>
+                ज़ूम
+                <input
+                  type="range"
+                  min="1"
+                  max="2.4"
+                  step="0.05"
+                  value={cropZoom}
+                  onChange={(event) => setCropZoom(Number(event.target.value))}
+                />
+              </label>
+              <div className="crop-actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setCropper({ open: false, src: '', target: 'avatar', aspect: 1 })}
+                >
+                  कैंसल
+                </button>
+                <button type="button" className="btn-primary" disabled={isApplyingCrop} onClick={applyCroppedImage}>
+                  {isApplyingCrop ? 'सेव हो रहा है...' : 'क्रॉप सेव करें'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

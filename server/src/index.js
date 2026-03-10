@@ -51,7 +51,10 @@ const storage = hasCloudinaryConfig
     })
   : multer.memoryStorage();
 
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 6 * 1024 * 1024 },
+});
 
 app.use(cors({
   origin: true,
@@ -119,9 +122,6 @@ app.post('/api/auth/login', async (req, res) => {
   const admin = await Admin.findOne({ email });
   if (!admin) {
     return res.status(401).json({ error: 'Invalid credentials.' });
-  }
-  if (!['admin'].includes(admin.role) && admin.email !== process.env.ADMIN_EMAIL) {
-    return res.status(403).json({ error: 'Only primary admin can log in.' });
   }
   if (admin.status !== 'active') {
     return res.status(403).json({ error: 'Account is inactive. Contact administrator.' });
@@ -314,7 +314,19 @@ async function findUniqueSlugMongoose(baseSlug) {
 }
 
 app.post('/api/news', requireAuth, async (req, res) => {
-  const payload = req.body || {};
+  const currentUser = await Admin.findById(req.adminId);
+  if (!currentUser) return res.status(404).json({ error: 'User not found.' });
+  if (!['admin', 'editor', 'author'].includes(currentUser.role)) {
+    return res.status(403).json({ error: 'Permission denied to create news.' });
+  }
+
+  const payload = { ...(req.body || {}) };
+  if (currentUser.role === 'author') {
+    payload.status = 'draft';
+    payload.is_featured = 0;
+    payload.is_breaking = 0;
+  }
+
   if (!payload.title || !payload.excerpt || !payload.content) {
     return res.status(400).json({ error: 'Title, excerpt, and content required.' });
   }
@@ -342,8 +354,20 @@ app.post('/api/news', requireAuth, async (req, res) => {
 });
 
 app.put('/api/news/:id', requireAuth, async (req, res) => {
+  const currentUser = await Admin.findById(req.adminId);
+  if (!currentUser) return res.status(404).json({ error: 'User not found.' });
+  if (!['admin', 'editor', 'author'].includes(currentUser.role)) {
+    return res.status(403).json({ error: 'Permission denied to update news.' });
+  }
+
   const { id } = req.params;
-  const payload = req.body || {};
+  const payload = { ...(req.body || {}) };
+  if (currentUser.role === 'author') {
+    payload.status = 'draft';
+    payload.is_featured = 0;
+    payload.is_breaking = 0;
+  }
+
   if (payload.content) {
     payload.reading_time = getReadingTime(payload.content);
   }
@@ -365,19 +389,33 @@ app.delete('/api/news/:id', requireAuth, async (req, res) => {
 });
 
 app.post('/api/uploads/cover', requireAuth, upload.single('cover'), async (req, res) => {
-  if (!hasCloudinaryConfig) {
-    return res.status(503).json({ error: 'Cloudinary is not configured.' });
-  }
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
-  return res.json({ data: { url: req.file.path } });
+
+  if (hasCloudinaryConfig) {
+    return res.json({ data: { url: req.file.path } });
+  }
+
+  if (!req.file.mimetype?.startsWith('image/')) {
+    return res.status(400).json({ error: 'Cover upload supports images only.' });
+  }
+
+  const dataUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+  return res.json({ data: { url: dataUrl } });
 });
 
 app.post('/api/uploads/media', requireAuth, upload.single('media'), async (req, res) => {
-  if (!hasCloudinaryConfig) {
-    return res.status(503).json({ error: 'Cloudinary is not configured.' });
-  }
   if (!req.file) return res.status(400).json({ error: 'No media file uploaded.' });
-  return res.json({ data: { url: req.file.path } });
+
+  if (hasCloudinaryConfig) {
+    return res.json({ data: { url: req.file.path } });
+  }
+
+  if (req.file.size > 4 * 1024 * 1024) {
+    return res.status(413).json({ error: 'File too large without Cloudinary. Use <= 4MB or paste a remote URL.' });
+  }
+
+  const dataUrl = `data:${req.file.mimetype || 'application/octet-stream'};base64,${req.file.buffer.toString('base64')}`;
+  return res.json({ data: { url: dataUrl } });
 });
 
 app.get('/api/settings', async (req, res) => {
