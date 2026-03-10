@@ -117,9 +117,41 @@ const extractYouTubeId = (url) => {
 
 const resolveMediaUrl = (value) => {
   if (!value) return '';
-  if (value.startsWith('http')) return value;
+  if (value.startsWith('http') || value.startsWith('data:') || value.startsWith('blob:')) return value;
   return `${API_URL}${value}`;
 };
+
+const getWordCount = (value = '') => {
+  const normalized = value.trim();
+  return normalized ? normalized.split(/\s+/).length : 0;
+};
+
+const compressImageToDataUrl = (file, { maxDimension = 640, quality = 0.82 } = {}) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('इमेज पढ़ने में त्रुटि।'));
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => reject(new Error('इमेज प्रोसेस नहीं हो पाई।'));
+      image.onload = () => {
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(maxDimension / image.width, maxDimension / image.height, 1);
+        canvas.width = Math.round(image.width * scale);
+        canvas.height = Math.round(image.height * scale);
+        const context = canvas.getContext('2d');
+
+        if (!context) {
+          reject(new Error('इमेज प्रोसेसर उपलब्ध नहीं है।'));
+          return;
+        }
+
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 
 function App() {
   const device = useDevice();
@@ -223,6 +255,126 @@ function App() {
   const imageNews = useMemo(() => {
     return news.filter((item) => item.cover_image_url);
   }, [news]);
+
+  const editorTags = useMemo(() => {
+    return newsForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean);
+  }, [newsForm.tags]);
+
+  const editorWordCount = useMemo(() => getWordCount(newsForm.content), [newsForm.content]);
+
+  const editorReadMinutes = useMemo(() => {
+    return Math.max(1, Math.ceil(editorWordCount / 180));
+  }, [editorWordCount]);
+
+  const editorCompletion = useMemo(() => {
+    const checkpoints = [
+      Boolean(newsForm.title.trim()),
+      Boolean(newsForm.excerpt.trim()),
+      Boolean(newsForm.content.trim()),
+      editorTags.length > 0,
+      Boolean(newsForm.cover_image_url.trim()),
+      Boolean(newsForm.author_name.trim()),
+      Boolean(newsForm.meta_description.trim()),
+    ];
+
+    return Math.round((checkpoints.filter(Boolean).length / checkpoints.length) * 100);
+  }, [newsForm, editorTags.length]);
+
+  const editorPublishTone = useMemo(() => {
+    if (newsForm.status === 'published') return 'Ready for live readers';
+    if (newsForm.status === 'scheduled') return 'Scheduled for a timed release';
+    if (newsForm.status === 'archived') return 'Stored in archive mode';
+    return 'Still in draft mode';
+  }, [newsForm.status]);
+
+  const editorPreviewImage =
+    resolveMediaUrl(newsForm.cover_image_url) ||
+    'https://images.unsplash.com/photo-1495020689067-958852a7765e?q=80&w=900&auto=format&fit=crop';
+
+  const renderEditorRail = () => (
+    <aside className="editor-rail">
+      <section className="editor-card editor-card-accent">
+        <p className="editor-card-kicker">Story Pulse</p>
+        <div className="editor-progress-row">
+          <strong>{editorCompletion}%</strong>
+          <span>{editorPublishTone}</span>
+        </div>
+        <div className="editor-progress-track">
+          <span style={{ width: `${editorCompletion}%` }} />
+        </div>
+        <div className="editor-metric-grid">
+          <div>
+            <strong>{editorWordCount}</strong>
+            <span>words</span>
+          </div>
+          <div>
+            <strong>{editorReadMinutes}m</strong>
+            <span>read time</span>
+          </div>
+          <div>
+            <strong>{editorTags.length}</strong>
+            <span>tags</span>
+          </div>
+          <div>
+            <strong>{newsForm.language.toUpperCase()}</strong>
+            <span>language</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="editor-card">
+        <p className="editor-card-kicker">Live Preview</p>
+        <div
+          className="editor-preview-media"
+          style={{
+            backgroundImage: `linear-gradient(180deg, rgba(8, 12, 18, 0.05), rgba(8, 12, 18, 0.72)), url(${editorPreviewImage})`,
+          }}
+        />
+        <div className="editor-preview-copy">
+          <h4>{newsForm.title || 'Your headline will appear here'}</h4>
+          <p>{newsForm.excerpt || 'Write a sharp excerpt to preview how your story will open for readers.'}</p>
+        </div>
+      </section>
+
+      <section className="editor-card">
+        <p className="editor-card-kicker">Publishing Snapshot</p>
+        <div className="editor-chip-row">
+          <span className={`editor-chip editor-chip-${newsForm.status}`}>{newsForm.status}</span>
+          <span className={`editor-chip editor-chip-priority-${newsForm.priority}`}>{newsForm.priority}</span>
+          {newsForm.is_breaking && <span className="editor-chip editor-chip-alert">breaking</span>}
+          {newsForm.is_featured && <span className="editor-chip editor-chip-featured">featured</span>}
+        </div>
+        <div className="editor-brief-list">
+          <div>
+            <span>Author</span>
+            <strong>{newsForm.author_name || 'Unassigned'}</strong>
+          </div>
+          <div>
+            <span>Category</span>
+            <strong>{newsForm.category || 'Not set'}</strong>
+          </div>
+          <div>
+            <span>Publish at</span>
+            <strong>{newsForm.published_at ? formatDate(newsForm.published_at) : 'Immediate'}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section className="editor-card">
+        <p className="editor-card-kicker">Checklist</p>
+        <div className="editor-checklist">
+          <div className={newsForm.title.trim() ? 'done' : ''}>Headline is ready</div>
+          <div className={newsForm.excerpt.trim() ? 'done' : ''}>Excerpt adds context</div>
+          <div className={newsForm.content.trim() ? 'done' : ''}>Body copy is written</div>
+          <div className={newsForm.cover_image_url.trim() ? 'done' : ''}>Cover image is attached</div>
+          <div className={newsForm.meta_description.trim() ? 'done' : ''}>SEO description is filled</div>
+        </div>
+        <div className="editor-tag-cloud">
+          {editorTags.length ? editorTags.map((tag) => <span key={tag}>{tag}</span>) : <span className="editor-tag-empty">Add tags to sharpen discovery</span>}
+        </div>
+      </section>
+    </aside>
+  );
 
   useEffect(() => {
     const loadNews = async () => {
@@ -574,40 +726,28 @@ function App() {
     setStatus({ state: 'loading', message: 'इमेज अपलोड हो रही है...' });
 
     try {
-      // Convert image to base64
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64Image = reader.result;
+      const base64Image = await compressImageToDataUrl(file);
+      const response = await fetch(`${API_URL}/api/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          name: profileForm.name || adminProfile?.name || '',
+          email: profileForm.email || adminProfile?.email || '',
+          bio: profileForm.bio || adminProfile?.bio || '',
+          avatar_url: base64Image,
+        }),
+      });
 
-        // Update profile with new avatar
-        const response = await fetch(`${API_URL}/api/profile`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${adminToken}`,
-          },
-          body: JSON.stringify({
-            name: adminProfile?.name,
-            email: adminProfile?.email,
-            bio: adminProfile?.bio,
-            avatar_url: base64Image,
-          }),
-        });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Upload failed');
 
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error || 'Upload failed');
-
-        setAdminProfile((prev) => ({ ...prev, avatar_url: base64Image }));
-        setStatus({ state: 'online', message: 'प्रोफाइल फोटो अपडेट हो गई!' });
-      };
-
-      reader.onerror = () => {
-        setStatus({ state: 'error', message: 'इमेज पढ़ने में त्रुटि।' });
-      };
-
-      reader.readAsDataURL(file);
+      setAdminProfile(payload.data);
+      setStatus({ state: 'online', message: 'प्रोफाइल फोटो अपडेट हो गई!' });
     } catch (error) {
-      setStatus({ state: 'error', message: 'अपलोड असफल रहा।' });
+      setStatus({ state: 'error', message: error?.message || 'अपलोड असफल रहा।' });
     }
   };
 
@@ -1624,11 +1764,24 @@ function App() {
                 </>
               )}
 
-              <form className="admin-form advanced-form" onSubmit={handleNewsCreate}>
-                <h3>📰 नई खबर बनाएं (Advanced)</h3>
+              <form className="admin-form advanced-form editor-form" onSubmit={handleNewsCreate}>
+                <div className="editor-shell">
+                  <div className="editor-hero">
+                    <div>
+                      <p className="editor-eyebrow">Newsroom Composer</p>
+                      <h3>एक तेज़, साफ़ और modern writing dashboard</h3>
+                      <p>Headline, structure, media and publishing signals ko ek hi flow mein handle karo.</p>
+                    </div>
+                    <div className="editor-hero-badges">
+                      <span>Live preview</span>
+                      <span>SEO ready</span>
+                      <span>Editorial controls</span>
+                    </div>
+                  </div>
 
-                {/* BASIC INFORMATION */}
-                <div className="form-section">
+                  <div className="editor-layout">
+                    <div className="editor-main">
+                <div className="form-section form-section-highlight">
                   <h4>📝 मुख्य जानकारी</h4>
                   <label>
                     हेडलाइन *
@@ -1676,19 +1829,18 @@ function App() {
                   <h4>🎬 मीडिया फाइल्स</h4>
                   <label>
                     कवर इमेज (Upload or URL)
-                    <div className="upload-input-group" style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                    <div className="upload-input-group">
                       <input
                         type="file"
                         accept="image/*"
                         onChange={(e) => handleMediaUpload(e, 'cover_image_url')}
-                        style={{ padding: '8px' }}
                       />
                     </div>
                     <input
                       value={newsForm.cover_image_url}
                       onChange={(e) => setNewsForm((prev) => ({ ...prev, cover_image_url: e.target.value }))}
                       placeholder="या फिर इमेज URL पेस्ट करें (https://...)"
-                      style={{ marginTop: '8px' }}
+                      className="upload-url-field"
                     />
                   </label>
                   <label>
@@ -1697,19 +1849,18 @@ function App() {
                   </label>
                   <label>
                     वीडियो (Upload MP4 or URL)
-                    <div className="upload-input-group" style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                    <div className="upload-input-group">
                       <input
                         type="file"
                         accept="video/mp4,video/webm"
                         onChange={(e) => handleMediaUpload(e, 'video_url')}
-                        style={{ padding: '8px' }}
                       />
                     </div>
                     <input
                       value={newsForm.video_url}
                       onChange={(e) => setNewsForm((prev) => ({ ...prev, video_url: e.target.value }))}
                       placeholder="या फिर YouTube/Vimeo URL पेस्ट करें"
-                      style={{ marginTop: '8px' }}
+                      className="upload-url-field"
                     />
                   </label>
                   <label>
@@ -1849,9 +2000,20 @@ function App() {
                   </div>
                 </div>
 
-                <button className="primary" type="submit" style={{ width: '100%', padding: '14px', fontSize: '16px', fontWeight: '600' }}>
-                  ✅ खबर सेव करें
-                </button>
+                    </div>
+                    {renderEditorRail()}
+                  </div>
+
+                  <div className="editor-submit-row">
+                    <div>
+                      <p className="editor-submit-label">Publishing lane</p>
+                      <strong>{editorPublishTone}</strong>
+                    </div>
+                    <button className="primary editor-submit-btn" type="submit">
+                      ✅ खबर सेव करें
+                    </button>
+                  </div>
+                </div>
               </form>
             </div>
           )}
@@ -1863,10 +2025,25 @@ function App() {
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
           <div className="modal-content edit-modal" onClick={(e) => e.stopPropagation()}>
             <button className="close-btn" onClick={() => setShowEditModal(false)}>✕</button>
-            <h2>📝 खबर संपादित करें (Advanced)</h2>
-            <form onSubmit={handleSaveNews}>
-              {/* BASIC INFO */}
-              <div className="form-section">
+            <h2>{editingNews.id === 'new' ? '📰 नई खबर बनाएं' : '📝 खबर संपादित करें'}</h2>
+            <form className="editor-form" onSubmit={handleSaveNews}>
+              <div className="editor-shell editor-shell-modal">
+                <div className="editor-hero editor-hero-modal">
+                  <div>
+                    <p className="editor-eyebrow">Editorial Workspace</p>
+                    <h3>{editingNews.id === 'new' ? 'Story build mode' : 'Refine and republish'}</h3>
+                    <p>Draft ko polish karo, metadata tighten karo aur publication state ko ek glance mein control karo.</p>
+                  </div>
+                  <div className="editor-hero-badges">
+                    <span>{editingNews.id === 'new' ? 'Fresh draft' : 'Edit mode'}</span>
+                    <span>{editorReadMinutes} min read</span>
+                    <span>{editorCompletion}% ready</span>
+                  </div>
+                </div>
+
+                <div className="editor-layout">
+                  <div className="editor-main">
+              <div className="form-section form-section-highlight">
                 <h4>📝 मुख्य जानकारी</h4>
                 <label>
                   शीर्षक *
@@ -2061,7 +2238,11 @@ function App() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px' }}>
+                  </div>
+                  {renderEditorRail()}
+                </div>
+
+              <div className="editor-submit-row editor-submit-row-modal" style={{ display: 'flex', gap: '12px' }}>
                 <button className="btn-primary" type="submit">
                   सेव करें
                 </button>
@@ -2072,6 +2253,7 @@ function App() {
                 >
                   रद्द करें
                 </button>
+              </div>
               </div>
             </form>
           </div>

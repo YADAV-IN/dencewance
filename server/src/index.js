@@ -246,23 +246,28 @@ app.get('/api/profile', requireAuth, async (req, res) => {
 });
 
 app.put('/api/profile', requireAuth, async (req, res) => {
-  const { name, email, bio } = req.body || {};
+  const { name, email, bio, avatar_url } = req.body || {};
+  const updates = {};
+  if (typeof name === 'string') updates.name = name;
+  if (typeof email === 'string') updates.email = email;
+  if (typeof bio === 'string') updates.bio = bio;
+  if (typeof avatar_url === 'string') updates.avatar_url = avatar_url;
   const admin = await Admin.findByIdAndUpdate(
     req.adminId,
-    { name, email, bio },
+    updates,
     { new: true }
   );
   return res.json({ data: admin.toJSON() });
 });
 
 app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req, res) => {
-  if (!hasCloudinaryConfig) {
-    return res.status(503).json({ error: 'Cloudinary is not configured.' });
-  }
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+  const avatarUrl = hasCloudinaryConfig
+    ? req.file.path
+    : `data:${req.file.mimetype || 'image/jpeg'};base64,${req.file.buffer.toString('base64')}`;
   const admin = await Admin.findByIdAndUpdate(
     req.adminId,
-    { avatar_url: req.file.path },
+    { avatar_url: avatarUrl },
     { new: true }
   );
   return res.json({ data: admin.toJSON() });
