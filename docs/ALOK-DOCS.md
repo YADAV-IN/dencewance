@@ -92,7 +92,7 @@ npm run dev
 - `slug` टाइटल से बनता है और यूनिक रखा गया है।
 
 ## 10) डिफॉल्ट एडमिन
-- Email: `admin@alok.news`
-- Password: `Admin@123`
+- Email: `admin@example.com`
+- Password: `change-me-before-login`
 
 > प्रोडक्शन में `.env` से बदलें।

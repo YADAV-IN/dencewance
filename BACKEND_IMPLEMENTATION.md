@@ -249,8 +249,8 @@ const newColumns = [
 **POST /api/auth/login**
 ```json
 {
-  "email": "vipno1official@gmail.com",
-  "password": "preetam6388"
+  "email": "admin@example.com",
+  "password": "change-me-before-login"
 }
 ```
 
@@ -261,7 +261,7 @@ const newColumns = [
   "admin": {
     "id": 1,
     "name": "ALOK एडमिन",
-    "email": "vipno1official@gmail.com"
+    "email": "admin@example.com"
   }
 }
 ```

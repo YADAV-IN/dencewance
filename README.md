@@ -22,11 +22,10 @@ npm install
 npm run dev
 ```
 
-## Default Admin (Primary Only)
-- Email: `*******`
-- Password: `********`
+## Admin Setup (Primary Only)
+- Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in backend environment variables.
 - Note: Only primary admin (id=1) is allowed to log in.
-- Credentials are force-reset on every server start.
+- Rotate admin credentials after first successful login.
 
 ## Key Features
 - 30+ field news creation system

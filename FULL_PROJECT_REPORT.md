@@ -55,8 +55,8 @@ ALOK एक हाई-टेक, फ्यूचर-रेडी न्यूज
 ### Login Credentials (Primary Admin Only)
 | Field | Value |
 |-------|-------|
-| Email | `vipno1official@gmail.com` |
-| Password | `preetam6388` |
+| Email | `admin@example.com` |
+| Password | `change-me-before-login` |
 | Role | admin (Permanent, id=1) |
 
 > ⚠️ Only the primary admin (id=1) can log in. Other users are managed by admin but cannot log in.
@@ -259,8 +259,8 @@ ALOK एक हाई-टेक, फ्यूचर-रेडी न्यूज
 **Login Request:**
 ```json
 {
-  "email": "vipno1official@gmail.com",
-  "password": "preetam6388"
+  "email": "admin@example.com",
+  "password": "change-me-before-login"
 }
 ```
 
@@ -272,7 +272,7 @@ ALOK एक हाई-टेक, फ्यूचर-रेडी न्यूज
     "profile": {
       "id": 1,
       "name": "ALOK एडमिन",
-      "email": "vipno1official@gmail.com",
+      "email": "admin@example.com",
       "role": "admin",
       "status": "active",
       "bio": "...",
@@ -478,8 +478,8 @@ ALOK एक हाई-टेक, फ्यूचर-रेडी न्यूज
 | VERCEL | '1' | Auto-set by Vercel |
 | DB_PATH | /tmp/alok.db | Database file path |
 | UPLOAD_DIR | /tmp/uploads | Upload directory |
-| ADMIN_EMAIL | vipno1official@gmail.com | Primary admin email |
-| ADMIN_PASSWORD | preetam6388 | Primary admin password |
+| ADMIN_EMAIL | admin@example.com | Primary admin email |
+| ADMIN_PASSWORD | change-me-before-login | Primary admin password |
 | ADMIN_NAME | ALOK एडमिन | Primary admin display name |
 | JWT_SECRET | auto-generated | JWT signing secret |
 

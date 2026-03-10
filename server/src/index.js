@@ -18,6 +18,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 4000;
 const IS_VERCEL = process.env.VERCEL === '1';
+const hasCloudinaryConfig =
+  !!process.env.CLOUDINARY_URL ||
+  (!!process.env.CLOUDINARY_CLOUD_NAME &&
+    !!process.env.CLOUDINARY_API_KEY &&
+    !!process.env.CLOUDINARY_API_SECRET);
 
 // We parse the Cloudinary config straight from the URL if CLOUDINARY_URL is present
 // Otherwise it tries to extract it from individual variables if defined
@@ -29,20 +34,22 @@ if (process.env.CLOUDINARY_CLOUD_NAME) {
   });
 }
 
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: async (req, file) => {
-    let folder = 'covers';
-    if (file.fieldname === 'avatar') folder = 'avatars';
-    else if (file.fieldname === 'media') folder = 'media';
+const storage = hasCloudinaryConfig
+  ? new CloudinaryStorage({
+      cloudinary: cloudinary,
+      params: async (req, file) => {
+        let folder = 'covers';
+        if (file.fieldname === 'avatar') folder = 'avatars';
+        else if (file.fieldname === 'media') folder = 'media';
 
-    return {
-      folder: `alok/${folder}`,
-      allowed_formats: ['jpg', 'png', 'jpeg', 'webp', 'mp4', 'webm', 'mp3'],
-      resource_type: 'auto', // for videos/audio
-    };
-  },
-});
+        return {
+          folder: `alok/${folder}`,
+          allowed_formats: ['jpg', 'png', 'jpeg', 'webp', 'mp4', 'webm', 'mp3'],
+          resource_type: 'auto', // for videos/audio
+        };
+      },
+    })
+  : multer.memoryStorage();
 
 const upload = multer({ storage });
 
@@ -69,18 +76,38 @@ const ensureDbInit = async () => {
   return dbInitPromise;
 };
 
+app.get('/api/health', async (req, res) => {
+  const dbReady = dbInitialized;
+  const config = {
+    mongodb: !!process.env.MONGODB_URI,
+    jwt: !!process.env.JWT_SECRET,
+    cloudinary: hasCloudinaryConfig,
+  };
+  const status = dbReady ? 'ok' : 'degraded';
+
+  return res.status(dbReady ? 200 : 503).json({
+    status,
+    time: new Date().toISOString(),
+    vercel: IS_VERCEL,
+    dbReady,
+    config,
+  });
+});
+
 app.use(async (req, res, next) => {
+  if (req.path === '/api/health') {
+    return next();
+  }
   try {
     await ensureDbInit();
     next();
   } catch (err) {
     console.error('DB init middleware error:', err);
-    return res.status(500).json({ error: 'Database initialization failed' });
+    return res.status(503).json({
+      error: 'Database initialization failed',
+      detail: err?.message || 'Unknown database error',
+    });
   }
-});
-
-app.get('/api/health', async (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString(), vercel: IS_VERCEL });
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -229,6 +256,9 @@ app.put('/api/profile', requireAuth, async (req, res) => {
 });
 
 app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req, res) => {
+  if (!hasCloudinaryConfig) {
+    return res.status(503).json({ error: 'Cloudinary is not configured.' });
+  }
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
   const admin = await Admin.findByIdAndUpdate(
     req.adminId,
@@ -330,11 +360,17 @@ app.delete('/api/news/:id', requireAuth, async (req, res) => {
 });
 
 app.post('/api/uploads/cover', requireAuth, upload.single('cover'), async (req, res) => {
+  if (!hasCloudinaryConfig) {
+    return res.status(503).json({ error: 'Cloudinary is not configured.' });
+  }
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
   return res.json({ data: { url: req.file.path } });
 });
 
 app.post('/api/uploads/media', requireAuth, upload.single('media'), async (req, res) => {
+  if (!hasCloudinaryConfig) {
+    return res.status(503).json({ error: 'Cloudinary is not configured.' });
+  }
   if (!req.file) return res.status(400).json({ error: 'No media file uploaded.' });
   return res.json({ data: { url: req.file.path } });
 });
@@ -355,6 +391,12 @@ app.put('/api/settings', requireAuth, async (req, res) => {
     await settings.save();
   }
   return res.json({ data: settings.toJSON() });
+});
+
+app.use((err, req, res, next) => {
+  console.error('Unhandled route error:', err);
+  if (res.headersSent) return next(err);
+  return res.status(500).json({ error: err?.message || 'Internal Server Error' });
 });
 
 if (!IS_VERCEL) {

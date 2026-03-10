@@ -803,7 +803,7 @@ vercel --prod
 
 **Default Admin:**
 - Username: `admin`
-- Password: `admin123` (Change after first login)
+- Password: `change-me-before-login` (Change after first login)
 
 **Create New Admin:**
 ```bash
@@ -932,7 +932,7 @@ curl -X POST http://localhost:5000/api/register \
 ```json
 {
   "username": "admin",
-  "password": "admin123"
+  "password": "change-me-before-login"
 }
 ```
 **Response:**

@@ -161,12 +161,12 @@ async function initDatabase() {
     // Create default admin user
     const userCheck = await pool.query('SELECT COUNT(*) FROM users WHERE username = $1', ['admin']);
     if (parseInt(userCheck.rows[0].count) === 0) {
-      const hashedPassword = await bcrypt.hash('admin123', 10);
+      const hashedPassword = await bcrypt.hash('change-me-before-login', 10);
       await pool.query(
         'INSERT INTO users (username, password) VALUES ($1, $2)',
         ['admin', hashedPassword]
       );
-      console.log('✅ Default admin user created (username: admin, password: admin123)');
+      console.log('✅ Default admin user created (username: admin, password: change-me-before-login)');
     }
 
     console.log('✅ Database initialized successfully');
@@ -584,7 +584,7 @@ Test:
 - ✅ News loading
 - ✅ Language switching
 - ✅ Translation tool
-- ✅ Admin login (username: admin, password: admin123)
+- ✅ Admin login (username: admin, password: change-me-before-login)
 - ✅ Create news
 - ✅ Edit news
 - ✅ Delete news
@@ -768,7 +768,7 @@ curl https://server-tan-iota-18.vercel.app/api/settings
 # Test login
 curl -X POST https://server-tan-iota-18.vercel.app/api/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+  -d '{"username":"admin","password":"change-me-before-login"}'
 ```
 
 Expected responses: JSON data, no errors

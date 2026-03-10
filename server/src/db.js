@@ -105,23 +105,27 @@ export const initDb = async () => {
     isConnected = true;
     console.log('✅ MongoDB connected successfully');
 
-    // Create primary admin if none exists
+    // Create or reset primary admin from env vars
+    const defaultEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
+    const defaultPassword = process.env.ADMIN_PASSWORD || 'change-me-before-login';
+    const defaultName = process.env.ADMIN_NAME || 'ALOK एडमिन';
     const adminCount = await Admin.countDocuments();
-    if (adminCount === 0) {
-      const defaultEmail = process.env.ADMIN_EMAIL || 'vipno1official@gmail.com';
-      const defaultPassword = process.env.ADMIN_PASSWORD || 'preetam6388';
-      const defaultName = process.env.ADMIN_NAME || 'ALOK एडमिन';
+    if (adminCount === 0 || process.env.ADMIN_RESET === 'true') {
       const passwordHash = await bcrypt.hash(defaultPassword, 10);
-
-      await Admin.create({
-        name: defaultName,
-        email: defaultEmail,
-        password_hash: passwordHash,
-        role: 'admin',
-        status: 'active',
-        bio: 'डिजिटल न्यूज़रूम बिल्डर और BJMC स्टूडेंट प्रोफाइल।',
-      });
-      console.log('✅ Primary admin created:', defaultEmail);
+      if (adminCount === 0) {
+        await Admin.create({
+          name: defaultName,
+          email: defaultEmail,
+          password_hash: passwordHash,
+          role: 'admin',
+          status: 'active',
+          bio: 'डिजिटल न्यूज़रूम बिल्डर और BJMC स्टूडेंट प्रोफाइल।',
+        });
+        console.log('✅ Primary admin created:', defaultEmail);
+      } else {
+        await Admin.updateOne({ role: 'admin' }, { email: defaultEmail, password_hash: passwordHash, status: 'active' });
+        console.log('✅ Primary admin credentials reset:', defaultEmail);
+      }
     }
 
     // Create initial settings if none exists

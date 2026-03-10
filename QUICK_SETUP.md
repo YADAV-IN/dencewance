@@ -294,12 +294,12 @@ npm run dev  # Runs on http://localhost:5173
 # 5. Create admin account
 curl -X POST http://localhost:5000/api/register \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+  -d '{"username":"admin","password":"change-me-before-login"}'
 
 # 6. Test login
 curl -X POST http://localhost:5000/api/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+  -d '{"username":"admin","password":"change-me-before-login"}'
 ```
 
 ### If Modifying Code
@@ -540,7 +540,7 @@ try {
 
 ```
 Username: admin
-Password: admin123
+Password: change-me-before-login
 ```
 
 **⚠️ IMPORTANT:** Change password after first login!
