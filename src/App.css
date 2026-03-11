@@ -4333,16 +4333,20 @@
   justify-content: center;
 }
 
+/* Video layer fills the frame */
 .reel-video-wrap {
   position: absolute;
   inset: 0;
   background: #000;
+  cursor: pointer;
+  z-index: 1;
 }
 
 .reel-iframe {
   width: 100%;
   height: 100%;
   border: none;
+  pointer-events: none;
 }
 
 .reel-video-el {
@@ -4359,121 +4363,236 @@
   background-position: center;
 }
 
-/* Gradient overlay */
-.reel-overlay {
+/* Pause indicator (center tap feedback) */
+.reel-pause-indicator {
   position: absolute;
   inset: 0;
-  pointer-events: none;
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.88) 0%,
-    rgba(0, 0, 0, 0.38) 42%,
-    transparent 70%
-  );
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  animation: reelPauseFade 0.3s ease forwards;
+  z-index: 2;
+}
+.reel-pause-indicator span {
+  font-size: 72px;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6));
+}
+@keyframes reelPauseFade {
+  0%   { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0.6; }
 }
 
-.reel-info {
-  flex: 1 1 auto;
-  padding: 24px 16px 32px 24px;
-  pointer-events: all;
-  max-width: calc(100% - 88px);
-  min-width: 0;
+/* Full gradient overlay (non-interactive) */
+.reel-gradient-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.5) 32%, transparent 60%),
+    linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, transparent 18%);
 }
 
-.reel-category-badge {
-  display: inline-block;
-  background: #e3b341;
-  color: #0d1117;
-  font-size: 10px;
-  font-weight: 800;
-  padding: 3px 10px;
-  border-radius: 20px;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  margin-bottom: 8px;
-}
-
-.reel-title {
-  color: #fff;
-  font-size: 19px;
-  font-weight: 700;
-  line-height: 1.35;
-  margin: 0 0 8px 0;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
-}
-
-.reel-excerpt {
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 13px;
-  line-height: 1.55;
-  margin: 0 0 14px 0;
-  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
-}
-
-.reel-read-btn {
-  background: rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 7px 18px;
-  border-radius: 24px;
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s, transform 0.15s;
-}
-.reel-read-btn:hover {
-  background: rgba(227, 179, 65, 0.3);
-  border-color: #e3b341;
-  transform: translateY(-1px);
-}
-
-/* TikTok-style right action column */
+/* ── TikTok right action column ── */
 .reel-actions-col {
+  position: absolute;
+  right: 10px;
+  bottom: 100px;
+  z-index: 10;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
-  padding: 20px 16px 36px 8px;
+  gap: 6px;
   pointer-events: all;
-  flex-shrink: 0;
+}
+
+/* Creator avatar + follow pill (top of action col) */
+.reel-creator-pill {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.reel-creator-avatar-sm {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f59e0b, #ec4899);
+  color: #fff;
+  font-weight: 800;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2.5px solid #fff;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+
+.reel-follow-fab-btn {
+  position: absolute;
+  bottom: -10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fe2c55;
+  color: #fff;
+  border: 2px solid #fff;
+  font-size: 14px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: transform 0.15s;
+}
+.reel-follow-fab-btn:hover { transform: scale(1.2); }
+
+/* Individual action item = button + count label */
+.reel-action-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
 }
 
 .reel-action-btn {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  background: rgba(0, 0, 0, 0.4);
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 50%;
-  width: 52px;
-  height: 52px;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
-  justify-content: center;
-  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+  transition: background 0.18s, transform 0.15s;
 }
 .reel-action-btn:hover {
-  background: rgba(227, 179, 65, 0.35);
-  border-color: #e3b341;
-  transform: scale(1.1);
+  background: rgba(254, 44, 85, 0.45);
+  border-color: #fe2c55;
+  transform: scale(1.12);
 }
 
 .reel-action-icon {
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1;
 }
 
-.reel-action-label {
-  font-size: 9px;
-  color: rgba(255, 255, 255, 0.75);
+.reel-action-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.9);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.7);
   white-space: nowrap;
+}
+
+.reel-delete-btn {
+  background: rgba(239, 68, 68, 0.3) !important;
+  border-color: rgba(239, 68, 68, 0.55) !important;
+}
+.reel-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.55) !important;
+}
+
+/* ── Bottom info (TikTok caption zone) ── */
+.reel-bottom-info {
+  position: absolute;
+  left: 0;
+  right: 80px;
+  bottom: 0;
+  z-index: 10;
+  padding: 0 16px 28px 18px;
+  pointer-events: none;
+}
+
+.reel-creator-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.reel-creator-handle {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.6);
+}
+
+.reel-category-badge {
+  display: inline-block;
+  background: #fe2c55;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.reel-caption-text {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 0 0 8px 0;
+  text-shadow: 0 1px 5px rgba(0,0,0,0.5);
+}
+
+.reel-hashtag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.reel-hashtag-row span {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffffcc;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+/* Spinning audio disc + scrolling text */
+.reel-audio-ticker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 240px;
+  overflow: hidden;
+}
+.reel-audio-disc {
+  font-size: 16px;
+  animation: reelDiscSpin 3s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes reelDiscSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.reel-audio-text-wrap {
+  overflow: hidden;
+  max-width: 200px;
+}
+.reel-audio-text {
+  display: block;
+  font-size: 12px;
+  color: rgba(255,255,255,0.8);
+  white-space: nowrap;
+  animation: reelTextScroll 8s linear infinite;
+}
+@keyframes reelTextScroll {
+  0%   { transform: translateX(0); }
+  40%  { transform: translateX(-30%); }
+  60%  { transform: translateX(-30%); }
+  100% { transform: translateX(0); }
 }
 
 /* Reel counter (top-right) */
@@ -4491,6 +4610,7 @@
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   pointer-events: none;
+  z-index: 10;
   letter-spacing: 0.5px;
 }
 
@@ -4502,7 +4622,7 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.14);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.28);
@@ -4516,20 +4636,120 @@
   z-index: 10;
 }
 .reel-nav-btn:hover {
-  background: rgba(227, 179, 65, 0.45);
-  border-color: #e3b341;
+  background: rgba(254, 44, 85, 0.45);
+  border-color: #fe2c55;
   transform: translateX(-50%) scale(1.1);
 }
 .reel-nav-up { top: 14px; }
 .reel-nav-down { bottom: 14px; }
 
-/* Active reel highlight */
+/* Active reel gold border */
 .reel-frame.reel-active::after {
   content: '';
   position: absolute;
   inset: 0;
-  border: 2px solid rgba(227, 179, 65, 0.25);
+  border: 2px solid rgba(254, 44, 85, 0.3);
   pointer-events: none;
+  z-index: 20;
+}
+
+/* ── Floating Upload FAB ── */
+.reel-upload-fab {
+  position: fixed;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  background: linear-gradient(135deg, #fe2c55, #f59e0b);
+  color: #fff;
+  border: none;
+  border-radius: 28px;
+  padding: 12px 22px 10px;
+  cursor: pointer;
+  box-shadow: 0 8px 32px rgba(254, 44, 85, 0.5), 0 2px 8px rgba(0,0,0,0.35);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.reel-upload-fab:hover {
+  transform: translateX(-50%) scale(1.08);
+  box-shadow: 0 12px 40px rgba(254, 44, 85, 0.65), 0 4px 16px rgba(0,0,0,0.4);
+}
+.reel-upload-fab-icon {
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+}
+.reel-upload-fab-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* ── Upload progress toast ── */
+.reel-upload-toast {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  min-width: 280px;
+  max-width: 360px;
+  background: rgba(10, 10, 10, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  padding: 16px 20px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+  animation: reelToastIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes reelToastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(0.95); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+.reel-upload-toast-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.reel-upload-toast-label {
+  font-size: 13px;
+  color: rgba(255,255,255,0.85);
+  font-weight: 600;
+}
+.reel-upload-toast-pct {
+  font-size: 15px;
+  color: #f59e0b;
+  font-weight: 800;
+}
+.reel-upload-progress-track {
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.reel-upload-progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #fe2c55, #f59e0b);
+  transition: width 0.2s ease;
+}
+.reel-upload-toast-success {
+  font-size: 14px;
+  color: #6ee7b7;
+  font-weight: 600;
+  text-align: center;
+}
+.reel-upload-toast-error {
+  font-size: 14px;
+  color: #fca5a5;
+  font-weight: 600;
+  text-align: center;
 }
 
 /* ─── Admin: video upload row ─── */
@@ -4550,14 +4770,6 @@
   flex-shrink: 0;
 }
 
-.reel-delete-btn {
-  background: rgba(239, 68, 68, 0.25) !important;
-  border-color: rgba(239, 68, 68, 0.5) !important;
-}
-.reel-delete-btn:hover {
-  background: rgba(239, 68, 68, 0.45) !important;
-}
-
 /* ─── Mobile reels adjustments ─── */
 @media (max-width: 600px) {
   .reels-container {
@@ -4567,26 +4779,21 @@
   .reel-frame {
     height: calc(100svh - 108px - 68px);
   }
-  .reel-title { font-size: 15px; }
-  .reel-excerpt { font-size: 12px; }
-  .reel-info { padding: 18px 12px 24px 16px; max-width: calc(100% - 76px); }
-  .reel-actions-col { padding: 14px 10px 24px 4px; gap: 14px; }
-  .reel-action-btn { width: 46px; height: 46px; }
-  .reel-action-icon { font-size: 18px; }
+  .reel-actions-col { right: 8px; bottom: 80px; gap: 4px; }
+  .reel-creator-avatar-sm { width: 40px; height: 40px; font-size: 16px; }
+  .reel-action-btn { width: 44px; height: 44px; }
+  .reel-action-icon { font-size: 19px; }
+  .reel-action-count { font-size: 10px; }
+  .reel-bottom-info { right: 68px; padding: 0 12px 18px 14px; }
+  .reel-caption-text { font-size: 12px; }
   .reel-nav-btn { display: none; }
-  .reel-action-label { display: none; }
+  .reel-upload-fab { bottom: 140px; padding: 10px 18px 8px; }
+  .reel-upload-fab-icon { font-size: 20px; }
 }
 
-.reel-open-page-btn {
-  margin-left: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 24px;
-  padding: 7px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
+@media (min-width: 1024px) {
+  .reel-upload-fab { left: calc(50% - 160px); transform: translateX(0); }
+  .reel-upload-fab:hover { transform: scale(1.06); }
 }
 
 .reel-share-page {

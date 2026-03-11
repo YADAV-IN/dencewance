@@ -270,6 +270,7 @@ function App() {
   const reelsContainerRef = useRef(null);
   const videoFileInputRef = useRef(null);
   const reelUploadInputRef = useRef(null);
+  const reelVideoRefs = useRef({});
   const device = useDevice();
   const [news, setNews] = useState([]);
   const [reels, setReels] = useState([]);
@@ -285,6 +286,8 @@ function App() {
   const [activeReelIndex, setActiveReelIndex] = useState(0);
   const [reelsMuted, setReelsMuted] = useState(false);
   const [videoUploadState, setVideoUploadState] = useState({ state: 'idle', message: '' });
+  const [reelUploadProgress, setReelUploadProgress] = useState(0);
+  const [reelPaused, setReelPaused] = useState(new Set());
   const [followedCreators, setFollowedCreators] = useState(() => {
     try {
       const raw = localStorage.getItem('alok_reel_follows');
@@ -820,48 +823,63 @@ function App() {
     await openCropperForFile(file, 'cover');
   };
 
-  const uploadVideoAsset = async (file, { assignToForm = true } = {}) => {
-    if (!file) return null;
+  const uploadVideoAsset = (file, { assignToForm = true } = {}) =>
+    new Promise((resolve) => {
+      if (!file) return resolve(null);
 
-    if (!adminToken) {
-      const blobUrl = URL.createObjectURL(file);
-      if (assignToForm) {
-        setNewsForm((prev) => ({ ...prev, video_url: blobUrl }));
+      if (!adminToken) {
+        const blobUrl = URL.createObjectURL(file);
+        if (assignToForm) setNewsForm((prev) => ({ ...prev, video_url: blobUrl }));
+        setVideoUploadState({ state: 'preview', message: 'Local preview ready. Login for permanent upload.' });
+        return resolve(blobUrl);
       }
-      setVideoUploadState({ state: 'preview', message: 'Local preview ready hai. Publish ke liye login karein.' });
-      return blobUrl;
-    }
 
-    setVideoUploadState({ state: 'loading', message: 'Video upload ho raha hai...' });
-    setStatus({ state: 'loading', message: 'वीडियो अपलोड हो रहा है...' });
+      setReelUploadProgress(0);
+      setVideoUploadState({ state: 'loading', message: 'Uploading... 0%' });
+      setStatus({ state: 'loading', message: 'वीडियो अपलोड हो रहा है...' });
 
-    const formData = new FormData();
-    formData.append('media', file);
+      const formData = new FormData();
+      formData.append('media', file);
 
-    try {
-      const response = await fetch(`${API_URL}/api/uploads/media`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: formData,
-      });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || 'Upload failed');
+      const xhr = new XMLHttpRequest();
 
-      if (assignToForm) {
-        setNewsForm((prev) => ({ ...prev, video_url: payload.data.url }));
-      }
-      setVideoUploadState({ state: 'online', message: 'Video successfully uploaded and ready.' });
-      setStatus({ state: 'online', message: 'वीडियो सफलतापूर्वक अपलोड हो गया।' });
-      return payload.data.url;
-    } catch (error) {
-      console.error(error);
-      setVideoUploadState({ state: 'error', message: 'Video upload fail ho gaya.' });
-      setStatus({ state: 'error', message: 'वीडियो अपलोड फेल हो गया।' });
-      return null;
-    }
-  };
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          setReelUploadProgress(pct);
+          setVideoUploadState({ state: 'loading', message: `Uploading... ${pct}%` });
+        }
+      };
+
+      xhr.onload = () => {
+        setReelUploadProgress(100);
+        try {
+          const payload = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            if (assignToForm) setNewsForm((prev) => ({ ...prev, video_url: payload.data.url }));
+            setVideoUploadState({ state: 'online', message: 'Upload complete! Reel saved ✓' });
+            setStatus({ state: 'online', message: 'वीडियो सफलतापूर्वक अपलोड हो गया।' });
+            resolve(payload.data.url);
+          } else {
+            throw new Error(payload.error || 'Upload failed');
+          }
+        } catch (err) {
+          setVideoUploadState({ state: 'error', message: err.message || 'Upload failed.' });
+          setStatus({ state: 'error', message: 'वीडियो अपलोड फेल हो गया।' });
+          resolve(null);
+        }
+      };
+
+      xhr.onerror = () => {
+        setVideoUploadState({ state: 'error', message: 'Network error during upload.' });
+        setStatus({ state: 'error', message: 'वीडियो अपलोड फेल हो गया।' });
+        resolve(null);
+      };
+
+      xhr.open('POST', `${API_URL}/api/uploads/media`);
+      xhr.setRequestHeader('Authorization', `Bearer ${adminToken}`);
+      xhr.send(formData);
+    });
 
   const handleVideoFileUpload = async (event) => {
     const file = event.target.files?.[0];
@@ -2024,17 +2042,33 @@ function App() {
                 const isYT = item.video_url && (item.video_url.includes('youtube') || item.video_url.includes('youtu.be') || item.video_url.includes('/embed/'));
                 const ytId = isYT ? extractYouTubeId(item.video_url) : '';
                 const isActive = activeReelIndex === idx;
+                const isPaused = reelPaused.has(idx);
+                const creatorInitial = (item.creator_name || 'A').charAt(0).toUpperCase();
                 return (
                   <div
                     key={item.id}
                     className={`reel-frame${isActive ? ' reel-active' : ''}`}
                     data-reel-idx={idx}
                   >
-                    {/* Video layer */}
-                    <div className="reel-video-wrap" onClick={() => openReel(item)}>
+                    {/* Video layer — tap to pause/play */}
+                    <div
+                      className="reel-video-wrap"
+                      onClick={() => {
+                        const v = reelVideoRefs.current[idx];
+                        if (v) {
+                          if (v.paused) {
+                            v.play().catch(() => {});
+                            setReelPaused((prev) => { const n = new Set(prev); n.delete(idx); return n; });
+                          } else {
+                            v.pause();
+                            setReelPaused((prev) => { const n = new Set(prev); n.add(idx); return n; });
+                          }
+                        }
+                      }}
+                    >
                       {isYT && ytId ? (
                         <iframe
-                          src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=0&loop=1&playlist=${ytId}&controls=1&modestbranding=1&rel=0`}
+                          src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=0&loop=1&playlist=${ytId}&controls=0&modestbranding=1&rel=0&showinfo=0`}
                           title={item.title}
                           frameBorder="0"
                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -2043,6 +2077,7 @@ function App() {
                         />
                       ) : item.video_url ? (
                         <video
+                          ref={(el) => { if (el) reelVideoRefs.current[idx] = el; }}
                           src={resolveMediaUrl(item.video_url)}
                           className="reel-video-el"
                           loop
@@ -2055,51 +2090,111 @@ function App() {
                           style={{ backgroundImage: `url(${resolveMediaUrl(item.cover_image_url)})` }}
                         />
                       )}
+                      {isPaused && (
+                        <div className="reel-pause-indicator">
+                          <span>⏸</span>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Gradient overlay with info + actions */}
-                    <div className="reel-overlay">
-                      <div className="reel-info">
-                        <span className="reel-category-badge">{item.category || 'Reel'}</span>
-                        <h3 className="reel-title">{item.title}</h3>
-                        {(item.excerpt || item.caption) && (
-                          <p className="reel-excerpt">
-                            {(item.excerpt || item.caption).length > 110 ? `${(item.excerpt || item.caption).slice(0, 110)}…` : (item.excerpt || item.caption)}
-                          </p>
-                        )}
-                        <button className="reel-open-page-btn" onClick={() => openReel(item)}>
-                          Reel page खोलें
-                        </button>
+                    {/* Gradient overlay (non-interactive) */}
+                    <div className="reel-gradient-overlay" />
+
+                    {/* Right action column (TikTok-style) */}
+                    <div className="reel-actions-col">
+                      {/* Creator avatar + follow pill */}
+                      <div className="reel-creator-pill">
+                        <div className="reel-creator-avatar-sm">{creatorInitial}</div>
+                        <button
+                          className="reel-follow-fab-btn"
+                          onClick={(e) => { e.stopPropagation(); toggleFollowCreator(item); }}
+                          title="Follow creator"
+                        >＋</button>
                       </div>
 
-                      {/* TikTok-style right action column */}
-                      <div className="reel-actions-col">
-                        <button className="reel-action-btn" onClick={() => setReelsMuted((m) => !m)} title={reelsMuted ? 'Sound On' : 'Mute'}>
-                          <span className="reel-action-icon">{reelsMuted ? '🔇' : '🔊'}</span>
-                          <span className="reel-action-label">{reelsMuted ? 'Mute' : 'Sound'}</span>
+                      {/* Like */}
+                      <div className="reel-action-item">
+                        <button className="reel-action-btn" onClick={(e) => e.stopPropagation()}>
+                          <span className="reel-action-icon">❤️</span>
                         </button>
-                        <button
-                          className="reel-action-btn"
-                          title="Share"
-                          onClick={() => shareReel(item)}
-                        >
+                        <span className="reel-action-count">{formatCompactNumber(item.likes || 0)}</span>
+                      </div>
+
+                      {/* Comment / Open reel page */}
+                      <div className="reel-action-item">
+                        <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); openReel(item); }}>
+                          <span className="reel-action-icon">💬</span>
+                        </button>
+                        <span className="reel-action-count">Open</span>
+                      </div>
+
+                      {/* Bookmark */}
+                      <div className="reel-action-item">
+                        <button className="reel-action-btn" onClick={(e) => e.stopPropagation()}>
+                          <span className="reel-action-icon">🔖</span>
+                        </button>
+                        <span className="reel-action-count">Save</span>
+                      </div>
+
+                      {/* Share */}
+                      <div className="reel-action-item">
+                        <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); shareReel(item); }}>
                           <span className="reel-action-icon">↗️</span>
-                          <span className="reel-action-label">Share</span>
                         </button>
-                        {adminToken && (
+                        <span className="reel-action-count">{formatCompactNumber(item.shares || 0)}</span>
+                      </div>
+
+                      {/* Sound */}
+                      <div className="reel-action-item">
+                        <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); setReelsMuted((m) => !m); }}>
+                          <span className="reel-action-icon">{reelsMuted ? '🔇' : '🔊'}</span>
+                        </button>
+                        <span className="reel-action-count">{reelsMuted ? 'Off' : 'On'}</span>
+                      </div>
+
+                      {/* Admin: Delete */}
+                      {adminToken && (
+                        <div className="reel-action-item">
                           <button
                             className="reel-action-btn reel-delete-btn"
-                            title="Delete Reel"
                             onClick={(e) => { e.stopPropagation(); deleteReel(item.id || item._id); }}
                           >
                             <span className="reel-action-icon">🗑️</span>
-                            <span className="reel-action-label">Delete</span>
                           </button>
-                        )}
+                          <span className="reel-action-count">Del</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bottom info area (TikTok-style caption zone) */}
+                    <div className="reel-bottom-info">
+                      <div className="reel-creator-line">
+                        <strong className="reel-creator-handle">
+                          @{item.creator_handle || slugifyText(item.creator_name || 'creator').replace(/-/g, '')}
+                        </strong>
+                        {item.category && <span className="reel-category-badge">{item.category}</span>}
+                      </div>
+                      <p className="reel-caption-text">
+                        {(item.caption || item.excerpt || item.title || '').slice(0, 120)}
+                      </p>
+                      {item.tags && item.tags.length > 0 && (
+                        <div className="reel-hashtag-row">
+                          {item.tags.slice(0, 4).map((tag) => (
+                            <span key={tag}>#{tag}</span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="reel-audio-ticker">
+                        <span className="reel-audio-disc">🎵</span>
+                        <div className="reel-audio-text-wrap">
+                          <span className="reel-audio-text">
+                            {item.creator_name || 'ALOK Creator'} · Original Audio
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Reel counter badge */}
+                    {/* Reel counter (top-right) */}
                     <div className="reel-counter">{idx + 1} / {reelItems.length}</div>
 
                     {/* Desktop nav arrows */}
@@ -2122,6 +2217,49 @@ function App() {
                   </div>
                 );
               })}
+
+              {/* Floating Upload Button (FAB) */}
+              <button
+                className="reel-upload-fab"
+                onClick={() => adminToken ? reelUploadInputRef.current?.click() : openWorkspace()}
+                title={adminToken ? 'Upload New Reel' : 'Login to Upload'}
+              >
+                <span className="reel-upload-fab-icon">{adminToken ? '＋' : '🔒'}</span>
+                <span className="reel-upload-fab-label">{adminToken ? 'Upload' : 'Login'}</span>
+              </button>
+              <input
+                ref={reelUploadInputRef}
+                type="file"
+                accept="video/*"
+                style={{ display: 'none' }}
+                onChange={handleReelFileUpload}
+              />
+
+              {/* Upload progress toast */}
+              {videoUploadState.state === 'loading' && (
+                <div className="reel-upload-toast">
+                  <div className="reel-upload-toast-header">
+                    <span className="reel-upload-toast-label">📤 Uploading reel...</span>
+                    <strong className="reel-upload-toast-pct">{reelUploadProgress}%</strong>
+                  </div>
+                  <div className="reel-upload-progress-track">
+                    <div
+                      className="reel-upload-progress-fill"
+                      style={{ width: `${reelUploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              {videoUploadState.state === 'online' && (
+                <div className="reel-upload-toast reel-upload-toast-success">
+                  <span>✅ {videoUploadState.message}</span>
+                </div>
+              )}
+              {videoUploadState.state === 'error' && (
+                <div className="reel-upload-toast reel-upload-toast-error">
+                  <span>❌ {videoUploadState.message}</span>
+                </div>
+              )}
             </div>
           )}
 
