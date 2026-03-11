@@ -190,6 +190,7 @@ const compressImageToDataUrl = (file, { maxDimension = 640, quality = 0.82 } = {
 function App() {
   const avatarInputRef = useRef(null);
   const coverInputRef = useRef(null);
+  const sectionRefs = useRef({});
   const device = useDevice();
   const [news, setNews] = useState([]);
   const [featured, setFeatured] = useState([]);
@@ -257,6 +258,7 @@ function App() {
     campaign: { ...defaultCampaignSettings },
   });
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('alok_theme') || 'dark');
   const [language, setLanguage] = useState(() => {
     const saved = localStorage.getItem('alok_language');
     if (saved) return saved;
@@ -272,6 +274,34 @@ function App() {
   const [isAvatarDragActive, setIsAvatarDragActive] = useState(false);
   const [isCoverDragActive, setIsCoverDragActive] = useState(false);
   const [dismissedCampaignKey, setDismissedCampaignKey] = useState('');
+
+  const featureGroups = useMemo(() => ([
+    {
+      title: 'Content Studio',
+      description: 'Rich editor, SEO, scheduling aur smart draft pipeline',
+      badges: ['Writer', 'SEO', 'Schedule'],
+    },
+    {
+      title: 'Media Toolkit',
+      description: 'Image crop, drag-drop uploads aur video embeds',
+      badges: ['Upload', 'Crop', 'Video'],
+    },
+    {
+      title: 'People & Roles',
+      description: 'Admin, Editor, Author permissions with safe publishing rules',
+      badges: ['RBAC', 'Users', 'Security'],
+    },
+    {
+      title: 'Campaign Control',
+      description: 'Banner/full-page takeover with schedule and dismiss controls',
+      badges: ['Event', 'Takeover', 'Timed'],
+    },
+    {
+      title: 'Localization',
+      description: 'Hindi/English language tools with instant translation helper',
+      badges: ['Hi/En', 'Translate', 'UX'],
+    },
+  ]), []);
 
   const quillModules = useMemo(() => ({
     toolbar: [
@@ -374,6 +404,23 @@ function App() {
   }, [campaignConfig, dismissedCampaignKey, campaignIdentity]);
 
   const isFullPageCampaign = isCampaignVisible && campaignConfig.mode === 'fullpage';
+
+  const navItems = useMemo(() => ([
+    { key: 'latest', label: t('latestNews', language) },
+    { key: 'categories', label: t('categories', language) },
+    { key: 'videos', label: t('videoStories', language) },
+    { key: 'featureHub', label: 'Feature Hub' },
+  ]), [language]);
+
+  const scrollToSection = (key) => {
+    const node = sectionRefs.current[key];
+    if (!node) return;
+    node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const setSectionRef = (key) => (node) => {
+    sectionRefs.current[key] = node;
+  };
 
   const updateCampaignField = (field, value) => {
     setSiteSettings((prev) => ({
@@ -1178,6 +1225,11 @@ function App() {
     }
   }, []);
 
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('alok_theme', theme);
+  }, [theme]);
+
   // Breaking news: Manual (is_breaking) या Automatic (latest 5)
   const breakingNews = news.filter((item) => item.is_breaking);
   const tickerItems = breakingNews.length > 0 ? breakingNews.slice(0, 5) : news.slice(0, 5);
@@ -1218,6 +1270,13 @@ function App() {
           </div>
           <div className="header-actions">
             <button
+              className="theme-toggle-btn"
+              onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+              title={theme === 'dark' ? 'Switch to day mode' : 'Switch to night mode'}
+            >
+              {theme === 'dark' ? '☀️ Day' : '🌙 Night'}
+            </button>
+            <button
               className="translation-tool-btn"
               onClick={() => setShowTranslationTool(true)}
               title={language === 'hi' ? 'अनुवाद उपकरण' : 'Translation Tool'}
@@ -1244,6 +1303,15 @@ function App() {
               {adminToken ? `⚙️ ${t('admin', language)}` : `🔐 ${t('login', language)}`}
             </button>
           </div>
+        </div>
+        <div className="command-nav-row">
+          <nav className="command-nav">
+            {navItems.map((item) => (
+              <button key={item.key} className="command-nav-item" onClick={() => scrollToSection(item.key)}>
+                {item.label}
+              </button>
+            ))}
+          </nav>
         </div>
       </header>
 
@@ -1298,7 +1366,7 @@ function App() {
           )}
 
           {/* Latest Stories Grid */}
-          <section className="stories-section">
+          <section className="stories-section" ref={setSectionRef('latest')}>
             <div className="section-header">
               <h2>{t('latestNews', language)}</h2>
               <p>{t('todayHeadlines', language)}</p>
@@ -1341,7 +1409,7 @@ function App() {
           </section>
 
           {/* Categories */}
-          <section className="categories-section">
+          <section className="categories-section" ref={setSectionRef('categories')}>
             <div className="section-header">
               <h2>{t('categories', language)}</h2>
             </div>
@@ -1367,7 +1435,7 @@ function App() {
 
           {/* Videos */}
           {videoNews.length > 0 && (
-            <section className="videos-section">
+            <section className="videos-section" ref={setSectionRef('videos')}>
               <div className="section-header">
                 <h2>{t('videoStories', language)}</h2>
               </div>
@@ -1386,6 +1454,26 @@ function App() {
               </div>
             </section>
           )}
+
+          <section className="feature-hub-section" ref={setSectionRef('featureHub')}>
+            <div className="section-header">
+              <h2>Platform Feature Hub</h2>
+              <p>All major capabilities grouped by their purpose.</p>
+            </div>
+            <div className="feature-hub-grid">
+              {featureGroups.map((group) => (
+                <article key={group.title} className="feature-hub-card">
+                  <h3>{group.title}</h3>
+                  <p>{group.description}</p>
+                  <div className="feature-badge-row">
+                    {group.badges.map((badge) => (
+                      <span key={badge}>{badge}</span>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
 
           {/* Story Detail Modal */}
           {selectedStory && (
