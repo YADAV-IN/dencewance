@@ -860,12 +860,15 @@ function App() {
             setVideoUploadState({ state: 'online', message: 'Upload complete! Reel saved ✓' });
             setStatus({ state: 'online', message: 'वीडियो सफलतापूर्वक अपलोड हो गया।' });
             resolve(payload.data.url);
+          } else if (xhr.status === 413) {
+            throw new Error('File too large - exceeds server size limit');
           } else {
-            throw new Error(payload.error || 'Upload failed');
+            throw new Error(payload?.error || `Upload failed (${xhr.status})`);
           }
         } catch (err) {
-          setVideoUploadState({ state: 'error', message: err.message || 'Upload failed.' });
-          setStatus({ state: 'error', message: 'वीडियो अपलोड फेल हो गया।' });
+          const msg = err.message || 'Upload failed';
+          setVideoUploadState({ state: 'error', message: msg });
+          setStatus({ state: 'error', message: msg });
           resolve(null);
         }
       };
@@ -890,6 +893,16 @@ function App() {
   const handleReelFileUpload = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    // Client-side validation: max 120MB for video uploads
+    const maxSize = 120 * 1024 * 1024;
+    if (file.size > maxSize) {
+      const fileSizeMB = (file.size / 1024 / 1024).toFixed(1);
+      setVideoUploadState({ state: 'error', message: `File too large (${fileSizeMB}MB). Max 120MB allowed.` });
+      setStatus({ state: 'error', message: 'वीडियो फाइल बहुत बड़ी है। अधिकतम 120MB की अनुमति है।' });
+      event.target.value = '';
+      return;
+    }
 
     const uploadedUrl = await uploadVideoAsset(file, { assignToForm: false });
     event.target.value = '';
@@ -931,14 +944,15 @@ function App() {
         } catch (e) {
           setReels((prev) => [payload.data, ...prev]);
         }
-        setVideoUploadState({ state: 'online', message: 'Reel uploaded and saved in database!' });
+        setVideoUploadState({ state: 'online', message: 'Reel uploaded and saved in database! ✓' });
+        setStatus({ state: 'online', message: 'रील सफलतापूर्वक सहेजा गया।' });
         openReel(payload.data);
         return;
       } catch (error) {
         console.error('Reel save error:', error);
-        setStatus({ state: 'error', message: error.message || 'Reel save failed' });
-        setVideoUploadState({ state: 'error', message: error.message || 'Reel save to database failed.' });
-        // DO NOT fall through to local — show failure clearly
+        const errMsg = error.message || 'Failed to save reel to database';
+        setStatus({ state: 'error', message: errMsg });
+        setVideoUploadState({ state: 'error', message: errMsg });
         return;
       }
     }

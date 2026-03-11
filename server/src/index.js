@@ -62,7 +62,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '500mb' }));
 
 let dbInitialized = false;
 let dbInitPromise = null;
