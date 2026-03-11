@@ -77,6 +77,22 @@ const siteSettingsSchema = new mongoose.Schema({
   site_subtitle: { type: String, default: 'बीजेएमसी न्यूज़' },
   site_title: { type: String, default: 'ALOK - बीजेएमसी न्यूज़' },
   site_description: { type: String, default: 'बीजेएमसी न्यूज़रूम - आपकी खबरों का भरोसेमंद स्रोत' },
+  campaign: {
+    enabled: { type: Boolean, default: false },
+    mode: { type: String, default: 'banner' },
+    title: { type: String, default: '' },
+    subtitle: { type: String, default: '' },
+    description: { type: String, default: '' },
+    ctaText: { type: String, default: '' },
+    ctaUrl: { type: String, default: '' },
+    mediaType: { type: String, default: 'none' },
+    mediaUrl: { type: String, default: '' },
+    startAt: { type: String, default: '' },
+    endAt: { type: String, default: '' },
+    dismissHours: { type: Number, default: 24 },
+    allowDismiss: { type: Boolean, default: true },
+    openInNewTab: { type: Boolean, default: true },
+  },
 }, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
 
 siteSettingsSchema.set('toJSON', {
@@ -136,6 +152,22 @@ export const initDb = async () => {
         site_subtitle: 'बीजेएमसी न्यूज़',
         site_title: 'ALOK - बीजेएमसी न्यूज़',
         site_description: 'बीजेएमसी न्यूज़रूम - आपकी खबरों का भरोसेमंद स्रोत',
+        campaign: {
+          enabled: false,
+          mode: 'banner',
+          title: '',
+          subtitle: '',
+          description: '',
+          ctaText: '',
+          ctaUrl: '',
+          mediaType: 'none',
+          mediaUrl: '',
+          startAt: '',
+          endAt: '',
+          dismissHours: 24,
+          allowDismiss: true,
+          openInNewTab: true,
+        },
       });
       console.log('✅ Default site settings created');
     }

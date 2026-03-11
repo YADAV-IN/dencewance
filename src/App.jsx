@@ -6,6 +6,7 @@ import { useDevice } from './hooks/useDevice';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { DesktopSidebar } from './components/DesktopSidebar';
 import { TranslationTool } from './components/TranslationTool';
+import { CampaignLayer } from './components/CampaignLayer';
 import { t, detectLanguage } from './translations';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://server-kappa-lac.vercel.app');
@@ -109,6 +110,37 @@ const formatDate = (iso) => {
 
 const getCurrentISOTime = () => {
   return new Date().toISOString();
+};
+
+const defaultCampaignSettings = {
+  enabled: false,
+  mode: 'banner',
+  title: '',
+  subtitle: '',
+  description: '',
+  ctaText: '',
+  ctaUrl: '',
+  mediaType: 'none',
+  mediaUrl: '',
+  startAt: '',
+  endAt: '',
+  dismissHours: 24,
+  allowDismiss: true,
+  openInNewTab: true,
+};
+
+const mergeCampaignSettings = (campaign = {}) => ({
+  ...defaultCampaignSettings,
+  ...(campaign || {}),
+});
+
+const isCampaignWithinTime = (campaign = {}) => {
+  const now = Date.now();
+  const start = campaign.startAt ? new Date(campaign.startAt).getTime() : null;
+  const end = campaign.endAt ? new Date(campaign.endAt).getTime() : null;
+  if (start && !Number.isNaN(start) && now < start) return false;
+  if (end && !Number.isNaN(end) && now > end) return false;
+  return true;
 };
 
 const extractYouTubeId = (url) => {
@@ -221,7 +253,8 @@ function App() {
     site_name: 'ALOK',
     site_subtitle: 'बीजेएमसी न्यूज़',
     site_title: 'ALOK - बीजेएमसी न्यूज़',
-    site_description: 'बीजेएमसी न्यूज़रूम - आपकी खबरों का भरोसेमंद स्रोत'
+    site_description: 'बीजेएमसी न्यूज़रूम - आपकी खबरों का भरोसेमंद स्रोत',
+    campaign: { ...defaultCampaignSettings },
   });
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [language, setLanguage] = useState(() => {
@@ -238,6 +271,7 @@ function App() {
   const [isApplyingCrop, setIsApplyingCrop] = useState(false);
   const [isAvatarDragActive, setIsAvatarDragActive] = useState(false);
   const [isCoverDragActive, setIsCoverDragActive] = useState(false);
+  const [dismissedCampaignKey, setDismissedCampaignKey] = useState('');
 
   const quillModules = useMemo(() => ({
     toolbar: [
@@ -318,6 +352,46 @@ function App() {
   const editorPreviewImage =
     resolveMediaUrl(newsForm.cover_image_url) ||
     'https://images.unsplash.com/photo-1495020689067-958852a7765e?q=80&w=900&auto=format&fit=crop';
+
+  const campaignConfig = useMemo(() => mergeCampaignSettings(siteSettings.campaign), [siteSettings.campaign]);
+
+  const campaignIdentity = useMemo(() => {
+    const keyParts = [
+      campaignConfig.title,
+      campaignConfig.startAt,
+      campaignConfig.endAt,
+      campaignConfig.mediaUrl,
+      campaignConfig.mode,
+    ];
+    return `campaign-${keyParts.join('|')}`;
+  }, [campaignConfig]);
+
+  const isCampaignVisible = useMemo(() => {
+    if (!campaignConfig.enabled) return false;
+    if (!isCampaignWithinTime(campaignConfig)) return false;
+    if (dismissedCampaignKey === campaignIdentity) return false;
+    return true;
+  }, [campaignConfig, dismissedCampaignKey, campaignIdentity]);
+
+  const isFullPageCampaign = isCampaignVisible && campaignConfig.mode === 'fullpage';
+
+  const updateCampaignField = (field, value) => {
+    setSiteSettings((prev) => ({
+      ...prev,
+      campaign: {
+        ...mergeCampaignSettings(prev.campaign),
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleDismissCampaign = () => {
+    const hours = Number(campaignConfig.dismissHours) > 0 ? Number(campaignConfig.dismissHours) : 24;
+    const expireAt = Date.now() + hours * 60 * 60 * 1000;
+    const payload = JSON.stringify({ key: campaignIdentity, expireAt });
+    localStorage.setItem('alok_campaign_dismiss', payload);
+    setDismissedCampaignKey(campaignIdentity);
+  };
 
   const renderEditorRail = () => (
     <aside className="editor-rail">
@@ -924,7 +998,11 @@ function App() {
         if (response.ok) {
           const payload = await response.json();
           if (payload.data) {
-            setSiteSettings(payload.data);
+            setSiteSettings((prev) => ({
+              ...prev,
+              ...payload.data,
+              campaign: mergeCampaignSettings(payload.data.campaign),
+            }));
             document.title = payload.data.site_title || 'ALOK - बीजेएमसी न्यूज़';
           }
         }
@@ -933,6 +1011,22 @@ function App() {
       }
     };
     loadSettings();
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('alok_campaign_dismiss');
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed?.key || !parsed?.expireAt) return;
+      if (Date.now() >= Number(parsed.expireAt)) {
+        localStorage.removeItem('alok_campaign_dismiss');
+        return;
+      }
+      setDismissedCampaignKey(parsed.key);
+    } catch (error) {
+      console.error('Failed to restore campaign dismiss state:', error);
+    }
   }, []);
 
   // Edit news handler
@@ -1094,6 +1188,15 @@ function App() {
 
   return (
     <div className="App">
+      <CampaignLayer campaign={isCampaignVisible ? campaignConfig : null} resolveMediaUrl={resolveMediaUrl} onDismiss={handleDismissCampaign} />
+      {isFullPageCampaign && adminToken && (
+        <button className="campaign-admin-exit" onClick={() => setShowSettingsModal(true)}>
+          Manage Campaign
+        </button>
+      )}
+
+      {!isFullPageCampaign && (
+        <>
       {/* Header */}
       <header className="header">
         <div className="header-content">
@@ -2556,6 +2659,148 @@ function App() {
                   onChange={(e) => setSiteSettings((prev) => ({ ...prev, site_description: e.target.value }))}
                 />
               </label>
+
+              <div className="campaign-settings-grid">
+                <h3>Campaign Control</h3>
+
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={campaignConfig.enabled}
+                    onChange={(e) => updateCampaignField('enabled', e.target.checked)}
+                  />
+                  <span>Enable campaign page/banner</span>
+                </label>
+
+                <div className="form-row">
+                  <label style={{ flex: 1 }}>
+                    Display mode
+                    <select
+                      value={campaignConfig.mode}
+                      onChange={(e) => updateCampaignField('mode', e.target.value)}
+                    >
+                      <option value="banner">Top Banner</option>
+                      <option value="fullpage">Full Page Takeover</option>
+                    </select>
+                  </label>
+                  <label style={{ flex: 1 }}>
+                    Media type
+                    <select
+                      value={campaignConfig.mediaType}
+                      onChange={(e) => updateCampaignField('mediaType', e.target.value)}
+                    >
+                      <option value="none">None</option>
+                      <option value="image">Image</option>
+                      <option value="video">Video</option>
+                    </select>
+                  </label>
+                </div>
+
+                <label>
+                  Campaign title
+                  <input
+                    value={campaignConfig.title}
+                    onChange={(e) => updateCampaignField('title', e.target.value)}
+                    placeholder="Exam Festival 2026"
+                  />
+                </label>
+
+                <label>
+                  Campaign subtitle
+                  <input
+                    value={campaignConfig.subtitle}
+                    onChange={(e) => updateCampaignField('subtitle', e.target.value)}
+                    placeholder="Limited time special"
+                  />
+                </label>
+
+                <label>
+                  Campaign description
+                  <textarea
+                    rows="2"
+                    value={campaignConfig.description}
+                    onChange={(e) => updateCampaignField('description', e.target.value)}
+                    placeholder="Share event updates, admission notices, or important announcements."
+                  />
+                </label>
+
+                <label>
+                  Media URL
+                  <input
+                    value={campaignConfig.mediaUrl}
+                    onChange={(e) => updateCampaignField('mediaUrl', e.target.value)}
+                    placeholder="https://..."
+                  />
+                </label>
+
+                <div className="form-row">
+                  <label style={{ flex: 1 }}>
+                    CTA text
+                    <input
+                      value={campaignConfig.ctaText}
+                      onChange={(e) => updateCampaignField('ctaText', e.target.value)}
+                      placeholder="Register Now"
+                    />
+                  </label>
+                  <label style={{ flex: 1 }}>
+                    CTA URL
+                    <input
+                      value={campaignConfig.ctaUrl}
+                      onChange={(e) => updateCampaignField('ctaUrl', e.target.value)}
+                      placeholder="https://example.com/event"
+                    />
+                  </label>
+                </div>
+
+                <div className="form-row">
+                  <label style={{ flex: 1 }}>
+                    Start time
+                    <input
+                      type="datetime-local"
+                      value={campaignConfig.startAt ? campaignConfig.startAt.slice(0, 16) : ''}
+                      onChange={(e) => updateCampaignField('startAt', e.target.value ? new Date(e.target.value).toISOString() : '')}
+                    />
+                  </label>
+                  <label style={{ flex: 1 }}>
+                    End time
+                    <input
+                      type="datetime-local"
+                      value={campaignConfig.endAt ? campaignConfig.endAt.slice(0, 16) : ''}
+                      onChange={(e) => updateCampaignField('endAt', e.target.value ? new Date(e.target.value).toISOString() : '')}
+                    />
+                  </label>
+                </div>
+
+                <div className="form-row">
+                  <label style={{ flex: 1 }}>
+                    Dismiss cooldown (hours)
+                    <input
+                      type="number"
+                      min="1"
+                      max="168"
+                      value={campaignConfig.dismissHours}
+                      onChange={(e) => updateCampaignField('dismissHours', Number(e.target.value) || 24)}
+                    />
+                  </label>
+                  <label className="switch" style={{ flex: 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={campaignConfig.allowDismiss}
+                      onChange={(e) => updateCampaignField('allowDismiss', e.target.checked)}
+                    />
+                    <span>Allow dismiss</span>
+                  </label>
+                </div>
+
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={campaignConfig.openInNewTab}
+                    onChange={(e) => updateCampaignField('openInNewTab', e.target.checked)}
+                  />
+                  <span>Open CTA in new tab</span>
+                </label>
+              </div>
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button className="btn-primary" type="submit">
                   सेटिंग्स सेव करें
@@ -2579,6 +2824,8 @@ function App() {
         onClose={() => setShowTranslationTool(false)}
         language={language}
       />
+        </>
+      )}
     </div>
   );
 }
