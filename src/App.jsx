@@ -1441,6 +1441,34 @@ function App() {
     loadReels();
   }, []);
 
+  // Auto-cleanup junk reels (base64/blob) stored before Cloudinary was configured
+  useEffect(() => {
+    if (!adminToken) return;
+    const cleanupJunk = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/reels/cleanup-junk`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.data?.deleted > 0) {
+            console.info(`[Cleanup] Removed ${data.data.deleted} junk reel(s):`, data.data.titles);
+            // Reload reels after cleanup
+            const reloadRes = await fetch(`${API_URL}/api/reels?limit=80`);
+            if (reloadRes.ok) {
+              const reload = await reloadRes.json();
+              setReels(Array.isArray(reload.data) ? reload.data : []);
+            }
+          }
+        }
+      } catch (e) {
+        // Silent — cleanup is best-effort
+      }
+    };
+    cleanupJunk();
+  }, [adminToken]);
+
   // Load site settings
   useEffect(() => {
     const loadSettings = async () => {

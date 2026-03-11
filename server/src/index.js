@@ -24,14 +24,25 @@ const hasCloudinaryConfig =
     !!process.env.CLOUDINARY_API_KEY &&
     !!process.env.CLOUDINARY_API_SECRET);
 
-// We parse the Cloudinary config straight from the URL if CLOUDINARY_URL is present
-// Otherwise it tries to extract it from individual variables if defined
+// Configure Cloudinary: prefer explicit vars, fall back to URL parse
 if (process.env.CLOUDINARY_CLOUD_NAME) {
   cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET,
   });
+} else if (process.env.CLOUDINARY_URL) {
+  // Parse cloudinary://api_key:api_secret@cloud_name
+  try {
+    const url = new URL(process.env.CLOUDINARY_URL);
+    cloudinary.config({
+      cloud_name: url.host,
+      api_key: url.username,
+      api_secret: url.password,
+    });
+  } catch (e) {
+    console.error('Failed to parse CLOUDINARY_URL:', e.message);
+  }
 }
 
 const storage = hasCloudinaryConfig
@@ -39,13 +50,19 @@ const storage = hasCloudinaryConfig
       cloudinary: cloudinary,
       params: async (req, file) => {
         let folder = 'covers';
-        if (file.fieldname === 'avatar') folder = 'avatars';
-        else if (file.fieldname === 'media') folder = 'media';
+        let resource_type = 'image';
+        if (file.fieldname === 'avatar') {
+          folder = 'avatars';
+          resource_type = 'image';
+        } else if (file.fieldname === 'media') {
+          folder = 'media';
+          resource_type = 'auto'; // handles video, audio, image
+        }
 
         return {
           folder: `alok/${folder}`,
-          allowed_formats: ['jpg', 'png', 'jpeg', 'webp', 'mp4', 'webm', 'mp3'],
-          resource_type: 'auto', // for videos/audio
+          resource_type,
+          allowed_formats: ['jpg', 'png', 'jpeg', 'webp', 'mp4', 'webm', 'mov', 'avi', 'mp3'],
         };
       },
     })
@@ -53,7 +70,7 @@ const storage = hasCloudinaryConfig
 
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB max
 });
 
 app.use(cors({
@@ -549,15 +566,66 @@ app.post('/api/uploads/media', requireAuth, upload.single('media'), async (req, 
   if (!req.file) return res.status(400).json({ error: 'No media file uploaded.' });
 
   if (hasCloudinaryConfig) {
-    return res.json({ data: { url: req.file.path } });
+    // Cloudinary returns the full URL in req.file.path
+    const fileInfo = {
+      url: req.file.path,
+      public_id: req.file.filename || '',
+      resource_type: req.file.resource_type || 'auto',
+      format: req.file.format || '',
+      size: req.file.size || 0,
+      original_name: req.file.originalname || '',
+    };
+    return res.json({ data: fileInfo });
   }
 
+  // No Cloudinary: only allow small files as base64 fallback
   if (req.file.size > 4 * 1024 * 1024) {
-    return res.status(413).json({ error: 'File too large without Cloudinary. Use <= 4MB or paste a remote URL.' });
+    return res.status(413).json({
+      error: 'Cloudinary not configured. Without Cloudinary, max file size is 4MB. Large video uploads require Cloudinary.',
+    });
   }
 
   const dataUrl = `data:${req.file.mimetype || 'application/octet-stream'};base64,${req.file.buffer.toString('base64')}`;
-  return res.json({ data: { url: dataUrl } });
+  return res.json({ data: { url: dataUrl, original_name: req.file.originalname, size: req.file.size } });
+});
+
+// ── Cleanup: delete all reels with base64/blob video_urls (junk data before Cloudinary) ──
+app.delete('/api/reels/cleanup-junk', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || currentUser.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required.' });
+    }
+
+    // Find all reels with local/base64/blob video_url
+    const junkReels = await Reel.find({
+      $or: [
+        { video_url: /^data:/ },           // base64 encoded
+        { video_url: /^blob:/ },           // blob URL (useless server-side)
+        { video_url: /^local-/ },          // local temp ids
+        { video_url: '' },                 // empty video
+      ]
+    }).lean();
+
+    if (junkReels.length === 0) {
+      return res.json({ data: { deleted: 0, message: 'No junk reels found.' } });
+    }
+
+    // Attempt to delete each from Cloudinary if public_id is traceable
+    const deletedIds = junkReels.map(r => r._id);
+    await Reel.deleteMany({ _id: { $in: deletedIds } });
+
+    return res.json({
+      data: {
+        deleted: junkReels.length,
+        titles: junkReels.map(r => r.title),
+        message: `${junkReels.length} junk reel(s) cleaned from database.`,
+      },
+    });
+  } catch (error) {
+    console.error('Cleanup error:', error);
+    return res.status(500).json({ error: 'Cleanup failed: ' + error.message });
+  }
 });
 
 app.get('/api/settings', async (req, res) => {
