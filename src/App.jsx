@@ -94,6 +94,41 @@ const demoNews = [
   },
 ];
 
+const demoReels = [
+  {
+    id: 'reel-demo-1',
+    title: 'Campus Night Bulletin',
+    slug: 'campus-night-bulletin',
+    caption: 'Prime-time rundown in vertical format.',
+    video_url: 'https://www.youtube.com/embed/ysz5S6PUM-U',
+    cover_image_url: 'https://images.unsplash.com/photo-1495020689067-958852a7765e?q=80&w=900&auto=format&fit=crop',
+    creator_name: 'ALOK Creator',
+    creator_handle: 'aloklive',
+    tags: ['campus', 'bulletin'],
+    views: 18240,
+    likes: 4120,
+    shares: 730,
+    status: 'published',
+    published_at: '2026-03-01T10:30:00.000Z',
+  },
+  {
+    id: 'reel-demo-2',
+    title: 'Media Lab Rapid Update',
+    slug: 'media-lab-rapid-update',
+    caption: 'Fast reel report from the studio floor.',
+    video_url: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    cover_image_url: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=900&auto=format&fit=crop',
+    creator_name: 'Studio Desk',
+    creator_handle: 'studiodesk',
+    tags: ['studio', 'update'],
+    views: 9450,
+    likes: 2100,
+    shares: 302,
+    status: 'published',
+    published_at: '2026-03-02T11:10:00.000Z',
+  },
+];
+
 const formatDate = (iso) => {
   if (!iso) return '';
   const date = new Date(iso);
@@ -110,6 +145,47 @@ const formatDate = (iso) => {
 
 const getCurrentISOTime = () => {
   return new Date().toISOString();
+};
+
+const slugifyText = (value = '') => value
+  .toString()
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9\u0900-\u097f]+/g, '-')
+  .replace(/^-+|-+$/g, '') || 'story';
+
+const getStorySlug = (item) => item?.slug || slugifyText(item?.title || 'story');
+
+const getReelSlug = (item) => getStorySlug(item);
+
+const formatCompactNumber = (value = 0) => new Intl.NumberFormat('en', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+}).format(Math.max(0, Number(value) || 0));
+
+const getRouteSnapshot = () => {
+  if (typeof window === 'undefined') {
+    return { pathname: '/', search: '' };
+  }
+
+  const pathname = window.location.pathname.replace(/\/$/, '') || '/';
+  return {
+    pathname,
+    search: window.location.search || '',
+  };
+};
+
+const resolvePageKey = (pathname) => {
+  if (pathname === '/' || pathname === '') return 'home';
+  if (pathname === '/latest') return 'latest';
+  if (pathname === '/trending') return 'trending';
+  if (pathname.startsWith('/videos/reel/')) return 'reel';
+  if (pathname === '/videos') return 'videos';
+  if (pathname === '/categories') return 'categories';
+  if (pathname === '/features') return 'features';
+  if (pathname === '/workspace') return 'workspace';
+  if (pathname.startsWith('/story/')) return 'story';
+  return 'home';
 };
 
 const defaultCampaignSettings = {
@@ -191,8 +267,12 @@ function App() {
   const avatarInputRef = useRef(null);
   const coverInputRef = useRef(null);
   const sectionRefs = useRef({});
+  const reelsContainerRef = useRef(null);
+  const videoFileInputRef = useRef(null);
+  const reelUploadInputRef = useRef(null);
   const device = useDevice();
   const [news, setNews] = useState([]);
+  const [reels, setReels] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [selectedStory, setSelectedStory] = useState(null);
   const [status, setStatus] = useState({ state: 'idle', message: '' });
@@ -202,9 +282,20 @@ function App() {
   const [adminPasswords, setAdminPasswords] = useState({});
   const [showAdmin, setShowAdmin] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
+  const [activeReelIndex, setActiveReelIndex] = useState(0);
+  const [reelsMuted, setReelsMuted] = useState(true);
+  const [videoUploadState, setVideoUploadState] = useState({ state: 'idle', message: '' });
+  const [followedCreators, setFollowedCreators] = useState(() => {
+    try {
+      const raw = localStorage.getItem('alok_reel_follows');
+      return raw ? JSON.parse(raw) : [];
+    } catch (error) {
+      return [];
+    }
+  });
   const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: 'author', bio: '' });
   const [editingUser, setEditingUser] = useState(null);
-  const [activePage, setActivePage] = useState('होम');
+  const [routeState, setRouteState] = useState(() => getRouteSnapshot());
   const [activeCategory, setActiveCategory] = useState('सभी');
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [loginState, setLoginState] = useState({ state: 'idle', message: '' });
@@ -275,6 +366,26 @@ function App() {
   const [isCoverDragActive, setIsCoverDragActive] = useState(false);
   const [dismissedCampaignKey, setDismissedCampaignKey] = useState('');
 
+  const currentPath = routeState.pathname;
+  const currentSearch = routeState.search;
+  const currentPageKey = useMemo(() => resolvePageKey(currentPath), [currentPath]);
+  const isStoryPage = currentPageKey === 'story';
+  const isReelPage = currentPageKey === 'reel';
+  const isWorkspacePage = currentPageKey === 'workspace';
+
+  const navigateTo = (targetPath, { replace = false } = {}) => {
+    if (typeof window === 'undefined') return;
+    const nextPath = targetPath || '/';
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    if (nextPath === currentUrl) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    window.history[replace ? 'replaceState' : 'pushState']({}, '', nextPath);
+    setRouteState(getRouteSnapshot());
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const featureGroups = useMemo(() => ([
     {
       title: 'Content Studio',
@@ -333,10 +444,6 @@ function App() {
 
   const featuredNews = useMemo(() => {
     return news.filter((item) => item.is_featured);
-  }, [news]);
-
-  const videoNews = useMemo(() => {
-    return news.filter((item) => item.video_url);
   }, [news]);
 
   const imageNews = useMemo(() => {
@@ -406,16 +513,92 @@ function App() {
   const isFullPageCampaign = isCampaignVisible && campaignConfig.mode === 'fullpage';
 
   const navItems = useMemo(() => ([
-    { key: 'latest', label: t('latestNews', language) },
-    { key: 'categories', label: t('categories', language) },
-    { key: 'videos', label: t('videoStories', language) },
-    { key: 'featureHub', label: 'Feature Hub' },
+    { key: 'latest', label: t('latestNews', language), path: '/latest' },
+    { key: 'trending', label: t('trending', language), path: '/trending' },
+    { key: 'videos', label: t('videoStories', language), path: '/videos' },
+    { key: 'categories', label: t('categories', language), path: '/categories' },
+    { key: 'features', label: 'Feature Hub', path: '/features' },
   ]), [language]);
 
-  const scrollToSection = (key) => {
-    const node = sectionRefs.current[key];
-    if (!node) return;
-    node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const mobileNavItems = useMemo(() => ([
+    { key: 'home', label: t('home', language), icon: '⌂', path: '/' },
+    { key: 'trending', label: t('trending', language), icon: '◉', path: '/trending' },
+    { key: 'videos', label: t('videoStories', language), icon: '▷', path: '/videos' },
+    { key: 'categories', label: t('categories', language), icon: '□', path: '/categories' },
+    { key: 'workspace', label: adminToken ? 'Panel' : t('login', language), icon: adminToken ? '✦' : '○', path: '/workspace' },
+  ]), [adminToken, language]);
+
+  const storySlug = useMemo(() => {
+    if (!currentPath.startsWith('/story/')) return '';
+    return decodeURIComponent(currentPath.replace('/story/', ''));
+  }, [currentPath]);
+
+  const reelSlug = useMemo(() => {
+    if (!currentPath.startsWith('/videos/reel/')) return '';
+    return decodeURIComponent(currentPath.replace('/videos/reel/', ''));
+  }, [currentPath]);
+
+  const routeStory = useMemo(() => {
+    if (!storySlug) return null;
+    const allStories = [...news, ...demoNews];
+    return allStories.find((item) => getStorySlug(item) === storySlug) || null;
+  }, [news, storySlug]);
+
+  const routeReel = useMemo(() => {
+    if (!reelSlug) return null;
+    const allReels = [...reels, ...demoReels].filter((item) => item.video_url);
+    return allReels.find((item) => getReelSlug(item) === reelSlug) || null;
+  }, [reels, reelSlug]);
+
+  const openStory = (item) => {
+    if (!item) return;
+    navigateTo(`/story/${encodeURIComponent(getStorySlug(item))}`);
+  };
+
+  const getReelPath = (item) => `/videos/reel/${encodeURIComponent(getReelSlug(item))}`;
+
+  const openReel = (item) => {
+    if (!item) return;
+    navigateTo(getReelPath(item));
+  };
+
+  const shareReel = async (item) => {
+    if (!item || typeof window === 'undefined') return;
+    const shareUrl = `${window.location.origin}${getReelPath(item)}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: item.title, text: item.excerpt || item.title, url: shareUrl });
+        return;
+      } catch (error) {
+        // fall back to clipboard copy
+      }
+    }
+    await navigator.clipboard?.writeText(shareUrl);
+    setVideoUploadState({ state: 'online', message: 'Reel link copy ho gaya.' });
+  };
+
+  const openCategoryPage = (category) => {
+    const allCategoriesLabel = t('allCategories', language);
+    const search = category && category !== allCategoriesLabel
+      ? `?category=${encodeURIComponent(category)}`
+      : '';
+    navigateTo(`/categories${search}`);
+  };
+
+  const openWorkspace = () => {
+    setShowAdmin(true);
+    navigateTo('/workspace');
+  };
+
+  const getCreatorKey = (item) => slugifyText(item?.author_name || item?.source || siteSettings.site_name || 'creator');
+
+  const toggleFollowCreator = (item) => {
+    const creatorKey = getCreatorKey(item);
+    setFollowedCreators((prev) => (
+      prev.includes(creatorKey)
+        ? prev.filter((entry) => entry !== creatorKey)
+        : [...prev, creatorKey]
+    ));
   };
 
   const setSectionRef = (key) => (node) => {
@@ -590,6 +773,110 @@ function App() {
     await openCropperForFile(file, 'cover');
   };
 
+  const uploadVideoAsset = async (file, { assignToForm = true } = {}) => {
+    if (!file) return null;
+
+    if (!adminToken) {
+      const blobUrl = URL.createObjectURL(file);
+      if (assignToForm) {
+        setNewsForm((prev) => ({ ...prev, video_url: blobUrl }));
+      }
+      setVideoUploadState({ state: 'preview', message: 'Local preview ready hai. Publish ke liye login karein.' });
+      return blobUrl;
+    }
+
+    setVideoUploadState({ state: 'loading', message: 'Video upload ho raha hai...' });
+    setStatus({ state: 'loading', message: 'वीडियो अपलोड हो रहा है...' });
+
+    const formData = new FormData();
+    formData.append('media', file);
+
+    try {
+      const response = await fetch(`${API_URL}/api/uploads/media`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: formData,
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Upload failed');
+
+      if (assignToForm) {
+        setNewsForm((prev) => ({ ...prev, video_url: payload.data.url }));
+      }
+      setVideoUploadState({ state: 'online', message: 'Video successfully uploaded and ready.' });
+      setStatus({ state: 'online', message: 'वीडियो सफलतापूर्वक अपलोड हो गया।' });
+      return payload.data.url;
+    } catch (error) {
+      console.error(error);
+      setVideoUploadState({ state: 'error', message: 'Video upload fail ho gaya.' });
+      setStatus({ state: 'error', message: 'वीडियो अपलोड फेल हो गया।' });
+      return null;
+    }
+  };
+
+  const handleVideoFileUpload = async (event) => {
+    const file = event.target.files?.[0];
+    await uploadVideoAsset(file);
+    event.target.value = '';
+  };
+
+  const handleReelFileUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const uploadedUrl = await uploadVideoAsset(file, { assignToForm: false });
+    event.target.value = '';
+    if (!uploadedUrl) return;
+
+    const baseTitle = file.name.replace(/\.[^/.]+$/, '') || 'Untitled Reel';
+    const nextReelPayload = {
+      title: baseTitle,
+      caption: `Fresh upload: ${baseTitle}`,
+      video_url: uploadedUrl,
+      creator_name: siteSettings.site_name || 'ALOK Creator',
+      creator_handle: 'aloklive',
+      tags: ['upload'],
+      status: 'published',
+      published_at: new Date().toISOString(),
+    };
+
+    if (adminToken) {
+      try {
+        const response = await fetch(`${API_URL}/api/reels`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify(nextReelPayload),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Reel save failed');
+        setReels((prev) => [payload.data, ...prev]);
+        setVideoUploadState({ state: 'online', message: 'Reel uploaded and saved in reels database.' });
+        openReel(payload.data);
+        return;
+      } catch (error) {
+        setStatus({ state: 'error', message: error.message || 'Reel save failed' });
+      }
+    }
+
+    const localReel = {
+      ...nextReelPayload,
+      id: `local-${Date.now()}`,
+      slug: `${baseTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`,
+      views: 0,
+      likes: 0,
+      shares: 0,
+      is_active: 1,
+    };
+    setReels((prev) => [localReel, ...prev]);
+    setVideoUploadState({ state: 'preview', message: 'Reel locally added. Publish ke liye backend login karein.' });
+    openReel(localReel);
+  };
+
   const applyCroppedImage = async () => {
     if (!cropper.open || !cropper.src) return;
     setIsApplyingCrop(true);
@@ -667,12 +954,10 @@ function App() {
         const list = payload.data || [];
         setNews(list);
         setFeatured(list.filter((item) => item.is_featured));
-        setSelectedStory(null);
         setStatus({ state: 'online', message: 'डेटा कनेक्शन स्थिर है।' });
       } catch (error) {
         setNews(demoNews);
         setFeatured(demoNews.filter((item) => item.is_featured));
-        setSelectedStory(null);
         setStatus({ state: 'offline', message: 'लोकल डेमो डेटा चल रहा है।' });
       }
     };
@@ -756,6 +1041,7 @@ function App() {
         email: payload.data.profile.email || '',
       });
       setShowAdmin(true);
+      navigateTo('/workspace');
       setLoginState({ state: 'success', message: 'लॉगिन सफल है।' });
     } catch (error) {
       const message =
@@ -772,7 +1058,9 @@ function App() {
   const handleLogout = () => {
     setAdminToken('');
     setAdminProfile(null);
+    setShowAdmin(false);
     localStorage.removeItem('alok_token');
+    navigateTo('/');
   };
 
   // User Management Functions
@@ -1013,6 +1301,12 @@ function App() {
     const file = event.target.files?.[0];
     if (!file || !adminToken) return;
 
+    if (field === 'video_url') {
+      await uploadVideoAsset(file);
+      event.target.value = '';
+      return;
+    }
+
     setStatus({ state: 'loading', message: 'फाइल अपलोड हो रही है...' });
 
     const formData = new FormData();
@@ -1036,6 +1330,21 @@ function App() {
       setStatus({ state: 'error', message: 'फाइल अपलोड फेल हो गया।' });
     }
   };
+
+  useEffect(() => {
+    const loadReels = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/reels?limit=80`);
+        if (!response.ok) throw new Error('Reels API unavailable');
+        const payload = await response.json();
+        setReels(Array.isArray(payload.data) ? payload.data : []);
+      } catch (error) {
+        setReels(demoReels);
+      }
+    };
+
+    loadReels();
+  }, []);
 
   // Load site settings
   useEffect(() => {
@@ -1230,13 +1539,90 @@ function App() {
     localStorage.setItem('alok_theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    const handlePopState = () => {
+      setRouteState(getRouteSnapshot());
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Reels: IntersectionObserver for active reel detection + native video play/pause
+  useEffect(() => {
+    if (currentPageKey !== 'videos') {
+      setActiveReelIndex(0);
+      return;
+    }
+    const container = reelsContainerRef.current;
+    if (!container) return;
+    const frames = Array.from(container.querySelectorAll('.reel-frame'));
+    if (!frames.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const videoEl = entry.target.querySelector('video');
+          if (videoEl) {
+            if (entry.isIntersecting) {
+              videoEl.play().catch(() => {});
+            } else {
+              videoEl.pause();
+            }
+          }
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+            const idx = parseInt(entry.target.dataset.reelIdx, 10);
+            if (!isNaN(idx)) setActiveReelIndex(idx);
+          }
+        });
+      },
+      { root: container, threshold: 0.5 }
+    );
+    frames.forEach((f) => observer.observe(f));
+    return () => observer.disconnect();
+  }, [currentPageKey, reels.length]);
+
+  // Sync mute state to all native video elements in reels
+  useEffect(() => {
+    if (currentPageKey !== 'videos' || !reelsContainerRef.current) return;
+    reelsContainerRef.current.querySelectorAll('video').forEach((v) => { v.muted = reelsMuted; });
+  }, [reelsMuted, currentPageKey]);
+
+  useEffect(() => {
+    setShowAdmin(isWorkspacePage);
+  }, [isWorkspacePage]);
+
+  useEffect(() => {
+    if (currentPageKey !== 'categories') return;
+    const params = new URLSearchParams(currentSearch);
+    const nextCategory = params.get('category');
+    setActiveCategory(nextCategory || t('allCategories', language));
+  }, [currentPageKey, currentSearch, language]);
+
+  useEffect(() => {
+    if (isStoryPage) {
+      setSelectedStory(routeStory);
+      return;
+    }
+    setSelectedStory(null);
+  }, [isStoryPage, routeStory]);
+
+  useEffect(() => {
+    localStorage.setItem('alok_reel_follows', JSON.stringify(followedCreators));
+  }, [followedCreators]);
+
   // Breaking news: Manual (is_breaking) या Automatic (latest 5)
   const breakingNews = news.filter((item) => item.is_breaking);
   const tickerItems = breakingNews.length > 0 ? breakingNews.slice(0, 5) : news.slice(0, 5);
 
   const heroStory = featured[0] || news[0];
-  const videoStory = news.find((item) => item.video_url) || demoNews[0];
-  const videoId = extractYouTubeId(videoStory.video_url);
+  const reelItems = reels.length > 0 ? reels : demoReels;
+  const reelPageItem = routeReel || reelItems[0] || null;
+  const reelCreatorName = reelPageItem?.creator_name || reelPageItem?.author_name || reelPageItem?.source || siteSettings.site_name || 'ALOK Creator';
+  const reelCreatorKey = reelPageItem ? getCreatorKey(reelPageItem) : '';
+  const isFollowingReelCreator = reelCreatorKey ? followedCreators.includes(reelCreatorKey) : false;
+  const reelFollowers = formatCompactNumber((reelPageItem?.views || 0) * 6 + 1200);
+  const reelLikes = formatCompactNumber(reelPageItem?.likes ?? ((reelPageItem?.views || 0) * 2 + 180));
+  const reelShares = formatCompactNumber(reelPageItem?.shares ?? (Math.round((reelPageItem?.views || 0) * 0.18) + 24));
 
   return (
     <div className="App">
@@ -1252,7 +1638,12 @@ function App() {
       {/* Header */}
       <header className="header">
         <div className="header-content">
-          <div className="logo-section">
+          <div className="logo-section logo-button" onClick={() => navigateTo('/')} role="button" tabIndex={0} onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              navigateTo('/');
+            }
+          }}>
             <span className="logo-dot"></span>
             <div>
               <h1>{siteSettings.site_name || 'ALOK'}</h1>
@@ -1269,13 +1660,6 @@ function App() {
             )}
           </div>
           <div className="header-actions">
-            <button
-              className="theme-toggle-btn"
-              onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
-              title={theme === 'dark' ? 'Switch to day mode' : 'Switch to night mode'}
-            >
-              {theme === 'dark' ? '☀️ Day' : '🌙 Night'}
-            </button>
             <button
               className="translation-tool-btn"
               onClick={() => setShowTranslationTool(true)}
@@ -1299,15 +1683,28 @@ function App() {
                 EN
               </button>
             </div>
-            <button className="btn-secondary" onClick={() => setShowAdmin((prev) => !prev)}>
-              {adminToken ? `⚙️ ${t('admin', language)}` : `🔐 ${t('login', language)}`}
+            <button className="btn-secondary" onClick={openWorkspace}>
+              <span className="admin-btn-icon">{adminToken ? '⚙️' : '🔐'}</span>
+              <span className="admin-btn-label">{adminToken ? t('admin', language) : t('login', language)}</span>
+            </button>
+            <button
+              className="theme-toggle-btn header-theme-btn"
+              onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+              title={theme === 'dark' ? 'Switch to day mode' : 'Switch to night mode'}
+            >
+              <span className="theme-toggle-icon">{theme === 'dark' ? '☀️' : '🌙'}</span>
+              <span className="theme-toggle-label">{theme === 'dark' ? 'Day' : 'Night'}</span>
             </button>
           </div>
         </div>
         <div className="command-nav-row">
           <nav className="command-nav">
             {navItems.map((item) => (
-              <button key={item.key} className="command-nav-item" onClick={() => scrollToSection(item.key)}>
+              <button
+                key={item.key}
+                className={`command-nav-item ${currentPageKey === item.key || (currentPageKey === 'reel' && item.key === 'videos') ? 'active' : ''}`}
+                onClick={() => navigateTo(item.path)}
+              >
                 {item.label}
               </button>
             ))}
@@ -1324,7 +1721,7 @@ function App() {
               {tickerItems.concat(tickerItems).map((item, index) => (
                 <span
                   key={`${item.id}-${index}`}
-                  onClick={() => setSelectedStory(item)}
+                  onClick={() => openStory(item)}
                   className="ticker-item"
                 >
                   {item.title}
@@ -1335,207 +1732,567 @@ function App() {
         </section>
       )}
 
-      <div style={{ display: device.isDesktop ? 'grid' : 'block', gridTemplateColumns: device.isDesktop ? '1fr 320px' : '1fr', gap: '24px' }}>
+      <div style={{ display: device.isDesktop && !isStoryPage && !isReelPage ? 'grid' : 'block', gridTemplateColumns: device.isDesktop && !isStoryPage && !isReelPage ? '1fr 320px' : '1fr', gap: '24px' }}>
         {/* Main Content */}
         <main className="main-content">
-          {/* Featured Story */}
-          {heroStory && (
-            <section className="featured-story">
-              <div className="story-image" style={{ backgroundImage: `url(${resolveMediaUrl(heroStory.cover_image_url)})` }}>
-                {adminToken && (
-                  <div className="featured-edit-actions">
-                    <button
-                      className="edit-icon-btn"
-                      onClick={(e) => { e.stopPropagation(); handleEditNews(heroStory); }}
-                      title="संपादित करें"
-                    >
-                      ✏️
-                    </button>
-                  </div>
-                )}
-                <div className="story-overlay">
-                  <span className="story-badge">{heroStory.category}</span>
-                  <h2>{heroStory.title}</h2>
-                  <p>{heroStory.excerpt}</p>
-                  <button className="btn-primary" onClick={() => setSelectedStory(heroStory)}>
-                    {t('readFullStory', language)}
-                  </button>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* Latest Stories Grid */}
-          <section className="stories-section" ref={setSectionRef('latest')}>
-            <div className="section-header">
-              <h2>{t('latestNews', language)}</h2>
-              <p>{t('todayHeadlines', language)}</p>
-            </div>
-            <div className="stories-grid">
-              {news.slice(0, 6).map((item) => (
-                <article key={item.id} className="story-card">
-                  <div className="card-image" style={{ backgroundImage: `url(${resolveMediaUrl(item.cover_image_url)})` }}>
+          {currentPageKey === 'home' && (
+            <>
+              {heroStory && (
+                <section className="featured-story">
+                  <div className="story-image" style={{ backgroundImage: `url(${resolveMediaUrl(heroStory.cover_image_url)})` }}>
                     {adminToken && (
-                      <div className="card-edit-actions">
+                      <div className="featured-edit-actions">
                         <button
                           className="edit-icon-btn"
-                          onClick={(e) => { e.stopPropagation(); handleEditNews(item); }}
+                          onClick={(e) => { e.stopPropagation(); handleEditNews(heroStory); }}
                           title="संपादित करें"
                         >
                           ✏️
                         </button>
-                        <button
-                          className="delete-icon-btn"
-                          onClick={(e) => { e.stopPropagation(); handleDeleteNews(item.id); }}
-                          title="हटाएं"
-                        >
-                          🗑️
-                        </button>
                       </div>
                     )}
-                  </div>
-                  <div className="card-content" onClick={() => setSelectedStory(item)}>
-                    <span className="card-category">{item.category}</span>
-                    <h3>{item.title}</h3>
-                    <p>{item.excerpt}</p>
-                    <div className="card-meta">
-                      <span>{item.reading_time} {t('min', language)}</span>
-                      <span>{item.views} {t('views', language)}</span>
+                    <div className="story-overlay">
+                      <span className="story-badge">{heroStory.category}</span>
+                      <h2>{heroStory.title}</h2>
+                      <p>{heroStory.excerpt}</p>
+                      <button className="btn-primary" onClick={() => openStory(heroStory)}>
+                        {t('readFullStory', language)}
+                      </button>
                     </div>
                   </div>
-                </article>
-              ))}
-            </div>
-          </section>
+                </section>
+              )}
 
-          {/* Categories */}
-          <section className="categories-section" ref={setSectionRef('categories')}>
-            <div className="section-header">
-              <h2>{t('categories', language)}</h2>
-            </div>
-            <div className="categories-grid">
-              {categories
-                .filter((cat) => cat !== t('allCategories', language))
-                .slice(0, 4)
-                .map((cat) => (
-                  <button
-                    key={cat}
-                    className="category-btn"
-                    onClick={() => {
-                      setActiveCategory(cat);
-                      setActivePage(t('featured', language));
-                    }}
-                  >
-                    <span>{cat}</span>
-                    <small>{news.filter((n) => n.category === cat).length} {t('stories', language)}</small>
-                  </button>
-                ))}
-            </div>
-          </section>
+              <section className="stories-section">
+                <div className="section-header">
+                  <h2>{t('latestNews', language)}</h2>
+                  <p>{t('todayHeadlines', language)}</p>
+                </div>
+                <div className="stories-grid">
+                  {news.slice(0, 6).map((item) => (
+                    <article key={item.id} className="story-card">
+                      <div className="card-image" style={{ backgroundImage: `url(${resolveMediaUrl(item.cover_image_url)})` }}>
+                        {adminToken && (
+                          <div className="card-edit-actions">
+                            <button
+                              className="edit-icon-btn"
+                              onClick={(e) => { e.stopPropagation(); handleEditNews(item); }}
+                              title="संपादित करें"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              className="delete-icon-btn"
+                              onClick={(e) => { e.stopPropagation(); handleDeleteNews(item.id); }}
+                              title="हटाएं"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="card-content" onClick={() => openStory(item)}>
+                        <span className="card-category">{item.category}</span>
+                        <h3>{item.title}</h3>
+                        <p>{item.excerpt}</p>
+                        <div className="card-meta">
+                          <span>{item.reading_time} {t('min', language)}</span>
+                          <span>{item.views} {t('views', language)}</span>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
 
-          {/* Videos */}
-          {videoNews.length > 0 && (
-            <section className="videos-section" ref={setSectionRef('videos')}>
-              <div className="section-header">
-                <h2>{t('videoStories', language)}</h2>
+              <section className="categories-section">
+                <div className="section-header">
+                  <h2>{t('categories', language)}</h2>
+                </div>
+                <div className="categories-grid">
+                  {categories
+                    .filter((cat) => cat !== t('allCategories', language))
+                    .slice(0, 4)
+                    .map((cat) => (
+                      <button
+                        key={cat}
+                        className="category-btn"
+                        onClick={() => openCategoryPage(cat)}
+                      >
+                        <span>{cat}</span>
+                        <small>{news.filter((n) => n.category === cat).length} {t('stories', language)}</small>
+                      </button>
+                    ))}
+                </div>
+              </section>
+
+              <section className="feature-hub-section">
+                <div className="section-header">
+                  <h2>Platform Feature Hub</h2>
+                  <p>All major capabilities grouped by their purpose.</p>
+                </div>
+                <div className="feature-hub-grid">
+                  {featureGroups.map((group) => (
+                    <article key={group.title} className="feature-hub-card">
+                      <h3>{group.title}</h3>
+                      <p>{group.description}</p>
+                      <div className="feature-badge-row">
+                        {group.badges.map((badge) => (
+                          <span key={badge}>{badge}</span>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </>
+          )}
+
+          {currentPageKey === 'latest' && (
+            <section className="page-shell">
+              <div className="page-hero">
+                <p className="page-kicker">Latest Desk</p>
+                <h2>{t('latestNews', language)}</h2>
+                <p>{t('todayHeadlines', language)}</p>
               </div>
-              <div className="videos-grid">
-                {videoNews.slice(0, 3).map((item) => (
-                  <div key={item.id} className="video-card" onClick={() => setSelectedStory(item)}>
-                    <div className="video-thumbnail" style={{ backgroundImage: `url(${resolveMediaUrl(item.cover_image_url)})` }}>
-                      <span className="play-icon">▶️</span>
-                    </div>
-                    <div className="video-info">
-                      <h4>{item.title}</h4>
-                      <small>{item.category}</small>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <section className="stories-section">
+                <div className="stories-grid">
+                  {news.map((item) => (
+                    <article key={item.id} className="story-card">
+                      <div className="card-image" style={{ backgroundImage: `url(${resolveMediaUrl(item.cover_image_url)})` }} />
+                      <div className="card-content" onClick={() => openStory(item)}>
+                        <span className="card-category">{item.category}</span>
+                        <h3>{item.title}</h3>
+                        <p>{item.excerpt}</p>
+                        <div className="card-meta">
+                          <span>{item.reading_time} {t('min', language)}</span>
+                          <span>{item.views} {t('views', language)}</span>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
             </section>
           )}
 
-          <section className="feature-hub-section" ref={setSectionRef('featureHub')}>
-            <div className="section-header">
-              <h2>Platform Feature Hub</h2>
-              <p>All major capabilities grouped by their purpose.</p>
-            </div>
-            <div className="feature-hub-grid">
-              {featureGroups.map((group) => (
-                <article key={group.title} className="feature-hub-card">
-                  <h3>{group.title}</h3>
-                  <p>{group.description}</p>
-                  <div className="feature-badge-row">
-                    {group.badges.map((badge) => (
-                      <span key={badge}>{badge}</span>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
+          {currentPageKey === 'trending' && (
+            <section className="page-shell">
+              <div className="page-hero">
+                <p className="page-kicker">Signal Board</p>
+                <h2>{t('trending', language)}</h2>
+                <p>Most-read aur fastest-rising stories ek dedicated page par.</p>
+              </div>
+              <section className="stories-section">
+                <div className="stories-grid">
+                  {trendingNews.map((item) => (
+                    <article key={item.id} className="story-card">
+                      <div className="card-image" style={{ backgroundImage: `url(${resolveMediaUrl(item.cover_image_url)})` }} />
+                      <div className="card-content" onClick={() => openStory(item)}>
+                        <span className="card-category">{item.category}</span>
+                        <h3>{item.title}</h3>
+                        <p>{item.excerpt}</p>
+                        <div className="card-meta">
+                          <span>{item.reading_time} {t('min', language)}</span>
+                          <span>{item.views} {t('views', language)}</span>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </section>
+          )}
 
-          {/* Story Detail Modal */}
-          {selectedStory && (
-            <section className="story-detail">
-              <button className="close-btn" onClick={() => setSelectedStory(null)}>✕</button>
-              <div className="detail-scroll-area">
-                <div className="detail-content">
-                  <span className="detail-category">{selectedStory.category}</span>
-                  <h2>{selectedStory.title}</h2>
-                  <div className="detail-meta">
-                    <span>{formatDate(selectedStory.published_at)}</span>
-                    <span>•</span>
-                    <span>{selectedStory.reading_time} मिन पढ़ें</span>
-                  </div>
-                  {selectedStory.cover_image_url && !selectedStory.video_url && (
-                    <div className="detail-image" style={{ backgroundImage: `url(${resolveMediaUrl(selectedStory.cover_image_url)})` }}></div>
-                  )}
-                  {selectedStory.video_url && (
-                    <div className="detail-video-container" style={{ marginBottom: '32px' }}>
-                      {selectedStory.video_url.includes('youtube.com') || selectedStory.video_url.includes('youtu.be') ? (
+          {currentPageKey === 'categories' && (
+            <section className="page-shell">
+              <div className="page-hero">
+                <p className="page-kicker">Structured Browsing</p>
+                <h2>{t('categories', language)}</h2>
+                <p>हर desk के लिए dedicated listing, ताकि users quickly filter कर सकें.</p>
+              </div>
+              <section className="categories-section">
+                <div className="categories-grid">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat}
+                      className={`category-btn ${activeCategory === cat ? 'active' : ''}`}
+                      onClick={() => openCategoryPage(cat)}
+                    >
+                      <span>{cat}</span>
+                      <small>
+                        {cat === t('allCategories', language)
+                          ? news.length
+                          : news.filter((n) => n.category === cat).length} {t('stories', language)}
+                      </small>
+                    </button>
+                  ))}
+                </div>
+              </section>
+              <section className="stories-section">
+                <div className="section-header">
+                  <h2>{activeCategory}</h2>
+                  <p>{filteredNews.length} curated stories for this desk.</p>
+                </div>
+                <div className="stories-grid">
+                  {filteredNews.map((item) => (
+                    <article key={item.id} className="story-card">
+                      <div className="card-image" style={{ backgroundImage: `url(${resolveMediaUrl(item.cover_image_url)})` }} />
+                      <div className="card-content" onClick={() => openStory(item)}>
+                        <span className="card-category">{item.category}</span>
+                        <h3>{item.title}</h3>
+                        <p>{item.excerpt}</p>
+                        <div className="card-meta">
+                          <span>{item.reading_time} {t('min', language)}</span>
+                          <span>{item.views} {t('views', language)}</span>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </section>
+          )}
+
+          {currentPageKey === 'videos' && (
+            <div className="reels-container" ref={reelsContainerRef}>
+              {reelItems.map((item, idx) => {
+                const isYT = item.video_url && (item.video_url.includes('youtube') || item.video_url.includes('youtu.be') || item.video_url.includes('/embed/'));
+                const ytId = isYT ? extractYouTubeId(item.video_url) : '';
+                const isActive = activeReelIndex === idx;
+                return (
+                  <div
+                    key={item.id}
+                    className={`reel-frame${isActive ? ' reel-active' : ''}`}
+                    data-reel-idx={idx}
+                  >
+                    {/* Video layer */}
+                    <div className="reel-video-wrap" onClick={() => openReel(item)}>
+                      {isYT && ytId ? (
                         <iframe
-                          width="100%"
-                          height="100%"
-                          src={selectedStory.video_url.includes('/embed/') ? selectedStory.video_url : `https://www.youtube.com/embed/${selectedStory.video_url.split('v=')[1]?.substring(0, 11) || selectedStory.video_url.split('.be/')[1]?.substring(0, 11)}`}
-                          title="YouTube video player"
+                          src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=1&modestbranding=1&rel=0`}
+                          title={item.title}
                           frameBorder="0"
                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                           allowFullScreen
-                          className="modern-video-player"
-                        ></iframe>
-                      ) : (
+                          className="reel-iframe"
+                        />
+                      ) : item.video_url ? (
                         <video
-                          controls
-                          className="modern-video-player"
-                          poster={selectedStory.cover_image_url ? resolveMediaUrl(selectedStory.cover_image_url) : undefined}
-                          style={{ width: '100%', borderRadius: '20px', backgroundColor: '#000', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}
-                        >
-                          <source src={resolveMediaUrl(selectedStory.video_url)} />
-                          Your browser does not support the video tag.
-                        </video>
+                          src={resolveMediaUrl(item.video_url)}
+                          className="reel-video-el"
+                          loop
+                          playsInline
+                          muted
+                        />
+                      ) : (
+                        <div
+                          className="reel-cover-fallback"
+                          style={{ backgroundImage: `url(${resolveMediaUrl(item.cover_image_url)})` }}
+                        />
                       )}
                     </div>
-                  )}
-                  <div className="detail-body">
-                    {/<[a-z][\s\S]*>/i.test(selectedStory.content || '') ? (
-                      <div
-                        className="story-html-content"
-                        dangerouslySetInnerHTML={{ __html: selectedStory.content }}
+
+                    {/* Gradient overlay with info + actions */}
+                    <div className="reel-overlay">
+                      <div className="reel-info">
+                        <span className="reel-category-badge">{item.category || 'Reel'}</span>
+                        <h3 className="reel-title">{item.title}</h3>
+                        {(item.excerpt || item.caption) && (
+                          <p className="reel-excerpt">
+                            {(item.excerpt || item.caption).length > 110 ? `${(item.excerpt || item.caption).slice(0, 110)}…` : (item.excerpt || item.caption)}
+                          </p>
+                        )}
+                        <button className="reel-open-page-btn" onClick={() => openReel(item)}>
+                          Reel page खोलें
+                        </button>
+                      </div>
+
+                      {/* TikTok-style right action column */}
+                      <div className="reel-actions-col">
+                        <button className="reel-action-btn" onClick={() => setReelsMuted((m) => !m)} title={reelsMuted ? 'Sound On' : 'Mute'}>
+                          <span className="reel-action-icon">{reelsMuted ? '🔇' : '🔊'}</span>
+                          <span className="reel-action-label">{reelsMuted ? 'Mute' : 'Sound'}</span>
+                        </button>
+                        <button
+                          className="reel-action-btn"
+                          title="Share"
+                          onClick={() => shareReel(item)}
+                        >
+                          <span className="reel-action-icon">↗️</span>
+                          <span className="reel-action-label">Share</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Reel counter badge */}
+                    <div className="reel-counter">{idx + 1} / {reelItems.length}</div>
+
+                    {/* Desktop nav arrows */}
+                    {idx > 0 && (
+                      <button
+                        className="reel-nav-btn reel-nav-up"
+                        onClick={() => {
+                          reelsContainerRef.current?.querySelector(`[data-reel-idx="${idx - 1}"]`)?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                      >↑</button>
+                    )}
+                    {idx < reelItems.length - 1 && (
+                      <button
+                        className="reel-nav-btn reel-nav-down"
+                        onClick={() => {
+                          reelsContainerRef.current?.querySelector(`[data-reel-idx="${idx + 1}"]`)?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                      >↓</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {currentPageKey === 'reel' && reelPageItem && (
+            <section className="reel-share-page">
+              <div className="reel-share-stage">
+                <div className="reel-share-frame">
+                  <div className="reel-video-wrap reel-share-video-wrap">
+                    {(reelPageItem.video_url.includes('youtube') || reelPageItem.video_url.includes('youtu.be') || reelPageItem.video_url.includes('/embed/')) ? (
+                      <iframe
+                        src={`https://www.youtube.com/embed/${extractYouTubeId(reelPageItem.video_url)}?autoplay=1&mute=${reelsMuted ? 1 : 0}&loop=1&playlist=${extractYouTubeId(reelPageItem.video_url)}&controls=1&modestbranding=1&rel=0`}
+                        title={reelPageItem.title}
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        className="reel-iframe"
                       />
                     ) : (
-                      <p>{selectedStory.content}</p>
+                      <video
+                        src={resolveMediaUrl(reelPageItem.video_url)}
+                        className="reel-video-el"
+                        loop
+                        playsInline
+                        muted={reelsMuted}
+                        controls
+                        autoPlay
+                      />
                     )}
-                    <div className="detail-summary">
-                      <strong>सारांश:</strong>
-                      <p>{selectedStory.ai_summary}</p>
+                  </div>
+
+                  <div className="reel-overlay reel-share-overlay">
+                    <div className="reel-info reel-share-info">
+                      <span className="reel-category-badge">{reelPageItem.category || 'Reel'}</span>
+                      <h1 className="reel-title reel-share-title">{reelPageItem.title}</h1>
+                      <p className="reel-excerpt reel-share-caption">{reelPageItem.excerpt || reelPageItem.caption || reelPageItem.ai_summary || 'Short-form video story in full frame mode.'}</p>
+                      <div className="reel-creator-row">
+                        <div className="reel-creator-avatar">{reelCreatorName.slice(0, 1).toUpperCase()}</div>
+                        <div>
+                          <strong>@{slugifyText(reelCreatorName).replace(/-/g, '') || 'creator'}</strong>
+                          <span>{reelFollowers} followers</span>
+                        </div>
+                        <button className={`reel-follow-btn ${isFollowingReelCreator ? 'following' : ''}`} onClick={() => toggleFollowCreator(reelPageItem)}>
+                          {isFollowingReelCreator ? 'Following' : 'Follow'}
+                        </button>
+                      </div>
                     </div>
+
+                    <div className="reel-actions-col reel-share-actions">
+                      <button className="reel-action-btn" onClick={() => setReelsMuted((prev) => !prev)} title={reelsMuted ? 'Sound On' : 'Mute'}>
+                        <span className="reel-action-icon">{reelsMuted ? '🔇' : '🔊'}</span>
+                        <span className="reel-action-label">{reelsMuted ? 'Mute' : 'Sound'}</span>
+                      </button>
+                      <button className="reel-action-btn" onClick={() => shareReel(reelPageItem)} title="Share Reel">
+                        <span className="reel-action-icon">↗️</span>
+                        <span className="reel-action-label">Share</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <aside className="reel-share-panel">
+                  <div className="reel-status-card">
+                    <div>
+                      <p className="page-kicker">Reel Status</p>
+                      <h3>Share-ready video page</h3>
+                    </div>
+                    <span className={`reel-status-chip reel-status-${videoUploadState.state || 'idle'}`}>
+                      {videoUploadState.message || (reelPageItem.status ? reelPageItem.status : 'Live now')}
+                    </span>
+                  </div>
+
+                  <div className="reel-metrics-grid">
+                    <div>
+                      <strong>{reelLikes}</strong>
+                      <span>likes</span>
+                    </div>
+                    <div>
+                      <strong>{formatCompactNumber(reelPageItem.views || 0)}</strong>
+                      <span>views</span>
+                    </div>
+                    <div>
+                      <strong>{reelShares}</strong>
+                      <span>shares</span>
+                    </div>
+                  </div>
+
+                  <div className="reel-upload-card">
+                    <div>
+                      <p className="page-kicker">Upload Desk</p>
+                      <h3>Next reel upload</h3>
+                      <p>{adminToken ? 'Direct video upload yahin se trigger karo. Upload status live dikh raha hai.' : 'Upload ke liye login workspace open karo.'}</p>
+                    </div>
+                    <div className="reel-upload-actions">
+                      <button className="btn-primary" type="button" onClick={() => adminToken ? reelUploadInputRef.current?.click() : openWorkspace()}>
+                        {adminToken ? 'Upload Reel' : 'Login to Upload'}
+                      </button>
+                      <button className="btn-secondary" type="button" onClick={() => navigateTo('/videos')}>
+                        All reels
+                      </button>
+                    </div>
+                    <input
+                      ref={reelUploadInputRef}
+                      type="file"
+                      accept="video/*"
+                      style={{ display: 'none' }}
+                      onChange={handleReelFileUpload}
+                    />
+                    <div className="reel-upload-status">
+                      <strong>{videoUploadState.state === 'loading' ? 'Uploading' : videoUploadState.state === 'online' ? 'Uploaded' : 'Status'}</strong>
+                      <span>{videoUploadState.message || 'Ready for next short-form video.'}</span>
+                    </div>
+                  </div>
+
+                  <div className="reel-share-meta">
+                    <h3>About this reel</h3>
+                    <p>{reelPageItem.caption || reelPageItem.ai_summary || reelPageItem.content || 'Short-form vertical reel experience.'}</p>
                     <div className="detail-tags">
-                      {(selectedStory.tags || []).map((tag) => (
+                      {(reelPageItem.tags || []).map((tag) => (
                         <span key={tag}>{tag}</span>
                       ))}
                     </div>
                   </div>
+                </aside>
+              </div>
+            </section>
+          )}
+
+          {currentPageKey === 'features' && (
+            <section className="page-shell">
+              <div className="page-hero">
+                <p className="page-kicker">Capability Map</p>
+                <h2>Platform Feature Hub</h2>
+                <p>Grouped capability pages make the experience more professional and easier to scan.</p>
+              </div>
+              <section className="feature-hub-section">
+                <div className="feature-hub-grid">
+                  {featureGroups.map((group) => (
+                    <article key={group.title} className="feature-hub-card">
+                      <h3>{group.title}</h3>
+                      <p>{group.description}</p>
+                      <div className="feature-badge-row">
+                        {group.badges.map((badge) => (
+                          <span key={badge}>{badge}</span>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </section>
+          )}
+
+          {currentPageKey === 'workspace' && (
+            <section className="page-shell workspace-shell">
+              <div className="page-hero">
+                <p className="page-kicker">Control Center</p>
+                <h2>{adminToken ? 'Editorial Workspace' : 'Secure Login Workspace'}</h2>
+                <p>
+                  {device.isDesktop
+                    ? 'Desktop पर control panel right sidebar में खुलता है, ताकि workspace page clean aur dedicated रहे.'
+                    : 'Mobile पर secure workspace bottom sheet में खुलता है, लेकिन route same domain page पर है.'}
+                </p>
+              </div>
+              <div className="workspace-note-card">
+                <strong>{adminToken ? 'Workspace ready' : 'Login required'}</strong>
+                <p>
+                  {adminToken
+                    ? 'Profile, news publishing, campaign controls aur user management yahin se operate honge.'
+                    : 'Login karke isi workspace route par editor tools access karo.'}
+                </p>
+              </div>
+            </section>
+          )}
+
+          {currentPageKey === 'story' && (
+            <section className="story-detail story-detail-page">
+              <button className="close-btn" onClick={() => navigateTo('/latest')}>✕</button>
+              <div className="detail-scroll-area">
+                <div className="detail-content">
+                  {selectedStory ? (
+                    <>
+                      <span className="detail-category">{selectedStory.category}</span>
+                      <h2>{selectedStory.title}</h2>
+                      <div className="detail-meta">
+                        <span>{formatDate(selectedStory.published_at)}</span>
+                        <span>•</span>
+                        <span>{selectedStory.reading_time} मिन पढ़ें</span>
+                      </div>
+                      {selectedStory.cover_image_url && !selectedStory.video_url && (
+                        <div className="detail-image" style={{ backgroundImage: `url(${resolveMediaUrl(selectedStory.cover_image_url)})` }}></div>
+                      )}
+                      {selectedStory.video_url && (
+                        <div className="detail-video-container" style={{ marginBottom: '32px' }}>
+                          {selectedStory.video_url.includes('youtube.com') || selectedStory.video_url.includes('youtu.be') ? (
+                            <iframe
+                              width="100%"
+                              height="100%"
+                              src={selectedStory.video_url.includes('/embed/') ? selectedStory.video_url : `https://www.youtube.com/embed/${selectedStory.video_url.split('v=')[1]?.substring(0, 11) || selectedStory.video_url.split('.be/')[1]?.substring(0, 11)}`}
+                              title="YouTube video player"
+                              frameBorder="0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                              className="modern-video-player"
+                            ></iframe>
+                          ) : (
+                            <video
+                              controls
+                              className="modern-video-player"
+                              poster={selectedStory.cover_image_url ? resolveMediaUrl(selectedStory.cover_image_url) : undefined}
+                              style={{ width: '100%', borderRadius: '20px', backgroundColor: '#000', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}
+                            >
+                              <source src={resolveMediaUrl(selectedStory.video_url)} />
+                              Your browser does not support the video tag.
+                            </video>
+                          )}
+                        </div>
+                      )}
+                      <div className="detail-body">
+                        {/<[a-z][\s\S]*>/i.test(selectedStory.content || '') ? (
+                          <div
+                            className="story-html-content"
+                            dangerouslySetInnerHTML={{ __html: selectedStory.content }}
+                          />
+                        ) : (
+                          <p>{selectedStory.content}</p>
+                        )}
+                        <div className="detail-summary">
+                          <strong>सारांश:</strong>
+                          <p>{selectedStory.ai_summary}</p>
+                        </div>
+                        <div className="detail-tags">
+                          {(selectedStory.tags || []).map((tag) => (
+                            <span key={tag}>{tag}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="page-hero story-not-found">
+                      <p className="page-kicker">Story Lookup</p>
+                      <h2>Story not found</h2>
+                      <p>The article link is valid but this story is not available in the current feed.</p>
+                      <button className="btn-primary" onClick={() => navigateTo('/latest')}>Back to latest</button>
+                    </div>
+                  )}
                 </div>
               </div>
             </section>
@@ -1543,13 +2300,13 @@ function App() {
         </main>
 
         {/* Sidebar */}
-        {device.isDesktop && (
+        {device.isDesktop && !isStoryPage && !isReelPage && (
           <aside className="sidebar">
             <div className="sidebar-section">
               <h3>🔥 {t('trending', language)}</h3>
               {trendingNews.slice(0, 5).map((item) => (
                 <div key={item.id} className="sidebar-item">
-                  <div onClick={() => setSelectedStory(item)} style={{ flex: 1, cursor: 'pointer' }}>
+                  <div onClick={() => openStory(item)} style={{ flex: 1, cursor: 'pointer' }}>
                     <strong>{item.title.substring(0, 30)}...</strong>
                     <small>{item.views} {t('views', language)}</small>
                   </div>
@@ -1574,10 +2331,7 @@ function App() {
                   <button
                     key={cat}
                     className="sidebar-item"
-                    onClick={() => {
-                      setActiveCategory(cat);
-                      setActivePage('फ़ीचर्ड');
-                    }}
+                    onClick={() => openCategoryPage(cat)}
                   >
                     {cat}
                   </button>
@@ -1589,7 +2343,7 @@ function App() {
               <div className="admin-panel desktop-view">
                 <div className="admin-header">
                   <h2>{t('adminPanel', language)}</h2>
-                  <button className="ghost" onClick={() => setShowAdmin(false)}>
+                  <button className="ghost" onClick={() => navigateTo('/')}>
                     {t('close', language)}
                   </button>
                 </div>
@@ -1781,13 +2535,25 @@ function App() {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      {device.isMobile && <MobileBottomNav activePage={activePage} setActivePage={setActivePage} showAdmin={showAdmin} setShowAdmin={setShowAdmin} adminToken={adminToken} />}
+      {device.isMobile && (
+        <MobileBottomNav
+          items={mobileNavItems}
+          activeKey={currentPageKey === 'reel' ? 'videos' : currentPageKey}
+          onNavigate={(path) => {
+            if (path === '/workspace') {
+              openWorkspace();
+              return;
+            }
+            navigateTo(path);
+          }}
+        />
+      )}
 
       {showAdmin && !device.isDesktop && (
         <aside className="admin-panel mobile-view">
           <div className="admin-header">
             <h2>{t('adminPanel', language)}</h2>
-            <button className="ghost" onClick={() => setShowAdmin(false)}>
+            <button className="ghost" onClick={() => navigateTo('/')}>
               {t('close', language)}
             </button>
           </div>
@@ -2505,8 +3271,39 @@ function App() {
                   <textarea rows="2" value={newsForm.gallery_urls} onChange={(e) => setNewsForm((prev) => ({ ...prev, gallery_urls: e.target.value }))} placeholder="https://img1.jpg, https://img2.jpg" />
                 </label>
                 <label>
-                  वीडियो URL
-                  <input type="url" value={newsForm.video_url} onChange={(e) => setNewsForm((prev) => ({ ...prev, video_url: e.target.value }))} />
+                  वीडियो URL / Upload
+                  <div className="video-input-row">
+                    <input
+                      type="url"
+                      value={newsForm.video_url}
+                      onChange={(e) => setNewsForm((prev) => ({ ...prev, video_url: e.target.value }))}
+                      placeholder="YouTube link या direct video URL"
+                    />
+                    <button
+                      type="button"
+                      className="btn-secondary video-file-pick-btn"
+                      onClick={() => videoFileInputRef.current?.click()}
+                      title="Video file upload करें"
+                    >
+                      📤 Upload
+                    </button>
+                    <input
+                      ref={videoFileInputRef}
+                      type="file"
+                      accept="video/*"
+                      style={{ display: 'none' }}
+                      onChange={handleVideoFileUpload}
+                    />
+                  </div>
+                  {newsForm.video_url && !newsForm.video_url.includes('youtube') && !newsForm.video_url.includes('youtu.be') && (
+                    <video
+                      src={newsForm.video_url}
+                      muted
+                      playsInline
+                      controls
+                      style={{ width: '100%', maxHeight: '160px', borderRadius: '8px', marginTop: '8px', background: '#000' }}
+                    />
+                  )}
                 </label>
                 <label>
                   ऑडियो URL

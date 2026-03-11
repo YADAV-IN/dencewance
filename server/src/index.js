@@ -7,7 +7,7 @@ import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
-import { initDb, Admin, News, SiteSettings } from './db.js';
+import { initDb, Admin, News, Reel, SiteSettings } from './db.js';
 import { requireAuth, signToken } from './middleware/auth.js';
 import { slugify, ensureUniqueSlug } from './utils/slug.js';
 import { getReadingTime } from './utils/readingTime.js';
@@ -53,7 +53,7 @@ const storage = hasCloudinaryConfig
 
 const upload = multer({
   storage,
-  limits: { fileSize: 6 * 1024 * 1024 },
+  limits: { fileSize: 50 * 1024 * 1024 },
 });
 
 app.use(cors({
@@ -114,63 +114,78 @@ app.use(async (req, res, next) => {
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password required.' });
-  }
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required.' });
+    }
 
-  const admin = await Admin.findOne({ email });
-  if (!admin) {
-    return res.status(401).json({ error: 'Invalid credentials.' });
-  }
-  if (admin.status !== 'active') {
-    return res.status(403).json({ error: 'Account is inactive. Contact administrator.' });
-  }
+    const admin = await Admin.findOne({ email });
+    if (!admin) {
+      return res.status(401).json({ error: 'Invalid credentials.' });
+    }
+    if (admin.status !== 'active') {
+      return res.status(403).json({ error: 'Account is inactive. Contact administrator.' });
+    }
 
-  const isMatch = await bcrypt.compare(password, admin.password_hash);
-  if (!isMatch) {
-    return res.status(401).json({ error: 'Invalid credentials.' });
+    const isMatch = await bcrypt.compare(password, admin.password_hash);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid credentials.' });
+    }
+
+    admin.last_login = new Date();
+    await admin.save();
+
+    const token = signToken(admin._id.toString());
+    return res.json({
+      data: {
+        token,
+        profile: admin.toJSON(),
+      },
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({ error: 'Login failed.' });
   }
-
-  admin.last_login = new Date();
-  await admin.save();
-
-  const token = signToken(admin._id.toString());
-  return res.json({
-    data: {
-      token,
-      profile: admin.toJSON(),
-    },
-  });
 });
 
 app.post('/api/admins', requireAuth, async (req, res) => {
-  const currentUser = await Admin.findById(req.adminId);
-  if (currentUser.role !== 'admin') {
-    return res.status(403).json({ error: 'Permission denied. Admin access required.' });
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (currentUser.role !== 'admin') {
+      return res.status(403).json({ error: 'Permission denied. Admin access required.' });
+    }
+
+    const { name, email, password, role = 'author', bio = '' } = req.body || {};
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Name, email, and password required.' });
+    }
+
+    const existing = await Admin.findOne({ email });
+    if (existing) {
+      return res.status(409).json({ error: 'Email already exists.' });
+    }
+
+    const password_hash = await bcrypt.hash(password, 10);
+    const admin = await Admin.create({
+      name, email, password_hash, role, status: 'active', bio, avatar_url: ''
+    });
+
+    return res.status(201).json({ data: admin.toJSON() });
+  } catch (error) {
+    console.error('Admin create error:', error);
+    return res.status(500).json({ error: 'Failed to create user.' });
   }
-
-  const { name, email, password, role = 'author', bio = '' } = req.body || {};
-  if (!name || !email || !password) {
-    return res.status(400).json({ error: 'Name, email, and password required.' });
-  }
-
-  const existing = await Admin.findOne({ email });
-  if (existing) {
-    return res.status(409).json({ error: 'Email already exists.' });
-  }
-
-  const password_hash = await bcrypt.hash(password, 10);
-  const admin = await Admin.create({
-    name, email, password_hash, role, status: 'active', bio, avatar_url: ''
-  });
-
-  return res.status(201).json({ data: admin.toJSON() });
 });
 
 app.get('/api/admins', requireAuth, async (req, res) => {
-  const admins = await Admin.find().sort({ role: 1, created_at: -1 });
-  return res.json({ data: admins.map(a => a.toJSON()) });
+  try {
+    const admins = await Admin.find().sort({ role: 1, created_at: -1 }).lean();
+    return res.json({ data: admins.map(a => ({ ...a, id: a._id.toString(), _id: undefined, __v: undefined, password_hash: undefined })) });
+  } catch (error) {
+    console.error('Admin list error:', error);
+    return res.status(500).json({ error: 'Failed to fetch users.' });
+  }
 });
 
 app.put('/api/admins/:id', requireAuth, async (req, res) => {
@@ -274,33 +289,47 @@ app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req
 });
 
 app.get('/api/news', async (req, res) => {
-  const { limit = 12, category, q } = req.query;
-  const query = {};
-  if (category) query.category = category;
-  if (q) {
-    query.$or = [
-      { title: new RegExp(q, 'i') },
-      { content: new RegExp(q, 'i') }
-    ];
+  try {
+    const { limit = 12, category, q, status, featured, breaking } = req.query;
+    const query = {};
+    if (category) query.category = category;
+    if (status) query.status = status;
+    if (featured === 'true') query.is_featured = 1;
+    if (breaking === 'true') query.is_breaking = 1;
+    if (q) {
+      query.$or = [
+        { title: new RegExp(q, 'i') },
+        { content: new RegExp(q, 'i') }
+      ];
+    }
+
+    const news = await News.find(query)
+      .sort({ published_at: -1 })
+      .limit(Math.min(Number(limit) || 12, 100))
+      .lean();
+
+    return res.json({ data: news.map(n => ({ ...n, id: n._id.toString(), _id: undefined, __v: undefined })) });
+  } catch (error) {
+    console.error('News list error:', error);
+    return res.status(500).json({ error: 'Failed to fetch news.' });
   }
-
-  const news = await News.find(query)
-    .sort({ published_at: -1 })
-    .limit(Number(limit));
-
-  return res.json({ data: news.map(n => n.toJSON()) });
 });
 
 app.get('/api/news/:slug', async (req, res) => {
-  const { slug } = req.params;
-  const news = await News.findOneAndUpdate(
-    { slug },
-    { $inc: { views: 1 } },
-    { new: true }
-  );
+  try {
+    const { slug } = req.params;
+    const news = await News.findOneAndUpdate(
+      { slug },
+      { $inc: { views: 1 } },
+      { new: true }
+    );
 
-  if (!news) return res.status(404).json({ error: 'News not found.' });
-  return res.json({ data: news.toJSON() });
+    if (!news) return res.status(404).json({ error: 'News not found.' });
+    return res.json({ data: news.toJSON() });
+  } catch (error) {
+    console.error('News detail error:', error);
+    return res.status(500).json({ error: 'Failed to fetch news detail.' });
+  }
 });
 
 async function findUniqueSlugMongoose(baseSlug) {
@@ -312,6 +341,113 @@ async function findUniqueSlugMongoose(baseSlug) {
   }
   return uniqueSlug;
 }
+
+async function findUniqueReelSlug(baseSlug) {
+  let uniqueSlug = baseSlug;
+  let counter = 1;
+  while (await Reel.findOne({ slug: uniqueSlug })) {
+    uniqueSlug = `${baseSlug}-${counter}`;
+    counter++;
+  }
+  return uniqueSlug;
+}
+
+app.get('/api/reels', async (req, res) => {
+  try {
+    const { limit = 50, active = 'true' } = req.query;
+    const query = {};
+    if (active === 'true') query.is_active = true;
+
+    const reels = await Reel.find(query)
+      .sort({ published_at: -1 })
+      .limit(Math.min(Number(limit) || 50, 200))
+      .lean();
+
+    return res.json({ data: reels.map((item) => ({ ...item, id: item._id.toString(), _id: undefined, __v: undefined })) });
+  } catch (error) {
+    console.error('Reels list error:', error);
+    return res.status(500).json({ error: 'Failed to fetch reels.' });
+  }
+});
+
+app.get('/api/reels/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const reel = await Reel.findOneAndUpdate(
+      { slug, is_active: true },
+      { $inc: { views: 1 } },
+      { new: true }
+    );
+
+    if (!reel) return res.status(404).json({ error: 'Reel not found.' });
+    return res.json({ data: reel.toJSON() });
+  } catch (error) {
+    console.error('Reel detail error:', error);
+    return res.status(500).json({ error: 'Failed to fetch reel.' });
+  }
+});
+
+app.post('/api/reels', requireAuth, async (req, res) => {
+  const currentUser = await Admin.findById(req.adminId);
+  if (!currentUser) return res.status(404).json({ error: 'User not found.' });
+  if (!['admin', 'editor', 'author'].includes(currentUser.role)) {
+    return res.status(403).json({ error: 'Permission denied to create reels.' });
+  }
+
+  const payload = { ...(req.body || {}) };
+  if (!payload.title || !payload.video_url) {
+    return res.status(400).json({ error: 'Title and video_url required.' });
+  }
+
+  const baseSlug = slugify(payload.title);
+  const slug = await findUniqueReelSlug(baseSlug);
+
+  const reel = await Reel.create({
+    title: payload.title,
+    slug,
+    caption: payload.caption || '',
+    video_url: payload.video_url,
+    cover_image_url: payload.cover_image_url || '',
+    creator_name: payload.creator_name || currentUser.name || 'ALOK Creator',
+    creator_handle: payload.creator_handle || slugify((currentUser.name || 'alok').toLowerCase()),
+    tags: Array.isArray(payload.tags) ? payload.tags : [],
+    status: payload.status || 'published',
+    is_active: payload.is_active !== false,
+    published_at: payload.published_at || new Date(),
+  });
+
+  return res.status(201).json({ data: reel.toJSON() });
+});
+
+app.put('/api/reels/:id', requireAuth, async (req, res) => {
+  const currentUser = await Admin.findById(req.adminId);
+  if (!currentUser) return res.status(404).json({ error: 'User not found.' });
+  if (!['admin', 'editor'].includes(currentUser.role)) {
+    return res.status(403).json({ error: 'Permission denied to update reels.' });
+  }
+
+  const { id } = req.params;
+  const payload = { ...(req.body || {}) };
+  const reel = await Reel.findByIdAndUpdate(id, payload, { new: true });
+  if (!reel) return res.status(404).json({ error: 'Reel not found.' });
+  return res.json({ data: reel.toJSON() });
+});
+
+app.delete('/api/reels/:id', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || !['admin', 'editor'].includes(currentUser.role)) {
+      return res.status(403).json({ error: 'Permission denied to delete reels.' });
+    }
+
+    const result = await Reel.findByIdAndDelete(req.params.id);
+    if (!result) return res.status(404).json({ error: 'Reel not found.' });
+    return res.status(204).send();
+  } catch (error) {
+    console.error('Reel delete error:', error);
+    return res.status(500).json({ error: 'Failed to delete reel.' });
+  }
+});
 
 app.post('/api/news', requireAuth, async (req, res) => {
   const currentUser = await Admin.findById(req.adminId);
@@ -383,9 +519,15 @@ app.put('/api/news/:id', requireAuth, async (req, res) => {
 });
 
 app.delete('/api/news/:id', requireAuth, async (req, res) => {
-  const { id } = req.params;
-  await News.findByIdAndDelete(id);
-  return res.status(204).send();
+  try {
+    const { id } = req.params;
+    const result = await News.findByIdAndDelete(id);
+    if (!result) return res.status(404).json({ error: 'News not found.' });
+    return res.status(204).send();
+  } catch (error) {
+    console.error('News delete error:', error);
+    return res.status(500).json({ error: 'Failed to delete news.' });
+  }
 });
 
 app.post('/api/uploads/cover', requireAuth, upload.single('cover'), async (req, res) => {
@@ -419,8 +561,14 @@ app.post('/api/uploads/media', requireAuth, upload.single('media'), async (req, 
 });
 
 app.get('/api/settings', async (req, res) => {
-  const settings = await SiteSettings.findOne().sort({ created_at: -1 });
-  return res.json({ data: settings ? settings.toJSON() : null });
+  try {
+    const settings = await SiteSettings.findOne().sort({ created_at: -1 }).lean();
+    if (!settings) return res.json({ data: null });
+    return res.json({ data: { ...settings, id: settings._id.toString(), _id: undefined, __v: undefined } });
+  } catch (error) {
+    console.error('Settings fetch error:', error);
+    return res.status(500).json({ error: 'Failed to fetch settings.' });
+  }
 });
 
 app.put('/api/settings', requireAuth, async (req, res) => {

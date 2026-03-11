@@ -18,4 +18,4 @@ export const requireAuth = (req, res, next) => {
 };
 
 export const signToken = (adminId) =>
-  jwt.sign({ adminId }, JWT_SECRET, { expiresIn: '2h' });
+  jwt.sign({ adminId }, JWT_SECRET, { expiresIn: '7d' });

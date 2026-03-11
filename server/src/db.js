@@ -23,6 +23,9 @@ adminSchema.set('toJSON', {
   }
 });
 
+// Performance indexes
+adminSchema.index({ role: 1, status: 1 });
+
 export const Admin = mongoose.model('Admin', adminSchema);
 
 const newsSchema = new mongoose.Schema({
@@ -62,6 +65,16 @@ const newsSchema = new mongoose.Schema({
   expire_at: { type: Date },
 }, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
 
+// Performance indexes
+newsSchema.index({ published_at: -1 });
+newsSchema.index({ status: 1, published_at: -1 });
+newsSchema.index({ category: 1, published_at: -1 });
+newsSchema.index({ is_featured: 1, published_at: -1 });
+newsSchema.index({ is_breaking: 1, published_at: -1 });
+newsSchema.index({ views: -1 });
+newsSchema.index({ tags: 1 });
+newsSchema.index({ title: 'text', content: 'text', excerpt: 'text' });
+
 newsSchema.set('toJSON', {
   transform: (document, returnedObject) => {
     returnedObject.id = returnedObject._id.toString();
@@ -71,6 +84,40 @@ newsSchema.set('toJSON', {
 });
 
 export const News = mongoose.model('News', newsSchema);
+
+const reelSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  slug: { type: String, required: true, unique: true },
+  caption: { type: String, default: '' },
+  video_url: { type: String, required: true },
+  cover_image_url: { type: String, default: '' },
+  creator_name: { type: String, default: 'ALOK Creator' },
+  creator_handle: { type: String, default: 'alok' },
+  tags: { type: [String], default: [] },
+  status: { type: String, default: 'published' },
+  is_active: { type: Boolean, default: true },
+  views: { type: Number, default: 0 },
+  likes: { type: Number, default: 0 },
+  shares: { type: Number, default: 0 },
+  published_at: { type: Date, default: Date.now },
+}, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
+
+// Performance indexes
+reelSchema.index({ is_active: 1, published_at: -1 });
+reelSchema.index({ status: 1, published_at: -1 });
+reelSchema.index({ views: -1 });
+reelSchema.index({ creator_handle: 1, published_at: -1 });
+reelSchema.index({ tags: 1 });
+
+reelSchema.set('toJSON', {
+  transform: (document, returnedObject) => {
+    returnedObject.id = returnedObject._id.toString();
+    delete returnedObject._id;
+    delete returnedObject.__v;
+  }
+});
+
+export const Reel = mongoose.model('Reel', reelSchema);
 
 const siteSettingsSchema = new mongoose.Schema({
   site_name: { type: String, default: 'ALOK' },
@@ -117,6 +164,10 @@ export const initDb = async () => {
   try {
     await mongoose.connect(MONGODB_URI, {
       serverSelectionTimeoutMS: 5000,
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      socketTimeoutMS: 30000,
+      retryWrites: true,
     });
     isConnected = true;
     console.log('✅ MongoDB connected successfully');
