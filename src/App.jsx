@@ -283,13 +283,21 @@ function App() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [activeReelIndex, setActiveReelIndex] = useState(0);
-  const [reelsMuted, setReelsMuted] = useState(true);
+  const [reelsMuted, setReelsMuted] = useState(false);
   const [videoUploadState, setVideoUploadState] = useState({ state: 'idle', message: '' });
   const [followedCreators, setFollowedCreators] = useState(() => {
     try {
       const raw = localStorage.getItem('alok_reel_follows');
       return raw ? JSON.parse(raw) : [];
     } catch (error) {
+      return [];
+    }
+  });
+  const [dismissedDemoReels, setDismissedDemoReels] = useState(() => {
+    try {
+      const raw = localStorage.getItem('alok_dismissed_demo_reels');
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
       return [];
     }
   });
@@ -601,6 +609,45 @@ function App() {
     ));
   };
 
+  const dismissDemoReel = (reelId) => {
+    setDismissedDemoReels((prev) => {
+      const next = [...prev, reelId];
+      localStorage.setItem('alok_dismissed_demo_reels', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const deleteReel = async (reelId) => {
+    if (!reelId) return;
+    // Demo reel (string id starting with 'reel-demo')
+    if (typeof reelId === 'string' && reelId.startsWith('reel-demo')) {
+      dismissDemoReel(reelId);
+      return;
+    }
+    // Local-only reel
+    if (typeof reelId === 'string' && reelId.startsWith('local-')) {
+      setReels((prev) => prev.filter((r) => r.id !== reelId));
+      return;
+    }
+    // Backend reel
+    if (!adminToken) return;
+    try {
+      const response = await fetch(`${API_URL}/api/reels/${reelId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      if (response.ok || response.status === 204) {
+        setReels((prev) => prev.filter((r) => r.id !== reelId));
+        setStatus({ state: 'online', message: 'Reel deleted.' });
+      } else {
+        const err = await response.json().catch(() => ({}));
+        setStatus({ state: 'error', message: err.error || 'Delete failed.' });
+      }
+    } catch (error) {
+      setStatus({ state: 'error', message: 'Reel delete failed.' });
+    }
+  };
+
   const setSectionRef = (key) => (node) => {
     sectionRefs.current[key] = node;
   };
@@ -854,15 +901,31 @@ function App() {
         });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || 'Reel save failed');
-        setReels((prev) => [payload.data, ...prev]);
-        setVideoUploadState({ state: 'online', message: 'Reel uploaded and saved in reels database.' });
+        // Re-fetch all reels from DB so state is in sync
+        try {
+          const reloadRes = await fetch(`${API_URL}/api/reels?limit=80`);
+          if (reloadRes.ok) {
+            const reloadData = await reloadRes.json();
+            setReels(Array.isArray(reloadData.data) ? reloadData.data : [payload.data]);
+          } else {
+            setReels((prev) => [payload.data, ...prev]);
+          }
+        } catch (e) {
+          setReels((prev) => [payload.data, ...prev]);
+        }
+        setVideoUploadState({ state: 'online', message: 'Reel uploaded and saved in database!' });
         openReel(payload.data);
         return;
       } catch (error) {
+        console.error('Reel save error:', error);
         setStatus({ state: 'error', message: error.message || 'Reel save failed' });
+        setVideoUploadState({ state: 'error', message: error.message || 'Reel save to database failed.' });
+        // DO NOT fall through to local — show failure clearly
+        return;
       }
     }
 
+    // No admin token — local only
     const localReel = {
       ...nextReelPayload,
       id: `local-${Date.now()}`,
@@ -873,7 +936,7 @@ function App() {
       is_active: 1,
     };
     setReels((prev) => [localReel, ...prev]);
-    setVideoUploadState({ state: 'preview', message: 'Reel locally added. Publish ke liye backend login karein.' });
+    setVideoUploadState({ state: 'preview', message: 'Reel locally added. Login for permanent save.' });
     openReel(localReel);
   };
 
@@ -1615,7 +1678,8 @@ function App() {
   const tickerItems = breakingNews.length > 0 ? breakingNews.slice(0, 5) : news.slice(0, 5);
 
   const heroStory = featured[0] || news[0];
-  const reelItems = reels.length > 0 ? reels : demoReels;
+  const visibleDemoReels = demoReels.filter((r) => !dismissedDemoReels.includes(r.id));
+  const reelItems = reels.length > 0 ? [...reels, ...visibleDemoReels] : visibleDemoReels;
   const reelPageItem = routeReel || reelItems[0] || null;
   const reelCreatorName = reelPageItem?.creator_name || reelPageItem?.author_name || reelPageItem?.source || siteSettings.site_name || 'ALOK Creator';
   const reelCreatorKey = reelPageItem ? getCreatorKey(reelPageItem) : '';
@@ -1970,7 +2034,7 @@ function App() {
                     <div className="reel-video-wrap" onClick={() => openReel(item)}>
                       {isYT && ytId ? (
                         <iframe
-                          src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=1&modestbranding=1&rel=0`}
+                          src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=0&loop=1&playlist=${ytId}&controls=1&modestbranding=1&rel=0`}
                           title={item.title}
                           frameBorder="0"
                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -1983,7 +2047,7 @@ function App() {
                           className="reel-video-el"
                           loop
                           playsInline
-                          muted
+                          muted={reelsMuted}
                         />
                       ) : (
                         <div
@@ -2022,6 +2086,16 @@ function App() {
                           <span className="reel-action-icon">↗️</span>
                           <span className="reel-action-label">Share</span>
                         </button>
+                        {adminToken && (
+                          <button
+                            className="reel-action-btn reel-delete-btn"
+                            title="Delete Reel"
+                            onClick={(e) => { e.stopPropagation(); deleteReel(item.id || item._id); }}
+                          >
+                            <span className="reel-action-icon">🗑️</span>
+                            <span className="reel-action-label">Delete</span>
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -2104,6 +2178,16 @@ function App() {
                         <span className="reel-action-icon">↗️</span>
                         <span className="reel-action-label">Share</span>
                       </button>
+                      {adminToken && (
+                        <button
+                          className="reel-action-btn reel-delete-btn"
+                          title="Delete Reel"
+                          onClick={() => { deleteReel(reelPageItem.id || reelPageItem._id); navigateTo('/videos'); }}
+                        >
+                          <span className="reel-action-icon">🗑️</span>
+                          <span className="reel-action-label">Delete</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

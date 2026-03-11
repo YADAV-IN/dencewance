@@ -4550,6 +4550,14 @@
   flex-shrink: 0;
 }
 
+.reel-delete-btn {
+  background: rgba(239, 68, 68, 0.25) !important;
+  border-color: rgba(239, 68, 68, 0.5) !important;
+}
+.reel-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.45) !important;
+}
+
 /* ─── Mobile reels adjustments ─── */
 @media (max-width: 600px) {
   .reels-container {
@@ -4603,7 +4611,7 @@
 .reel-share-frame {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  min-height: calc(100svh - 140px);
   overflow: hidden;
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -4814,7 +4822,7 @@
   }
 
   .reel-share-frame {
-    aspect-ratio: 16 / 9;
+    min-height: calc(100svh - 180px);
     border-radius: 18px;
   }
 
@@ -4850,7 +4858,7 @@
   }
 
   .reel-share-frame {
-    aspect-ratio: 16 / 9;
+    min-height: calc(100svh - 160px);
     border-radius: 14px;
   }
 
