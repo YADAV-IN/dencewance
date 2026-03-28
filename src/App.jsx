@@ -94,41 +94,6 @@ const demoNews = [
   },
 ];
 
-const demoReels = [
-  {
-    id: 'reel-demo-1',
-    title: 'Campus Night Bulletin',
-    slug: 'campus-night-bulletin',
-    caption: 'Prime-time rundown in vertical format.',
-    video_url: 'https://www.youtube.com/embed/ysz5S6PUM-U',
-    cover_image_url: 'https://images.unsplash.com/photo-1495020689067-958852a7765e?q=80&w=900&auto=format&fit=crop',
-    creator_name: 'ALOK Creator',
-    creator_handle: 'aloklive',
-    tags: ['campus', 'bulletin'],
-    views: 18240,
-    likes: 4120,
-    shares: 730,
-    status: 'published',
-    published_at: '2026-03-01T10:30:00.000Z',
-  },
-  {
-    id: 'reel-demo-2',
-    title: 'Media Lab Rapid Update',
-    slug: 'media-lab-rapid-update',
-    caption: 'Fast reel report from the studio floor.',
-    video_url: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    cover_image_url: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=900&auto=format&fit=crop',
-    creator_name: 'Studio Desk',
-    creator_handle: 'studiodesk',
-    tags: ['studio', 'update'],
-    views: 9450,
-    likes: 2100,
-    shares: 302,
-    status: 'published',
-    published_at: '2026-03-02T11:10:00.000Z',
-  },
-];
-
 const formatDate = (iso) => {
   if (!iso) return '';
   const date = new Date(iso);
@@ -249,8 +214,12 @@ const isCampaignWithinTime = (campaign = {}) => {
 
 const extractYouTubeId = (url) => {
   if (!url) return '';
-  const match = url.match(/(?:embed\/|v=)([a-zA-Z0-9_-]{6,})/);
-  return match ? match[1] : '';
+  const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  if (match && match[2].length === 11) {
+    return match[2];
+  }
+  return '';
 };
 
 const resolveMediaUrl = (value) => {
@@ -321,14 +290,6 @@ function App() {
       const raw = localStorage.getItem('alok_reel_follows');
       return raw ? JSON.parse(raw) : [];
     } catch (error) {
-      return [];
-    }
-  });
-  const [dismissedDemoReels, setDismissedDemoReels] = useState(() => {
-    try {
-      const raw = localStorage.getItem('alok_dismissed_demo_reels');
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) {
       return [];
     }
   });
@@ -627,7 +588,7 @@ function App() {
 
   const routeReel = useMemo(() => {
     if (!reelSlug) return null;
-    const allReels = [...reels, ...demoReels].filter((item) => item.video_url);
+    const allReels = [...reels].filter((item) => item.video_url);
     return allReels.find((item) => getReelSlug(item) === reelSlug) || null;
   }, [reels, reelSlug]);
 
@@ -697,21 +658,8 @@ function App() {
     ));
   };
 
-  const dismissDemoReel = (reelId) => {
-    setDismissedDemoReels((prev) => {
-      const next = [...prev, reelId];
-      localStorage.setItem('alok_dismissed_demo_reels', JSON.stringify(next));
-      return next;
-    });
-  };
-
   const deleteReel = async (reelId) => {
     if (!reelId) return;
-    // Demo reel (string id starting with 'reel-demo')
-    if (typeof reelId === 'string' && reelId.startsWith('reel-demo')) {
-      dismissDemoReel(reelId);
-      return;
-    }
     // Local-only reel
     if (typeof reelId === 'string' && reelId.startsWith('local-')) {
       setReels((prev) => prev.filter((r) => r.id !== reelId));
@@ -1617,7 +1565,7 @@ function App() {
         const payload = await response.json();
         setReels(Array.isArray(payload.data) ? payload.data : []);
       } catch (error) {
-        setReels(demoReels);
+        setReels([]);
       }
     };
 
@@ -1980,8 +1928,7 @@ function App() {
   const tickerItems = breakingNews.length > 0 ? breakingNews.slice(0, 5) : news.slice(0, 5);
 
   const heroStory = featured[0] || news[0];
-  const visibleDemoReels = demoReels.filter((r) => !dismissedDemoReels.includes(r.id));
-  const reelItems = reels.length > 0 ? [...reels, ...visibleDemoReels] : visibleDemoReels;
+  const reelItems = reels;
   const reelPageItem = routeReel || reelItems[0] || null;
   const reelCreatorName = reelPageItem?.creator_name || reelPageItem?.author_name || reelPageItem?.source || siteSettings.site_name || 'ALOK Creator';
   const reelCreatorKey = reelPageItem ? getCreatorKey(reelPageItem) : '';
@@ -1991,7 +1938,7 @@ function App() {
   const reelShares = formatCompactNumber(reelPageItem?.shares ?? (Math.round((reelPageItem?.views || 0) * 0.18) + 24));
 
   return (
-    <div className="App">
+    <div className={`App ${currentPageKey === 'videos' ? 'app-videos-mode' : ''}`}>
       <CampaignLayer campaign={isCampaignVisible ? campaignConfig : null} resolveMediaUrl={resolveMediaUrl} onDismiss={handleDismissCampaign} />
       {isFullPageCampaign && adminToken && (
         <button className="campaign-admin-exit" onClick={() => setShowSettingsModal(true)}>
@@ -2378,7 +2325,7 @@ function App() {
                       {isYT && ytId ? (
                         isActive ? (
                           <iframe
-                            src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=${reelsMuted ? 1 : 0}&loop=1&playlist=${ytId}&controls=0&modestbranding=1&rel=0&showinfo=0`}
+                            src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=${reelsMuted ? 1 : 0}&loop=1&playlist=${ytId}&controls=0&modestbranding=1&rel=0&showinfo=0&playsinline=1&iv_load_policy=3&fs=0`}
                             title={item.title}
                             frameBorder="0"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

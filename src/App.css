@@ -4363,22 +4363,45 @@
    REELS / TIKTOK-STYLE VIDEO ENVIRONMENT
 ═══════════════════════════════════════════════ */
 
+.App.app-videos-mode {
+  padding: 0 !important;
+  margin: 0 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  height: 100dvh !important;
+  width: 100vw !important;
+  max-width: 100vw !important;
+  overflow: hidden !important;
+  z-index: 9999 !important; /* Force to absolute top level above all layouts */
+  background: #000 !important;
+}
+
 .videos-page-main {
   padding: 0 !important;
   margin: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  position: absolute !important;
+  inset: 0 !important;
 }
 
 .reels-container {
-  position: relative;
-  height: 100svh;
+  position: absolute !important;
+  inset: 0 !important;
+  height: 100% !important;
+  width: 100% !important;
   overflow-y: scroll;
   scroll-snap-type: y mandatory;
   overscroll-behavior-y: contain;
   margin: 0;
+  padding: 0;
   scrollbar-width: none;
   background: #000;
-  width: 100vw;
-  max-width: 100vw;
+  z-index: 901 !important;
 }
 .reels-container::-webkit-scrollbar {
   display: none;
@@ -4386,12 +4409,12 @@
 
 .reel-frame {
   position: relative;
-  height: 100svh;
-  width: 100vw;
+  height: 100% !important;
+  width: 100% !important;
   scroll-snap-align: start;
   scroll-snap-stop: always;
   overflow: hidden;
-  background: #0a0a0a;
+  background: #000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4411,13 +4434,15 @@
   height: 100%;
   border: none;
   pointer-events: none;
+  object-fit: cover;
+  transform: scale(1.4);
 }
 
 .reel-video-el {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  background-color: var(--bg);
+  object-fit: contain;
+  background-color: #000;
   display: block;
 }
 
@@ -4933,18 +4958,6 @@
 
 /* ─── Mobile reels adjustments ─── */
 @media (max-width: 600px) {
-  .reels-container {
-    height: 100svh;
-    margin: 0;
-    width: 100vw;
-    max-width: 100vw;
-    border-radius: 0;
-    box-shadow: none;
-  }
-  .reel-frame {
-    height: 100svh;
-    width: 100vw;
-  }
   .reel-actions-col {
     right: 8px;
     bottom: 80px;
