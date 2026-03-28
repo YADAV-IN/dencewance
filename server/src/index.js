@@ -18,31 +18,50 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 4000;
 const IS_VERCEL = process.env.VERCEL === '1';
-const hasCloudinaryConfig =
-  !!process.env.CLOUDINARY_URL ||
-  (!!process.env.CLOUDINARY_CLOUD_NAME &&
-    !!process.env.CLOUDINARY_API_KEY &&
-    !!process.env.CLOUDINARY_API_SECRET);
+const readEnv = (name) => process.env[name]?.trim() || '';
 
-// Configure Cloudinary: prefer explicit vars, fall back to URL parse
-if (process.env.CLOUDINARY_CLOUD_NAME) {
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-  });
-} else if (process.env.CLOUDINARY_URL) {
-  // Parse cloudinary://api_key:api_secret@cloud_name
-  try {
-    const url = new URL(process.env.CLOUDINARY_URL);
-    cloudinary.config({
-      cloud_name: url.host,
-      api_key: url.username,
-      api_secret: url.password,
-    });
-  } catch (e) {
-    console.error('Failed to parse CLOUDINARY_URL:', e.message);
+const cloudinaryCloudName = readEnv('CLOUDINARY_CLOUD_NAME');
+const cloudinaryApiKey = readEnv('CLOUDINARY_API_KEY');
+const cloudinaryApiSecret = readEnv('CLOUDINARY_API_SECRET');
+const cloudinaryUrl = readEnv('CLOUDINARY_URL');
+
+const explicitCloudinaryConfig =
+  !!cloudinaryCloudName &&
+  !!cloudinaryApiKey &&
+  !!cloudinaryApiSecret;
+
+const getCloudinaryConfig = () => {
+  if (explicitCloudinaryConfig) {
+    return {
+      cloud_name: cloudinaryCloudName,
+      api_key: cloudinaryApiKey,
+      api_secret: cloudinaryApiSecret,
+    };
   }
+
+  if (cloudinaryUrl) {
+    try {
+      const url = new URL(cloudinaryUrl);
+      if (url.username && url.password && url.host) {
+        return {
+          cloud_name: url.host,
+          api_key: url.username,
+          api_secret: url.password,
+        };
+      }
+    } catch (e) {
+      console.error('Failed to parse CLOUDINARY_URL:', e.message);
+    }
+  }
+
+  return null;
+};
+
+const cloudinaryConfig = getCloudinaryConfig();
+const hasCloudinaryConfig = !!cloudinaryConfig;
+
+if (cloudinaryConfig) {
+  cloudinary.config(cloudinaryConfig);
 }
 
 const storage = hasCloudinaryConfig
@@ -360,10 +379,11 @@ async function findUniqueSlugMongoose(baseSlug) {
 }
 
 async function findUniqueReelSlug(baseSlug) {
-  let uniqueSlug = baseSlug;
+  const safeBase = baseSlug || `reel-${Date.now()}`;
+  let uniqueSlug = safeBase;
   let counter = 1;
   while (await Reel.findOne({ slug: uniqueSlug })) {
-    uniqueSlug = `${baseSlug}-${counter}`;
+    uniqueSlug = `${safeBase}-${counter}`;
     counter++;
   }
   return uniqueSlug;
@@ -416,7 +436,7 @@ app.post('/api/reels', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Title and video_url required.' });
   }
 
-  const baseSlug = slugify(payload.title);
+  const baseSlug = slugify(payload.title) || `reel-${Date.now()}`;
   const slug = await findUniqueReelSlug(baseSlug);
 
   const reel = await Reel.create({
@@ -589,6 +609,27 @@ app.post('/api/uploads/media', requireAuth, upload.single('media'), async (req, 
   return res.json({ data: { url: dataUrl, original_name: req.file.originalname, size: req.file.size } });
 });
 
+// ── Sign a direct Cloudinary upload (browser → Cloudinary, bypasses Vercel payload limit) ──
+app.post('/api/uploads/sign', requireAuth, async (req, res) => {
+  if (!hasCloudinaryConfig) {
+    return res.status(503).json({ error: 'Cloudinary not configured on this server.' });
+  }
+  const timestamp = Math.round(Date.now() / 1000);
+  const folder = 'alok/media';
+  const paramsToSign = { folder, timestamp };
+  const signature = cloudinary.utils.api_sign_request(paramsToSign, cloudinaryConfig.api_secret);
+  return res.json({
+    data: {
+      timestamp,
+      signature,
+      folder,
+      resource_type: 'video',
+      api_key: cloudinaryConfig.api_key,
+      cloud_name: cloudinaryConfig.cloud_name,
+    },
+  });
+});
+
 // ── Cleanup: delete all reels with base64/blob video_urls (junk data before Cloudinary) ──
 app.delete('/api/reels/cleanup-junk', requireAuth, async (req, res) => {
   try {
@@ -656,6 +697,41 @@ app.use((err, req, res, next) => {
   console.error('Unhandled route error:', err);
   if (res.headersSent) return next(err);
   return res.status(500).json({ error: err?.message || 'Internal Server Error' });
+});
+
+// In-memory active visitors tracking
+const activeVisitors = new Map();
+
+app.post('/api/stats/ping', async (req, res) => {
+  try {
+    const visitorId = req.body.visitorId || req.ip || 'anonymous';
+    const isNewSession = req.body.isNewSession === true;
+    
+    // Track active visitor (expires after 15s of no ping)
+    activeVisitors.set(visitorId, Date.now());
+    
+    // Clean up old visitors
+    const threshold = Date.now() - 15000;
+    for (const [key, lastSeen] of activeVisitors.entries()) {
+      if (lastSeen < threshold) activeVisitors.delete(key);
+    }
+    
+    // Increment total views if it's a new session
+    let settings = await SiteSettings.findOne() || await SiteSettings.create({});
+    
+    if (isNewSession) {
+      settings.total_views = (settings.total_views || 0) + 1;
+      await settings.save();
+    }
+    
+    res.json({
+      liveVisitors: Math.max(1, activeVisitors.size),
+      totalViews: settings.total_views || 0
+    });
+  } catch (error) {
+    console.error('Stats ping error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 if (!IS_VERCEL) {

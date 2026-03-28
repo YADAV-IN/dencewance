@@ -124,6 +124,7 @@ const siteSettingsSchema = new mongoose.Schema({
   site_subtitle: { type: String, default: 'बीजेएमसी न्यूज़' },
   site_title: { type: String, default: 'ALOK - बीजेएमसी न्यूज़' },
   site_description: { type: String, default: 'बीजेएमसी न्यूज़रूम - आपकी खबरों का भरोसेमंद स्रोत' },
+  total_views: { type: Number, default: 0 },
   campaign: {
     enabled: { type: Boolean, default: false },
     mode: { type: String, default: 'banner' },

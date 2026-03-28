@@ -188,6 +188,34 @@ const resolvePageKey = (pathname) => {
   return 'home';
 };
 
+const timeAgo = (dateString, language = 'hi') => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const now = new Date();
+  const seconds = Math.round((now - date) / 1000);
+  const minutes = Math.round(seconds / 60);
+  const hours = Math.round(minutes / 60);
+  const days = Math.round(hours / 24);
+  const months = Math.round(days / 30);
+  const years = Math.round(days / 365);
+
+  if (language === 'hi') {
+    if (seconds < 60) return `अभी-अभी`;
+    if (minutes < 60) return `${minutes} मिनट पहले`;
+    if (hours < 24) return `${hours} घंटे पहले`;
+    if (days < 30) return `${days} दिन पहले`;
+    if (months < 12) return `${months} महीने पहले`;
+    return `${years} साल पहले`;
+  } else {
+    if (seconds < 60) return `Just now`;
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 30) return `${days}d ago`;
+    if (months < 12) return `${months}mo ago`;
+    return `${years}y ago`;
+  }
+};
+
 const defaultCampaignSettings = {
   enabled: false,
   mode: 'banner',
@@ -328,8 +356,8 @@ function App() {
     is_featured: false,
     is_breaking: false,
     // Author fields
-    author_name: 'ALOK Team',
-    author_email: '',
+    author_name: adminProfile?.name || 'ALOK Team',
+    author_email: adminProfile?.email || '',
     author_twitter: '',
     author_instagram: '',
     // SEO fields
@@ -352,6 +380,11 @@ function App() {
   });
   const [editingNews, setEditingNews] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showReelModal, setShowReelModal] = useState(false);
+  const [editingReel, setEditingReel] = useState(null);
+  const [reelForm, setReelForm] = useState({
+    title: '', caption: '', video_url: '', tags: '', status: 'published'
+  });
   const [siteSettings, setSiteSettings] = useState({
     site_name: 'ALOK',
     site_subtitle: 'बीजेएमसी न्यूज़',
@@ -360,7 +393,7 @@ function App() {
     campaign: { ...defaultCampaignSettings },
   });
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [theme, setTheme] = useState(() => localStorage.getItem('alok_theme') || 'dark');
+  const [theme, setTheme] = useState(() => localStorage.getItem('alok_theme') || 'light');
   const [language, setLanguage] = useState(() => {
     const saved = localStorage.getItem('alok_language');
     if (saved) return saved;
@@ -376,6 +409,43 @@ function App() {
   const [isAvatarDragActive, setIsAvatarDragActive] = useState(false);
   const [isCoverDragActive, setIsCoverDragActive] = useState(false);
   const [dismissedCampaignKey, setDismissedCampaignKey] = useState('');
+  const [showTermsBanner, setShowTermsBanner] = useState(false);
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [visitorName, setVisitorName] = useState(() => localStorage.getItem('alok_visitor_name') || '');
+  const [liveVisitors, setLiveVisitors] = useState(1);
+  const [totalSiteViews, setTotalSiteViews] = useState(0);
+
+  // Live stats effect connecting to backend
+  useEffect(() => {
+    let visitorId = localStorage.getItem('alok_visitor_id');
+    if (!visitorId) {
+      // Simple random ID for session
+      visitorId = Math.random().toString(36).substring(2, 15);
+      localStorage.setItem('alok_visitor_id', visitorId);
+    }
+
+    const pingStats = async () => {
+      try {
+        const response = await fetch(`${API_URL}/stats/ping`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ visitorId })
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setLiveVisitors(data.activeVisitors);
+          setTotalSiteViews(data.totalViews);
+        }
+      } catch (err) {
+        console.error('Error fetching live stats:', err);
+      }
+    };
+
+    pingStats(); // Initial ping
+    const visitorInterval = setInterval(pingStats, 10000); // Ping every 10 seconds
+
+    return () => clearInterval(visitorInterval);
+  }, []);
 
   const currentPath = routeState.pathname;
   const currentSearch = routeState.search;
@@ -588,6 +658,21 @@ function App() {
     setVideoUploadState({ state: 'online', message: 'Reel link copy ho gaya.' });
   };
 
+  const shareStory = async (item) => {
+    if (!item || typeof window === 'undefined') return;
+    const shareUrl = `${window.location.origin}/story/${encodeURIComponent(getStorySlug(item))}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: item.title, text: item.excerpt || item.title, url: shareUrl });
+        return;
+      } catch (error) {
+        // fall back to clipboard copy
+      }
+    }
+    await navigator.clipboard?.writeText(shareUrl);
+    alert('Link copied to clipboard!');
+  };
+
   const openCategoryPage = (category) => {
     const allCategoriesLabel = t('allCategories', language);
     const search = category && category !== allCategoriesLabel
@@ -640,7 +725,7 @@ function App() {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
       if (response.ok || response.status === 204) {
-        setReels((prev) => prev.filter((r) => r.id !== reelId));
+        setReels((prev) => prev.filter((r) => r.id !== reelId && r._id !== reelId));
         setStatus({ state: 'online', message: 'Reel deleted.' });
       } else {
         const err = await response.json().catch(() => ({}));
@@ -794,15 +879,41 @@ function App() {
   const handleAvatarUpload = async (event) => {
     const file = event.target.files?.[0];
     if (!file || !adminToken) return;
-    await openCropperForFile(file, 'avatar');
+    setStatus({ state: 'loading', message: 'फाइल अपलोड हो रही है...' });
+    const formData = new FormData();
+    formData.append('media', file);
+    try {
+      const response = await fetch(`${API_URL}/api/uploads/media`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${adminToken}` },
+        body: formData,
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Upload failed');
+      
+      const updateRes = await fetch(`${API_URL}/api/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+        body: JSON.stringify({
+          name: profileForm.name || adminProfile?.name || '',
+          email: profileForm.email || adminProfile?.email || '',
+          bio: profileForm.bio || adminProfile?.bio || '',
+          avatar_url: payload.data.url,
+        }),
+      });
+      const updatePayload = await updateRes.json();
+      if (!updateRes.ok) throw new Error(updatePayload.error || 'Update failed');
+      setAdminProfile(updatePayload.data);
+      setStatus({ state: 'online', message: 'प्रोफाइल फोटो अपडेट हो गई!' });
+    } catch (error) {
+      console.error(error);
+      setStatus({ state: 'error', message: 'फाइल अपलोड फेल हो गया।' });
+    }
     event.target.value = '';
   };
 
   const handleCoverUpload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file || !adminToken) return;
-    await openCropperForFile(file, 'cover');
-    event.target.value = '';
+    await handleMediaUpload(event, 'cover_image_url');
   };
 
   const handleAvatarDrop = async (event) => {
@@ -811,7 +922,7 @@ function App() {
     if (!adminToken) return;
     const file = event.dataTransfer?.files?.[0];
     if (!file) return;
-    await openCropperForFile(file, 'avatar');
+    await handleAvatarUpload({ target: { files: [file], value: '' } });
   };
 
   const handleCoverDrop = async (event) => {
@@ -820,26 +931,52 @@ function App() {
     if (!adminToken) return;
     const file = event.dataTransfer?.files?.[0];
     if (!file) return;
-    await openCropperForFile(file, 'cover');
+    
+    // Simulate event object for handleMediaUpload
+    await handleMediaUpload({ target: { files: [file], value: '' } }, 'cover_image_url');
   };
 
-  const uploadVideoAsset = (file, { assignToForm = true } = {}) =>
-    new Promise((resolve) => {
-      if (!file) return resolve(null);
+  // Direct browser→Cloudinary upload — bypasses Vercel's 4.5MB request body limit entirely.
+  // Backend only signs the request (tiny JSON call), file goes straight to Cloudinary.
+  const uploadVideoAsset = async (file, { assignToForm = true } = {}) => {
+    if (!file) return null;
 
-      if (!adminToken) {
-        const blobUrl = URL.createObjectURL(file);
-        if (assignToForm) setNewsForm((prev) => ({ ...prev, video_url: blobUrl }));
-        setVideoUploadState({ state: 'preview', message: 'Local preview ready. Login for permanent upload.' });
-        return resolve(blobUrl);
-      }
+    if (!adminToken) {
+      const blobUrl = URL.createObjectURL(file);
+      if (assignToForm) setNewsForm((prev) => ({ ...prev, video_url: blobUrl }));
+      setVideoUploadState({ state: 'preview', message: 'Local preview ready. Login for permanent upload.' });
+      return blobUrl;
+    }
 
-      setReelUploadProgress(0);
-      setVideoUploadState({ state: 'loading', message: 'Uploading... 0%' });
-      setStatus({ state: 'loading', message: 'वीडियो अपलोड हो रहा है...' });
+    setReelUploadProgress(0);
+    setVideoUploadState({ state: 'loading', message: 'Uploading... 0%' });
+    setStatus({ state: 'loading', message: 'वीडियो अपलोड हो रहा है...' });
 
+    // Step 1: get a signed upload token from our backend (small request, no file)
+    let signData;
+    try {
+      const signRes = await fetch(`${API_URL}/api/uploads/sign`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+      });
+      const signJson = await signRes.json();
+      if (!signRes.ok) throw new Error(signJson?.error || 'Could not get upload token');
+      signData = signJson.data;
+    } catch (err) {
+      const msg = err.message || 'Upload sign failed';
+      setVideoUploadState({ state: 'error', message: msg });
+      setStatus({ state: 'error', message: msg });
+      return null;
+    }
+
+    // Step 2: upload file directly to Cloudinary (no Vercel size limit)
+    return new Promise((resolve) => {
       const formData = new FormData();
-      formData.append('media', file);
+      formData.append('file', file);
+      formData.append('api_key', signData.api_key);
+      formData.append('timestamp', signData.timestamp);
+      formData.append('signature', signData.signature);
+      formData.append('folder', signData.folder);
 
       const xhr = new XMLHttpRequest();
 
@@ -853,20 +990,25 @@ function App() {
 
       xhr.onload = () => {
         setReelUploadProgress(100);
+        let result;
         try {
-          const payload = JSON.parse(xhr.responseText);
-          if (xhr.status >= 200 && xhr.status < 300) {
-            if (assignToForm) setNewsForm((prev) => ({ ...prev, video_url: payload.data.url }));
-            setVideoUploadState({ state: 'online', message: 'Upload complete! Reel saved ✓' });
-            setStatus({ state: 'online', message: 'वीडियो सफलतापूर्वक अपलोड हो गया।' });
-            resolve(payload.data.url);
-          } else if (xhr.status === 413) {
-            throw new Error('File too large - exceeds server size limit');
-          } else {
-            throw new Error(payload?.error || `Upload failed (${xhr.status})`);
-          }
-        } catch (err) {
-          const msg = err.message || 'Upload failed';
+          result = JSON.parse(xhr.responseText);
+        } catch {
+          const msg = xhr.status === 413
+            ? 'File too large for Cloudinary.'
+            : `Upload failed (status ${xhr.status})`;
+          setVideoUploadState({ state: 'error', message: msg });
+          setStatus({ state: 'error', message: msg });
+          return resolve(null);
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const url = result.secure_url;
+          if (assignToForm) setNewsForm((prev) => ({ ...prev, video_url: url }));
+          setVideoUploadState({ state: 'online', message: 'Upload complete. Saving reel...' });
+          setStatus({ state: 'online', message: 'वीडियो सफलतापूर्वक अपलोड हो गया।' });
+          resolve(url);
+        } else {
+          const msg = result?.error?.message || `Cloudinary upload failed (${xhr.status})`;
           setVideoUploadState({ state: 'error', message: msg });
           setStatus({ state: 'error', message: msg });
           resolve(null);
@@ -879,10 +1021,11 @@ function App() {
         resolve(null);
       };
 
-      xhr.open('POST', `${API_URL}/api/uploads/media`);
-      xhr.setRequestHeader('Authorization', `Bearer ${adminToken}`);
+      // Direct Cloudinary auto-upload endpoint
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${signData.cloud_name}/video/upload`);
       xhr.send(formData);
     });
+  };
 
   const handleVideoFileUpload = async (event) => {
     const file = event.target.files?.[0];
@@ -913,8 +1056,9 @@ function App() {
       title: baseTitle,
       caption: `Fresh upload: ${baseTitle}`,
       video_url: uploadedUrl,
-      creator_name: siteSettings.site_name || 'ALOK Creator',
-      creator_handle: 'aloklive',
+      creator_name: adminProfile?.name || siteSettings.site_name || 'ALOK Creator',
+      creator_avatar: adminProfile?.avatar_url || '',
+      creator_handle: adminProfile?.handle || adminProfile?.name?.toLowerCase().replace(/\s+/g, '') || 'aloklive',
       tags: ['upload'],
       status: 'published',
       published_at: new Date().toISOString(),
@@ -932,18 +1076,17 @@ function App() {
         });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || 'Reel save failed');
+
+        setReels((prev) => [payload.data, ...prev.filter((item) => item.id !== payload.data.id)]);
+
         // Re-fetch all reels from DB so state is in sync
         try {
           const reloadRes = await fetch(`${API_URL}/api/reels?limit=80`);
           if (reloadRes.ok) {
             const reloadData = await reloadRes.json();
             setReels(Array.isArray(reloadData.data) ? reloadData.data : [payload.data]);
-          } else {
-            setReels((prev) => [payload.data, ...prev]);
           }
-        } catch (e) {
-          setReels((prev) => [payload.data, ...prev]);
-        }
+        } catch (e) {}
         setVideoUploadState({ state: 'online', message: 'Reel uploaded and saved in database! ✓' });
         setStatus({ state: 'online', message: 'रील सफलतापूर्वक सहेजा गया।' });
         openReel(payload.data);
@@ -1100,6 +1243,46 @@ function App() {
 
     loadAdmins();
   }, [adminToken]);
+
+  useEffect(() => {
+    // 1. Device ID Generation
+    if (!localStorage.getItem('alok_imei_uuid')) {
+      const generateUUID = () => {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          return crypto.randomUUID();
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+      localStorage.setItem('alok_imei_uuid', generateUUID());
+    }
+
+    // 2. Term & Conditions Check
+    if (!localStorage.getItem('alok_terms_agreed')) {
+      setShowTermsBanner(true);
+    } else if (!localStorage.getItem('alok_visitor_name')) {
+      // 3. Username Onboarding Check
+      setShowOnboardingModal(true);
+    }
+  }, []);
+
+  const handleAcceptTerms = () => {
+    localStorage.setItem('alok_terms_agreed', 'true');
+    setShowTermsBanner(false);
+    if (!localStorage.getItem('alok_visitor_name')) {
+      setShowOnboardingModal(true);
+    }
+  };
+
+  const handleSaveVisitorName = (e) => {
+    e.preventDefault();
+    if (visitorName.trim()) {
+      localStorage.setItem('alok_visitor_name', visitorName.trim());
+      setShowOnboardingModal(false);
+    }
+  };
 
   // Load users when user management panel opens
   useEffect(() => {
@@ -1589,6 +1772,56 @@ function App() {
     }
   };
 
+  const handleSaveReel = async (event) => {
+    event.preventDefault();
+    if (!adminToken) return;
+
+    setStatus({ state: 'loading', message: 'रील सेव हो रही है...' });
+
+    try {
+      const tagsArray = typeof reelForm.tags === 'string' ? reelForm.tags.split(',').map((t) => t.trim()).filter(Boolean) : reelForm.tags;
+      const payload = {
+        ...reelForm,
+        tags: tagsArray,
+        creator_name: adminProfile?.name || siteSettings.site_name || 'ALOK Creator',
+        creator_avatar: adminProfile?.avatar_url || '',
+        creator_handle: adminProfile?.handle || adminProfile?.name?.toLowerCase().replace(/\s+/g, '') || 'aloklive',
+        published_at: new Date().toISOString(),
+      };
+
+      const method = editingReel?.id === 'new-reel' ? 'POST' : 'PUT';
+      const endpoint = editingReel?.id === 'new-reel' 
+        ? `${API_URL}/api/reels` 
+        : `${API_URL}/api/reels/${editingReel.id}`;
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.error || 'Reel save failed');
+
+      if (editingReel?.id === 'new-reel') {
+        setReels((prev) => [resData.data, ...prev]);
+      } else {
+        setReels((prev) => prev.map((item) => item.id === editingReel.id ? resData.data : item));
+      }
+
+      setShowReelModal(false);
+      setEditingReel(null);
+      setReelForm({ title: '', caption: '', video_url: '', tags: '', status: 'published' });
+      setStatus({ state: 'online', message: 'रील सेव हो गई!' });
+    } catch (error) {
+      console.error(error);
+      setStatus({ state: 'error', message: 'रील सेव असफल रहा।' });
+    }
+  };
+
   // Delete news handler
   const handleDeleteNews = async (newsId) => {
     if (!adminToken || !confirm('क्या आप इस खबर को हटाना चाहते हैं?')) return;
@@ -1684,14 +1917,6 @@ function App() {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          const videoEl = entry.target.querySelector('video');
-          if (videoEl) {
-            if (entry.isIntersecting) {
-              videoEl.play().catch(() => {});
-            } else {
-              videoEl.pause();
-            }
-          }
           if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
             const idx = parseInt(entry.target.dataset.reelIdx, 10);
             if (!isNaN(idx)) setActiveReelIndex(idx);
@@ -1703,6 +1928,23 @@ function App() {
     frames.forEach((f) => observer.observe(f));
     return () => observer.disconnect();
   }, [currentPageKey, reels.length]);
+
+  // Sync play/pause strictly to activeReelIndex
+  useEffect(() => {
+    if (currentPageKey !== 'videos' || !reelsContainerRef.current) return;
+    const frames = reelsContainerRef.current.querySelectorAll('.reel-frame');
+    frames.forEach((frame) => {
+      const idx = parseInt(frame.dataset.reelIdx, 10);
+      const videoEl = frame.querySelector('video');
+      if (videoEl) {
+        if (idx === activeReelIndex && !reelPaused.has(idx)) {
+          videoEl.play().catch(() => {});
+        } else {
+          videoEl.pause();
+        }
+      }
+    });
+  }, [activeReelIndex, reelPaused, currentPageKey]);
 
   // Sync mute state to all native video elements in reels
   useEffect(() => {
@@ -1759,8 +2001,8 @@ function App() {
 
       {!isFullPageCampaign && (
         <>
-      {/* Header */}
-      <header className="header">
+          {currentPageKey !== 'videos' && (
+            <header className="header">
         <div className="header-content">
           <div className="logo-section logo-button" onClick={() => navigateTo('/')} role="button" tabIndex={0} onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') {
@@ -1824,41 +2066,45 @@ function App() {
         <div className="command-nav-row">
           <nav className="command-nav">
             {navItems.map((item) => (
-              <button
+              <a
                 key={item.key}
+                href={item.path}
                 className={`command-nav-item ${currentPageKey === item.key || (currentPageKey === 'reel' && item.key === 'videos') ? 'active' : ''}`}
-                onClick={() => navigateTo(item.path)}
+                onClick={(e) => { e.preventDefault(); navigateTo(item.path); }}
               >
                 {item.label}
-              </button>
+              </a>
             ))}
           </nav>
         </div>
       </header>
+      )}
 
       {/* Breaking News Ticker */}
-      {tickerItems.length > 0 && (
+      {tickerItems.length > 0 && currentPageKey !== 'videos' && (
         <section className="breaking-news">
           <span className="breaking-label">{t('breakingNews', language)}</span>
-          <div className="ticker-track">
-            <div className="ticker-content">
-              {tickerItems.concat(tickerItems).map((item, index) => (
-                <span
-                  key={`${item.id}-${index}`}
-                  onClick={() => openStory(item)}
-                  className="ticker-item"
-                >
-                  {item.title}
-                </span>
-              ))}
+          <div className="ticker-wrapper" style={{ flexGrow: 1, overflow: 'hidden', whiteSpace: 'nowrap', maskImage: 'linear-gradient(to right, transparent, black 20px, black calc(100% - 20px), transparent)', WebkitMaskImage: 'linear-gradient(to right, transparent, black 10px, black calc(100% - 20px), transparent)' }}>
+            <div className="ticker-track">
+              <div className="ticker-content">
+                {tickerItems.concat(tickerItems).map((item, index) => (
+                  <span
+                    key={`${item.id}-${index}`}
+                    onClick={() => openStory(item)}
+                    className="ticker-item"
+                  >
+                    {item.title}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </section>
       )}
 
-      <div style={{ display: device.isDesktop && !isStoryPage && !isReelPage ? 'grid' : 'block', gridTemplateColumns: device.isDesktop && !isStoryPage && !isReelPage ? '1fr 320px' : '1fr', gap: '24px' }}>
+      <div style={{ display: device.isDesktop && !isStoryPage && !isReelPage && currentPageKey !== 'videos' ? 'grid' : 'block', gridTemplateColumns: device.isDesktop && !isStoryPage && !isReelPage && currentPageKey !== 'videos' ? '1fr 320px' : '1fr', gap: '24px' }}>
         {/* Main Content */}
-        <main className="main-content">
+        <main className={`main-content ${currentPageKey === 'videos' ? 'videos-page-main' : ''}`}>
           {currentPageKey === 'home' && (
             <>
               {heroStory && (
@@ -1920,8 +2166,13 @@ function App() {
                         <h3>{item.title}</h3>
                         <p>{item.excerpt}</p>
                         <div className="card-meta">
-                          <span>{item.reading_time} {t('min', language)}</span>
-                          <span>{item.views} {t('views', language)}</span>
+                          <span className="meta-time">{timeAgo(item.published_at || item.created_at, language)}</span>
+                          <span>•</span>
+                          <span className="meta-views" style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.8 }}>
+                            👁 {item.views || 0}
+                          </span>
+                          <span>•</span>
+                          <span className="meta-author">{item.author_name || 'ALOK'}</span>
                         </div>
                       </div>
                     </article>
@@ -1989,8 +2240,13 @@ function App() {
                         <h3>{item.title}</h3>
                         <p>{item.excerpt}</p>
                         <div className="card-meta">
-                          <span>{item.reading_time} {t('min', language)}</span>
-                          <span>{item.views} {t('views', language)}</span>
+                          <span className="meta-time">{timeAgo(item.published_at || item.created_at, language)}</span>
+                          <span>•</span>
+                          <span className="meta-views" style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.8 }}>
+                            👁 {item.views || 0}
+                          </span>
+                          <span>•</span>
+                          <span className="meta-author">{item.author_name || 'ALOK'}</span>
                         </div>
                       </div>
                     </article>
@@ -2017,8 +2273,13 @@ function App() {
                         <h3>{item.title}</h3>
                         <p>{item.excerpt}</p>
                         <div className="card-meta">
-                          <span>{item.reading_time} {t('min', language)}</span>
-                          <span>{item.views} {t('views', language)}</span>
+                          <span className="meta-time">{timeAgo(item.published_at || item.created_at, language)}</span>
+                          <span>•</span>
+                          <span className="meta-views" style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.8 }}>
+                            👁 {item.views || 0}
+                          </span>
+                          <span>•</span>
+                          <span className="meta-author">{item.author_name || 'ALOK'}</span>
                         </div>
                       </div>
                     </article>
@@ -2067,8 +2328,13 @@ function App() {
                         <h3>{item.title}</h3>
                         <p>{item.excerpt}</p>
                         <div className="card-meta">
-                          <span>{item.reading_time} {t('min', language)}</span>
-                          <span>{item.views} {t('views', language)}</span>
+                          <span className="meta-time">{timeAgo(item.published_at || item.created_at, language)}</span>
+                          <span>•</span>
+                          <span className="meta-views" style={{ display: 'flex', alignItems: 'center', gap: '4px', opacity: 0.8 }}>
+                            👁 {item.views || 0}
+                          </span>
+                          <span>•</span>
+                          <span className="meta-author">{item.author_name || 'ALOK'}</span>
                         </div>
                       </div>
                     </article>
@@ -2086,6 +2352,7 @@ function App() {
                 const isActive = activeReelIndex === idx;
                 const isPaused = reelPaused.has(idx);
                 const creatorInitial = (item.creator_name || 'A').charAt(0).toUpperCase();
+                const creatorAvatar = item.creator_avatar || '';
                 return (
                   <div
                     key={item.id}
@@ -2109,14 +2376,21 @@ function App() {
                       }}
                     >
                       {isYT && ytId ? (
-                        <iframe
-                          src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=0&loop=1&playlist=${ytId}&controls=0&modestbranding=1&rel=0&showinfo=0`}
-                          title={item.title}
-                          frameBorder="0"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                          className="reel-iframe"
-                        />
+                        isActive ? (
+                          <iframe
+                            src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=${reelsMuted ? 1 : 0}&loop=1&playlist=${ytId}&controls=0&modestbranding=1&rel=0&showinfo=0`}
+                            title={item.title}
+                            frameBorder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                            className="reel-iframe"
+                          />
+                        ) : (
+                          <div
+                            className="reel-cover-fallback"
+                            style={{ backgroundImage: `url(https://img.youtube.com/vi/${ytId}/hqdefault.jpg)` }}
+                          />
+                        )
                       ) : item.video_url ? (
                         <video
                           ref={(el) => { if (el) reelVideoRefs.current[idx] = el; }}
@@ -2134,7 +2408,9 @@ function App() {
                       )}
                       {isPaused && (
                         <div className="reel-pause-indicator">
-                          <span>⏸</span>
+                          <svg viewBox="0 0 24 24" fill="white" width="64" height="64" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))' }}>
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
                         </div>
                       )}
                     </div>
@@ -2142,11 +2418,23 @@ function App() {
                     {/* Gradient overlay (non-interactive) */}
                     <div className="reel-gradient-overlay" />
 
+                    {/* Watermark & Back Navigation */}
+                    <div className="reel-top-overlay">
+                      <button className="reel-back-btn" onClick={(e) => { e.preventDefault(); navigateTo('/'); }}>
+                        ←
+                      </button>
+                      <span className="reel-watermark-text">{siteSettings.site_name || 'ALOK'}</span>
+                    </div>
+
                     {/* Right action column (TikTok-style) */}
                     <div className="reel-actions-col">
                       {/* Creator avatar + follow pill */}
                       <div className="reel-creator-pill">
-                        <div className="reel-creator-avatar-sm">{creatorInitial}</div>
+                        {creatorAvatar ? (
+                          <img src={resolveMediaUrl(creatorAvatar)} alt="creator" className="reel-creator-avatar-sm" style={{ objectFit: 'cover' }} />
+                        ) : (
+                          <div className="reel-creator-avatar-sm">{creatorInitial}</div>
+                        )}
                         <button
                           className="reel-follow-fab-btn"
                           onClick={(e) => { e.stopPropagation(); toggleFollowCreator(item); }}
@@ -2157,7 +2445,11 @@ function App() {
                       {/* Like */}
                       <div className="reel-action-item">
                         <button className="reel-action-btn" onClick={(e) => e.stopPropagation()}>
-                          <span className="reel-action-icon">❤️</span>
+                          <span className="reel-action-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+                              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                            </svg>
+                          </span>
                         </button>
                         <span className="reel-action-count">{formatCompactNumber(item.likes || 0)}</span>
                       </div>
@@ -2165,15 +2457,23 @@ function App() {
                       {/* Comment / Open reel page */}
                       <div className="reel-action-item">
                         <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); openReel(item); }}>
-                          <span className="reel-action-icon">💬</span>
+                          <span className="reel-action-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+                              <path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/>
+                            </svg>
+                          </span>
                         </button>
-                        <span className="reel-action-count">Open</span>
+                        <span className="reel-action-count">12</span>
                       </div>
 
                       {/* Bookmark */}
                       <div className="reel-action-item">
                         <button className="reel-action-btn" onClick={(e) => e.stopPropagation()}>
-                          <span className="reel-action-icon">🔖</span>
+                          <span className="reel-action-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+                              <path d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+                            </svg>
+                          </span>
                         </button>
                         <span className="reel-action-count">Save</span>
                       </div>
@@ -2181,7 +2481,11 @@ function App() {
                       {/* Share */}
                       <div className="reel-action-item">
                         <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); shareReel(item); }}>
-                          <span className="reel-action-icon">↗️</span>
+                          <span className="reel-action-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28" style={{ transform: 'scaleX(-1)' }}>
+                              <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/>
+                            </svg>
+                          </span>
                         </button>
                         <span className="reel-action-count">{formatCompactNumber(item.shares || 0)}</span>
                       </div>
@@ -2189,7 +2493,17 @@ function App() {
                       {/* Sound */}
                       <div className="reel-action-item">
                         <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); setReelsMuted((m) => !m); }}>
-                          <span className="reel-action-icon">{reelsMuted ? '🔇' : '🔊'}</span>
+                          <span className="reel-action-icon">
+                            {reelsMuted ? (
+                              <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+                                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+                              </svg>
+                            ) : (
+                              <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+                                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                              </svg>
+                            )}
+                          </span>
                         </button>
                         <span className="reel-action-count">{reelsMuted ? 'Off' : 'On'}</span>
                       </div>
@@ -2201,7 +2515,11 @@ function App() {
                             className="reel-action-btn reel-delete-btn"
                             onClick={(e) => { e.stopPropagation(); deleteReel(item.id || item._id); }}
                           >
-                            <span className="reel-action-icon">🗑️</span>
+                            <span className="reel-action-icon">
+                              <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+                                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                              </svg>
+                            </span>
                           </button>
                           <span className="reel-action-count">Del</span>
                         </div>
@@ -2261,14 +2579,16 @@ function App() {
               })}
 
               {/* Floating Upload Button (FAB) */}
-              <button
-                className="reel-upload-fab"
-                onClick={() => adminToken ? reelUploadInputRef.current?.click() : openWorkspace()}
-                title={adminToken ? 'Upload New Reel' : 'Login to Upload'}
-              >
-                <span className="reel-upload-fab-icon">{adminToken ? '＋' : '🔒'}</span>
-                <span className="reel-upload-fab-label">{adminToken ? 'Upload' : 'Login'}</span>
-              </button>
+              {adminToken && (
+                <button
+                  className="reel-upload-fab"
+                  onClick={() => reelUploadInputRef.current?.click()}
+                  title="Upload New Reel"
+                >
+                  <span className="reel-upload-fab-icon">＋</span>
+                  <span className="reel-upload-fab-label">Upload</span>
+                </button>
+              )}
               <input
                 ref={reelUploadInputRef}
                 type="file"
@@ -2337,10 +2657,14 @@ function App() {
                       <span className="reel-category-badge">{reelPageItem.category || 'Reel'}</span>
                       <h1 className="reel-title reel-share-title">{reelPageItem.title}</h1>
                       <p className="reel-excerpt reel-share-caption">{reelPageItem.excerpt || reelPageItem.caption || reelPageItem.ai_summary || 'Short-form video story in full frame mode.'}</p>
-                      <div className="reel-creator-row">
-                        <div className="reel-creator-avatar">{reelCreatorName.slice(0, 1).toUpperCase()}</div>
-                        <div>
-                          <strong>@{slugifyText(reelCreatorName).replace(/-/g, '') || 'creator'}</strong>
+                        <div className="reel-creator-row">
+                          {reelPageItem.creator_avatar ? (
+                            <img src={resolveMediaUrl(reelPageItem.creator_avatar)} alt="creator" className="reel-creator-avatar" style={{ objectFit: 'cover' }} />
+                          ) : (
+                            <div className="reel-creator-avatar">{reelCreatorName.slice(0, 1).toUpperCase()}</div>
+                          )}
+                          <div>
+                            <strong>@{slugifyText(reelCreatorName).replace(/-/g, '') || 'creator'}</strong>
                           <span>{reelFollowers} followers</span>
                         </div>
                         <button className={`reel-follow-btn ${isFollowingReelCreator ? 'following' : ''}`} onClick={() => toggleFollowCreator(reelPageItem)}>
@@ -2398,32 +2722,41 @@ function App() {
                     </div>
                   </div>
 
-                  <div className="reel-upload-card">
-                    <div>
-                      <p className="page-kicker">Upload Desk</p>
-                      <h3>Next reel upload</h3>
-                      <p>{adminToken ? 'Direct video upload yahin se trigger karo. Upload status live dikh raha hai.' : 'Upload ke liye login workspace open karo.'}</p>
+                  {adminToken && (
+                    <div className="reel-upload-card">
+                      <div>
+                        <p className="page-kicker">Upload Desk</p>
+                        <h3>Next reel upload</h3>
+                        <p>Direct video upload yahin se trigger karo. Upload status live dikh raha hai.</p>
+                      </div>
+                      <div className="reel-upload-actions">
+                        <button className="btn-primary" type="button" onClick={() => reelUploadInputRef.current?.click()}>
+                          Upload Reel
+                        </button>
+                        <button className="btn-secondary" type="button" onClick={() => navigateTo('/videos')}>
+                          All reels
+                        </button>
+                      </div>
+                      <input
+                        ref={reelUploadInputRef}
+                        type="file"
+                        accept="video/*"
+                        style={{ display: 'none' }}
+                        onChange={handleReelFileUpload}
+                      />
+                      <div className="reel-upload-status">
+                        <strong>{videoUploadState.state === 'loading' ? 'Uploading' : videoUploadState.state === 'online' ? 'Uploaded' : 'Status'}</strong>
+                        <span>{videoUploadState.message || 'Ready for next short-form video.'}</span>
+                      </div>
                     </div>
-                    <div className="reel-upload-actions">
-                      <button className="btn-primary" type="button" onClick={() => adminToken ? reelUploadInputRef.current?.click() : openWorkspace()}>
-                        {adminToken ? 'Upload Reel' : 'Login to Upload'}
-                      </button>
+                  )}
+                  {!adminToken && (
+                    <div className="reel-upload-card" style={{ display: 'flex', justifyContent: 'center', background: 'transparent', border: 'none' }}>
                       <button className="btn-secondary" type="button" onClick={() => navigateTo('/videos')}>
                         All reels
                       </button>
                     </div>
-                    <input
-                      ref={reelUploadInputRef}
-                      type="file"
-                      accept="video/*"
-                      style={{ display: 'none' }}
-                      onChange={handleReelFileUpload}
-                    />
-                    <div className="reel-upload-status">
-                      <strong>{videoUploadState.state === 'loading' ? 'Uploading' : videoUploadState.state === 'online' ? 'Uploaded' : 'Status'}</strong>
-                      <span>{videoUploadState.message || 'Ready for next short-form video.'}</span>
-                    </div>
-                  </div>
+                  )}
 
                   <div className="reel-share-meta">
                     <h3>About this reel</h3>
@@ -2496,9 +2829,14 @@ function App() {
                       <span className="detail-category">{selectedStory.category}</span>
                       <h2>{selectedStory.title}</h2>
                       <div className="detail-meta">
-                        <span>{formatDate(selectedStory.published_at)}</span>
+                        <span>{timeAgo(selectedStory.published_at || selectedStory.created_at, language)}</span>
                         <span>•</span>
-                        <span>{selectedStory.reading_time} मिन पढ़ें</span>
+                        <span>{selectedStory.reading_time} {t('min', language)}</span>
+                        <span>•</span>
+                        <span>👁 {selectedStory.views || 0}</span>
+                      </div>
+                      <div className="share-row" style={{ marginTop: '16px', marginBottom: '24px' }}>
+                        <button className="btn-secondary" onClick={() => shareStory(selectedStory)}>🔗 Share this story</button>
                       </div>
                       {selectedStory.cover_image_url && !selectedStory.video_url && (
                         <div className="detail-image" style={{ backgroundImage: `url(${resolveMediaUrl(selectedStory.cover_image_url)})` }}></div>
@@ -2564,7 +2902,7 @@ function App() {
         </main>
 
         {/* Sidebar */}
-        {device.isDesktop && !isStoryPage && !isReelPage && (
+        {device.isDesktop && !isStoryPage && !isReelPage && currentPageKey !== 'videos' && (
           <aside className="sidebar">
             <div className="sidebar-section">
               <h3>🔥 {t('trending', language)}</h3>
@@ -2790,6 +3128,17 @@ function App() {
                     >
                       📰 नई खबर बनाएं
                     </button>
+                    <button
+                      className="primary"
+                      style={{ width: '100%', marginTop: '10px', background: '#e1306c', borderColor: '#e1306c' }}
+                      onClick={() => {
+                        setReelForm({ title: '', caption: '', video_url: '', tags: '', status: 'published' });
+                        setEditingReel({ id: 'new-reel' });
+                        setShowReelModal(true);
+                      }}
+                    >
+                      🎥 नई वीडियो/रील बनाएं
+                    </button>
                   </div>
                 )}
               </div>
@@ -2799,7 +3148,7 @@ function App() {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      {device.isMobile && (
+      {device.isMobile && currentPageKey !== 'videos' && (
         <MobileBottomNav
           items={mobileNavItems}
           activeKey={currentPageKey === 'reel' ? 'videos' : currentPageKey}
@@ -3152,6 +3501,21 @@ function App() {
                   )}
                 </>
               )}
+
+              <div className="mobile-admin-actions" style={{ padding: '0 16px 16px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <button
+                  className="primary"
+                  style={{ flex: 1, background: '#e1306c', borderColor: '#e1306c' }}
+                  type="button"
+                  onClick={() => {
+                    setReelForm({ title: '', caption: '', video_url: '', tags: '', status: 'published' });
+                    setEditingReel({ id: 'new-reel' });
+                    setShowReelModal(true);
+                  }}
+                >
+                  🎥 नई वीडियो/रील बनाएं
+                </button>
+              </div>
 
               <form className="admin-form advanced-form editor-form" onSubmit={handleNewsCreate}>
                 <div className="editor-shell">
@@ -3731,6 +4095,124 @@ function App() {
         </div>
       )}
 
+      {/* Edit/Create Reel Modal */}
+      {showReelModal && (
+        <div className="modal-overlay" onClick={() => setShowReelModal(false)}>
+          <div className="modal-content edit-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="close-btn" onClick={() => setShowReelModal(false)}>✕</button>
+            <h2>{editingReel?.id === 'new-reel' ? '🎥 नई वीडियो स्टोरी (Reel) बनाएं' : '🎬 रील संपादित करें'}</h2>
+            <form className="editor-form" onSubmit={handleSaveReel}>
+              <div className="editor-shell editor-shell-modal">
+                <div className="editor-main">
+                  <div className="form-section form-section-highlight">
+                    <h4>📝 वीडियो डिटेल्स</h4>
+                    <label>
+                      शीर्षक / टाइटल *
+                      <input required value={reelForm.title} onChange={(e) => setReelForm((prev) => ({ ...prev, title: e.target.value }))} placeholder="वीडियो का नाम..." />
+                    </label>
+                    <label>
+                      कैप्शन *
+                      <textarea required rows="2" value={reelForm.caption} onChange={(e) => setReelForm((prev) => ({ ...prev, caption: e.target.value }))} placeholder="#tags और डिस्क्रिप्शन..." />
+                    </label>
+                    <label>
+                      टैग्स (कॉमा से अलग)
+                      <input value={reelForm.tags} onChange={(e) => setReelForm((prev) => ({ ...prev, tags: e.target.value }))} placeholder="news, viral, update" />
+                    </label>
+                  </div>
+
+                  <div className="form-section">
+                    <h4>🎬 वीडियो सोर्स</h4>
+                    <label>
+                      डायरेक्ट वीडियो अपलोड या YouTube Link *
+                      <div className="video-input-row" style={{ marginTop: '8px' }}>
+                        <input
+                          type="url"
+                          required
+                          value={reelForm.video_url}
+                          onChange={(e) => setReelForm((prev) => ({ ...prev, video_url: e.target.value }))}
+                          placeholder="YouTube iframe src / link paste करें"
+                        />
+                        <button
+                          type="button"
+                          className="btn-secondary video-file-pick-btn"
+                          onClick={() => videoFileInputRef.current?.click()}
+                          title="Video file upload करें"
+                          disabled={videoUploadState.state === 'loading'}
+                        >
+                          {videoUploadState.state === 'loading' ? 'Uploading...' : '📤 Upload'}
+                        </button>
+                        <input
+                          ref={videoFileInputRef}
+                          type="file"
+                          accept="video/*"
+                          style={{ display: 'none' }}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const maxSize = 120 * 1024 * 1024;
+                            if (file.size > maxSize) {
+                              setVideoUploadState({ state: 'error', message: 'Max 120MB allowed.' });
+                              e.target.value = '';
+                              return;
+                            }
+                            const url = await uploadVideoAsset(file, { assignToForm: false });
+                            if (url) {
+                              setReelForm((prev) => ({ ...prev, video_url: url }));
+                            }
+                            e.target.value = '';
+                          }}
+                        />
+                      </div>
+                      {videoUploadState.message && (
+                        <p style={{ fontSize: '11px', color: videoUploadState.state === 'error' ? 'red' : 'green', marginTop: '4px' }}>
+                          {videoUploadState.message}
+                        </p>
+                      )}
+                    </label>
+                    {reelForm.video_url && !reelForm.video_url.includes('youtube') && !reelForm.video_url.includes('youtu.be') ? (
+                      <video
+                        src={reelForm.video_url}
+                        muted
+                        controls
+                        style={{ width: '100%', maxHeight: '200px', borderRadius: '8px', marginTop: '8px', background: '#000' }}
+                      />
+                    ) : reelForm.video_url && (
+                      <div style={{ width: '100%', height: '200px', marginTop: '8px', background: '#000', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+                        YouTube Video Preview Enabled
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="form-section">
+                    <h4>⚙️ सेटिंग्स</h4>
+                    <label>
+                      स्टेटस
+                      <select value={reelForm.status} onChange={(e) => setReelForm((prev) => ({ ...prev, status: e.target.value }))}>
+                        <option value="published">Published</option>
+                        <option value="draft">Draft</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="editor-submit-row editor-submit-row-modal" style={{ display: 'flex', gap: '12px' }}>
+                  <button className="btn-primary" type="submit" disabled={videoUploadState.state === 'loading'}>
+                    सेव वीडियो
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    type="button"
+                    onClick={() => setShowReelModal(false)}
+                  >
+                    रद्द करें
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {cropper.open && (
         <div className="modal-overlay" onClick={() => setCropper({ open: false, src: '', target: 'avatar', aspect: 1 })}>
           <div className="modal-content crop-modal" onClick={(event) => event.stopPropagation()}>
@@ -3973,6 +4455,49 @@ function App() {
         onClose={() => setShowTranslationTool(false)}
         language={language}
       />
+
+      {/* Terms & Cookies Banner */}
+      {showTermsBanner && (
+        <div className="terms-banner">
+          <div className="terms-banner-content">
+            <p>
+              <strong>Terms & Privacy:</strong> Parent Company: VIPNO1 EMPIRE. Developer: Preetam Yadav. This platform is for everyone and does not share your data.
+            </p>
+            <button className="btn-primary" onClick={handleAcceptTerms}>
+              I Agree
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Live Stats Floating Footer */}
+      <div className="live-stats-bar">
+        <span className="live-pill"><span className="pulse-dot"></span> <span style={{ fontWeight: 'bold' }}>{liveVisitors}</span> {t('activeNow', language) || 'Live'}</span>
+        <span className="views-pill">👁 <span style={{ fontWeight: 'bold' }}>{(totalSiteViews + liveVisitors).toLocaleString()}</span> {t('views', language) || 'Total Views'}</span>
+      </div>
+
+      {/* Onboarding Modal */}
+      {showOnboardingModal && (!showTermsBanner) && (
+        <div className="modal-overlay">
+          <div className="modal onboarding-modal">
+            <h2>Welcome to {siteSettings.site_name || 'ALOK'}</h2>
+            <p>Please enter your name/username to continue.</p>
+            <form onSubmit={handleSaveVisitorName}>
+              <input
+                type="text"
+                autoFocus
+                placeholder="Your Name"
+                value={visitorName}
+                onChange={(e) => setVisitorName(e.target.value)}
+                required
+              />
+              <button className="btn-primary" type="submit" style={{ marginTop: '12px', width: '100%' }}>
+                Enter
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
         </>
       )}
     </div>

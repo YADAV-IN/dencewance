@@ -24,6 +24,7 @@ export const translations = {
     trending: 'Trending',
     videoStories: 'Video Stories',
     views: 'views',
+    activeNow: 'Live',
     min: 'min',
     read: 'read',
     
@@ -132,8 +133,7 @@ export const translations = {
     todayHeadlines: 'आज की मुख्य खबरें',
     trending: 'ट्रेंडिंग',
     videoStories: 'वीडियो स्टोरीज़',
-    views: 'व्यू',
-    min: 'मिन',
+    views: 'व्यू',    activeNow: 'लाइव',    min: 'मिन',
     read: 'पढ़ें',
     
     // Categories
