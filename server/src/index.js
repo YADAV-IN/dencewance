@@ -255,10 +255,23 @@ app.get('/api/profile', requireAuth, async (req, res) => {
 
 app.put('/api/profile', requireAuth, async (req, res) => {
   try {
-    const { name, email, bio } = req.body || {};
+    const { name, email, bio, avatar_url } = req.body || {};
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+    if (bio !== undefined) updateData.bio = bio;
+    if (avatar_url !== undefined) {
+      if (typeof avatar_url !== 'string' ||
+          (!avatar_url.startsWith('http://') &&
+           !avatar_url.startsWith('https://') &&
+           !avatar_url.startsWith('data:image/'))) {
+        return res.status(400).json({ error: 'Invalid avatar_url format.' });
+      }
+      updateData.avatar_url = avatar_url;
+    }
     const admin = await Admin.findByIdAndUpdate(
       req.adminId,
-      { name, email, bio },
+      updateData,
       { new: true }
     );
     return res.json({ data: admin.toJSON() });
@@ -379,19 +392,34 @@ app.put('/api/news/:id', requireAuth, async (req, res) => {
 });
 
 app.delete('/api/news/:id', requireAuth, async (req, res) => {
-  const { id } = req.params;
-  await News.findByIdAndDelete(id);
-  return res.status(204).send();
+  try {
+    const { id } = req.params;
+    await News.findByIdAndDelete(id);
+    return res.status(204).send();
+  } catch (error) {
+    console.error('Delete news error:', error);
+    return res.status(500).json({ error: 'Server error while deleting news.' });
+  }
 });
 
 app.post('/api/uploads/cover', requireAuth, upload.single('cover'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
-  return res.json({ data: { url: req.file.path } });
+  try {
+    return res.json({ data: { url: req.file.path } });
+  } catch (error) {
+    console.error('Upload cover error:', error);
+    return res.status(500).json({ error: 'Server error while uploading cover.' });
+  }
 });
 
 app.post('/api/uploads/media', requireAuth, upload.single('media'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No media file uploaded.' });
-  return res.json({ data: { url: req.file.path } });
+  try {
+    return res.json({ data: { url: req.file.path } });
+  } catch (error) {
+    console.error('Upload media error:', error);
+    return res.status(500).json({ error: 'Server error while uploading media.' });
+  }
 });
 
 app.get('/api/settings', async (req, res) => {

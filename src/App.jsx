@@ -254,6 +254,13 @@ function App() {
         const response = await fetch(`${API_URL}/api/profile`, {
           headers: { Authorization: `Bearer ${adminToken}` },
         });
+        if (response.status === 401) {
+          // Token expired or invalid — clear it so the login form is shown
+          setAdminToken('');
+          setAdminProfile(null);
+          localStorage.removeItem('alok_token');
+          return;
+        }
         if (!response.ok) throw new Error('Profile error');
         const payload = await response.json();
         setAdminProfile(payload.data);
