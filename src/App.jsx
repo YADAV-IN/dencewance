@@ -213,11 +213,10 @@ const isCampaignWithinTime = (campaign = {}) => {
 };
 
 const extractYouTubeId = (url) => {
-  if (!url) return '';
-  const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-  const match = url.match(regExp);
-  if (match && match[2].length === 11) {
-    return match[2];
+  if (!url || typeof url !== 'string') return '';
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([\w-]{11})/i);
+  if (match && match[1]) {
+    return match[1];
   }
   return '';
 };
@@ -2293,6 +2292,13 @@ function App() {
 
           {currentPageKey === 'videos' && (
             <div className="reels-container" ref={reelsContainerRef}>
+              {reelItems.length === 0 && (
+                <div style={{ color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100dvh', width: '100%', background: '#000', zIndex: 999 }}>
+                  <div className="pulse-dot" style={{ width: '20px', height: '20px', marginBottom: '16px' }}></div>
+                  <h3>Loading Video Stories...</h3>
+                  <p style={{ opacity: 0.6, fontSize: '14px', marginTop: '8px' }}>Please wait while content is loading or check your connection.</p>
+                </div>
+              )}
               {reelItems.map((item, idx) => {
                 const isYT = item.video_url && (item.video_url.includes('youtube') || item.video_url.includes('youtu.be') || item.video_url.includes('/embed/'));
                 const ytId = isYT ? extractYouTubeId(item.video_url) : '';
@@ -2577,7 +2583,7 @@ function App() {
               <div className="reel-share-stage">
                 <div className="reel-share-frame">
                   <div className="reel-video-wrap reel-share-video-wrap">
-                    {(reelPageItem.video_url.includes('youtube') || reelPageItem.video_url.includes('youtu.be') || reelPageItem.video_url.includes('/embed/')) ? (
+                    {(reelPageItem.video_url && (reelPageItem.video_url.includes('youtube') || reelPageItem.video_url.includes('youtu.be') || reelPageItem.video_url.includes('/embed/'))) ? (
                       <iframe
                         src={`https://www.youtube.com/embed/${extractYouTubeId(reelPageItem.video_url)}?autoplay=1&mute=${reelsMuted ? 1 : 0}&loop=1&playlist=${extractYouTubeId(reelPageItem.video_url)}&controls=1&modestbranding=1&rel=0`}
                         title={reelPageItem.title}
@@ -2790,7 +2796,7 @@ function App() {
                       )}
                       {selectedStory.video_url && (
                         <div className="detail-video-container" style={{ marginBottom: '32px' }}>
-                          {selectedStory.video_url.includes('youtube.com') || selectedStory.video_url.includes('youtu.be') ? (
+                          {(selectedStory.video_url && (selectedStory.video_url.includes('youtube.com') || selectedStory.video_url.includes('youtu.be'))) ? (
                             <iframe
                               width="100%"
                               height="100%"
