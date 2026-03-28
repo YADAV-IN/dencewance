@@ -1564,7 +1564,7 @@ function App() {
         const payload = await response.json();
         setReels(Array.isArray(payload.data) ? payload.data : []);
       } catch (error) {
-        setReels([]);
+        setReels(demoNews); 
       }
     };
 
