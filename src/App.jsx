@@ -1148,6 +1148,13 @@ function App() {
     };
 
     loadNews();
+
+    // Background Keep-Alive Ping to prevent Vercel from sleeping completely while users are active
+    const keepAliveInterval = setInterval(() => {
+      fetch(`${API_URL}/api/health`).catch(() => {});
+    }, 60000); // Prompts backend strictly every 60 seconds
+
+    return () => clearInterval(keepAliveInterval);
   }, []);
 
   useEffect(() => {
