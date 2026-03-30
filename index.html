@@ -30,15 +30,15 @@
               return;
             }
             if (parsed && parsed.site_name) {
-              document.title = parsed.site_name + ' - बीजेएमसी न्यूज़';
+              document.title = parsed.site_name;
               return;
             }
           }
         } catch (e) {}
-        document.title = 'ALOK - बीजेएमसी न्यूज़';
+        document.title = 'Loading...';
       })();
     </script>
-    <title>ALOK - बीजेएमसी न्यूज़</title>
+    <title>Loading...</title>
     <!-- Tesseract.js for OCR -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   </head>

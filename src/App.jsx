@@ -10,7 +10,7 @@ import { CampaignLayer } from './components/CampaignLayer';
 import { t, detectLanguage } from './translations';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://server-kappa-lac.vercel.app');
-const REEL_PRELOAD_AHEAD = 999;
+const REEL_PRELOAD_AHEAD = 2;
 
 const demoNews = [
   {
@@ -200,9 +200,9 @@ const defaultCampaignSettings = {
 };
 
 const defaultSiteSettings = {
-  site_name: 'ALOK',
-  site_subtitle: 'बीजेएमसी न्यूज़',
-  site_title: 'ALOK - बीजेएमसी न्यूज़',
+  site_name: 'Website',
+  site_subtitle: 'News',
+  site_title: 'Website',
   site_description: 'बीजेएमसी न्यूज़रूम - आपकी खबरों का भरोसेमंद स्रोत',
   campaign: { ...defaultCampaignSettings },
 };
@@ -458,7 +458,7 @@ function App() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [activeReelIndex, setActiveReelIndex] = useState(0);
-  const [reelsMuted, setReelsMuted] = useState(true);
+  const [reelsMuted, setReelsMuted] = useState(false);
   const [videoUploadState, setVideoUploadState] = useState({ state: 'idle', message: '' });
   const [reelUploadProgress, setReelUploadProgress] = useState(0);
   const [reelPaused, setReelPaused] = useState(new Set());
@@ -579,8 +579,6 @@ function App() {
     if (typeof window === 'undefined') return false;
     return sessionStorage.getItem('alok_startup_splash_seen_v1') !== 'true';
   });
-  const [installPromptEvent, setInstallPromptEvent] = useState(null);
-  const [isAppInstalled, setIsAppInstalled] = useState(false);
 
   // Live stats effect connecting to backend
   useEffect(() => {
@@ -613,43 +611,6 @@ function App() {
 
     return () => clearInterval(visitorInterval);
   }, []);
-
-  useEffect(() => {
-    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    if (standalone) {
-      setIsAppInstalled(true);
-      return;
-    }
-
-    const handleBeforeInstallPrompt = (event) => {
-      event.preventDefault();
-      setInstallPromptEvent(event);
-    };
-
-    const handleAppInstalled = () => {
-      setIsAppInstalled(true);
-      setInstallPromptEvent(null);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
-    };
-  }, []);
-
-  const handleInstallApp = async () => {
-    if (!installPromptEvent) return;
-    installPromptEvent.prompt();
-    try {
-      await installPromptEvent.userChoice;
-    } catch (error) {
-      // Ignore prompt result errors.
-    }
-    setInstallPromptEvent(null);
-  };
 
   const currentPath = routeState.pathname;
   const currentSearch = routeState.search;
@@ -2785,7 +2746,7 @@ function App() {
                 const isPaused = reelPaused.has(idx);
                 const creatorInitial = (item.creator_name || 'A').charAt(0).toUpperCase();
                 const creatorAvatar = item.creator_avatar || '';
-                const shouldWarm = idx >= activeReelIndex - 1 && idx <= activeReelIndex + REEL_PRELOAD_AHEAD;
+                const shouldWarm = idx >= activeReelIndex && idx <= activeReelIndex + REEL_PRELOAD_AHEAD;
                 return (
                   <div
                     key={item.id}
@@ -2805,6 +2766,18 @@ function App() {
                             v.pause();
                             setReelPaused((prev) => { const n = new Set(prev); n.add(idx); return n; });
                           }
+                          return;
+                        }
+
+                        const y = reelYouTubeRefs.current[idx];
+                        if (isYouTube && y) {
+                          if (isPaused) {
+                            postYouTubeCommand(y, 'playVideo');
+                            setReelPaused((prev) => { const n = new Set(prev); n.delete(idx); return n; });
+                          } else {
+                            postYouTubeCommand(y, 'pauseVideo');
+                            setReelPaused((prev) => { const n = new Set(prev); n.add(idx); return n; });
+                          }
                         }
                       }}
                     >
@@ -2814,13 +2787,16 @@ function App() {
                             ref={(el) => {
                               if (el) reelYouTubeRefs.current[idx] = el;
                             }}
-                            src={`${embed.src}?autoplay=${isActive ? 1 : 0}&mute=1&loop=1&playlist=${embed.id}&controls=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&fs=0&disablekb=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
+                            src={`${embed.src}?autoplay=${isActive ? 1 : 0}&mute=${isActive ? (reelsMuted ? 1 : 0) : 1}&loop=1&playlist=${embed.id}&controls=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&fs=0&disablekb=1&vq=hd1080&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
                             title={item.title}
                             frameBorder="0"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                             allowFullScreen
                             className="reel-iframe"
                           />
+                          <div className="reel-youtube-logo-mask" aria-hidden="true">
+                            <span>{siteSettings.site_name || 'Website'}</span>
+                          </div>
                         ) : (
                           <div
                             className="reel-cover-fallback"
@@ -2854,6 +2830,9 @@ function App() {
                           autoPlay={isActive && !isPaused}
                           preload={shouldWarm ? 'auto' : 'metadata'}
                           poster={item.cover_image_url ? resolveMediaUrl(item.cover_image_url) : undefined}
+                          onLoadedMetadata={(event) => {
+                            event.currentTarget.volume = 1;
+                          }}
                         />
                       ) : (
                         <div
@@ -3110,13 +3089,16 @@ function App() {
                       if (embed.type === 'youtube') {
                         return (
                       <iframe
-                        src={`${embed.src}?autoplay=1&mute=${reelsMuted ? 1 : 0}&loop=1&playlist=${embed.id}&controls=1&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&disablekb=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
+                        src={`${embed.src}?autoplay=1&mute=${reelsMuted ? 1 : 0}&loop=1&playlist=${embed.id}&controls=1&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&disablekb=1&vq=hd1080&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
                         title={reelPageItem.title}
                         frameBorder="0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
                         className="reel-iframe"
                       />
+                      <div className="reel-youtube-logo-mask" aria-hidden="true">
+                        <span>{siteSettings.site_name || 'Website'}</span>
+                      </div>
                         );
                       }
                       if (embed.type === 'instagram') {
@@ -3142,6 +3124,9 @@ function App() {
                         autoPlay
                         preload="auto"
                         poster={reelPageItem.cover_image_url ? resolveMediaUrl(reelPageItem.cover_image_url) : undefined}
+                        onLoadedMetadata={(event) => {
+                          event.currentTarget.volume = 1;
+                        }}
                       />
                       );
                     })()}
@@ -3350,13 +3335,16 @@ function App() {
                             <iframe
                               width="100%"
                               height="100%"
-                              src={`${embed.src}?autoplay=1&mute=1&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&disablekb=1`}
+                              src={`${embed.src}?autoplay=1&mute=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&disablekb=1&vq=hd1080`}
                               title="YouTube video player"
                               frameBorder="0"
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                               allowFullScreen
                               className="modern-video-player"
                             ></iframe>
+                            <div className="reel-youtube-logo-mask" aria-hidden="true">
+                              <span>{siteSettings.site_name || 'Website'}</span>
+                            </div>
                               );
                             }
                             if (embed.type === 'instagram') {
@@ -3380,6 +3368,9 @@ function App() {
                               poster={selectedStory.cover_image_url ? resolveMediaUrl(selectedStory.cover_image_url) : undefined}
                               style={{ width: '100%', borderRadius: '20px', backgroundColor: '#000', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}
                               preload="metadata"
+                              onLoadedMetadata={(event) => {
+                                event.currentTarget.volume = 1;
+                              }}
                             >
                               <source src={resolveMediaUrl(selectedStory.video_url)} />
                               Your browser does not support the video tag.
@@ -4996,12 +4987,6 @@ function App() {
         <span className="live-pill"><span className="pulse-dot"></span> <span style={{ fontWeight: 'bold' }}>{liveVisitors}</span> {t('activeNow', language) || 'Live'}</span>
         <span className="views-pill">👁 <span style={{ fontWeight: 'bold' }}>{(totalSiteViews + liveVisitors).toLocaleString()}</span> {t('views', language) || 'Total Views'}</span>
       </div>
-
-      {!isAppInstalled && installPromptEvent && (
-        <button className="a2hs-fab" onClick={handleInstallApp}>
-          Add to Home Screen
-        </button>
-      )}
 
       {/* Onboarding Modal */}
       {showOnboardingModal && (!showTermsBanner) && (
