@@ -241,18 +241,7 @@ const hasPersistentDeviceFlag = (key) => {
 };
 
 const getInitialSiteSettings = () => {
-  try {
-    const raw = localStorage.getItem(SITE_SETTINGS_CACHE_KEY);
-    if (!raw) return { ...defaultSiteSettings };
-    const parsed = JSON.parse(raw);
-    return {
-      ...defaultSiteSettings,
-      ...(parsed || {}),
-      campaign: mergeCampaignSettings(parsed?.campaign),
-    };
-  } catch (error) {
-    return { ...defaultSiteSettings };
-  }
+  return { ...defaultSiteSettings };
 };
 
 const mergeCampaignSettings = (campaign = {}) => ({
@@ -317,9 +306,31 @@ const getVideoSourceType = (url = '') => {
   return 'upload';
 };
 
+const getReelCanonicalKey = (item = {}) => {
+  const source = getEmbedSource(item?.video_url || '');
+  if (source.type === 'youtube' && source.id) return `youtube:${source.id}`;
+  if (source.type === 'instagram' && source.id) return `instagram:${source.id}`;
+  return String(item?.dedup_key || item?.video_url || item?.id || item?._id || item?.slug || item?.title || 'reel');
+};
+
+const hashString = (value = '') => {
+  let hash = 2166136261;
+  const input = String(value);
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+const seededUnit = (value = '', seed = '') => {
+  const hashed = hashString(`${seed}|${value}`);
+  return (hashed % 1000000) / 1000000;
+};
+
 const getReelIdentity = (item = {}) => String(item?.id || item?._id || item?.slug || item?.title || 'reel');
 
-const rankReelsForFeed = (reels = [], signals = {}, followedCreators = []) => {
+const rankReelsForFeed = (reels = [], signals = {}, followedCreators = [], seed = '') => {
   if (!Array.isArray(reels) || reels.length === 0) return [];
 
   const seenByReel = signals?.seenByReel || {};
@@ -328,7 +339,17 @@ const rankReelsForFeed = (reels = [], signals = {}, followedCreators = []) => {
 
   const now = Date.now();
 
-  const scored = reels.map((item, index) => {
+  const uniqueReels = [];
+  const seenCanonical = new Set();
+  reels.forEach((item) => {
+    if (!item?.video_url) return;
+    const canonical = getReelCanonicalKey(item);
+    if (seenCanonical.has(canonical)) return;
+    seenCanonical.add(canonical);
+    uniqueReels.push(item);
+  });
+
+  const scored = uniqueReels.map((item, index) => {
     const reelId = getReelIdentity(item);
     const sourceType = getVideoSourceType(item.video_url);
     const views = Number(item.views) || 0;
@@ -338,16 +359,19 @@ const rankReelsForFeed = (reels = [], signals = {}, followedCreators = []) => {
     const ageHours = publishedAt ? Math.max(1, (now - new Date(publishedAt).getTime()) / 3600000) : 72;
     const freshnessScore = 30 / Math.sqrt(ageHours);
     const engagementScore = likes * 2 + views * 0.2 + shares * 3;
-    const seenPenalty = (Number(seenByReel[reelId]) || 0) * 8;
+    const seenPenalty = (Number(seenByReel[reelId]) || 0) * 16;
     const likedBoost = likedByReel[reelId] ? 14 : 0;
     const affinityBoost = (Number(sourceAffinity[sourceType]) || 0) * 3;
     const creatorKey = slugifyText(item?.creator_name || item?.author_name || item?.source || 'creator');
     const followBoost = followedCreators.includes(creatorKey) ? 12 : 0;
+    const randomBoost = seededUnit(`${reelId}:${sourceType}:${index}`, seed) * 11;
 
     return {
       ...item,
       __sourceType: sourceType,
-      __score: engagementScore + freshnessScore + likedBoost + affinityBoost + followBoost - seenPenalty,
+      __canonical: getReelCanonicalKey(item),
+      __creatorKey: creatorKey,
+      __score: engagementScore + freshnessScore + likedBoost + affinityBoost + followBoost + randomBoost - seenPenalty,
       __index: index,
     };
   });
@@ -373,19 +397,42 @@ const rankReelsForFeed = (reels = [], signals = {}, followedCreators = []) => {
   if (!activeSources.length) return [];
 
   const result = [];
+  const recentCreators = [];
+  const maxRecentCreators = 3;
+  let cycle = 0;
+
   while (result.length < scored.length) {
     let pushedInRound = false;
-    activeSources.forEach((source) => {
-      const next = buckets[source].shift();
+
+    const rotatedSources = [...activeSources].sort((a, b) => {
+      const aNoise = seededUnit(`${seed}:${cycle}:${a}`, seed);
+      const bNoise = seededUnit(`${seed}:${cycle}:${b}`, seed);
+      return bNoise - aNoise;
+    });
+
+    rotatedSources.forEach((source) => {
+      const sourceBucket = buckets[source];
+      if (!sourceBucket?.length) return;
+
+      let pickIndex = sourceBucket.findIndex((candidate) => !recentCreators.includes(candidate.__creatorKey));
+      if (pickIndex === -1) pickIndex = 0;
+      const [next] = sourceBucket.splice(pickIndex, 1);
+
       if (next) {
         result.push(next);
+        recentCreators.push(next.__creatorKey);
+        if (recentCreators.length > maxRecentCreators) {
+          recentCreators.shift();
+        }
         pushedInRound = true;
       }
     });
+
+    cycle += 1;
     if (!pushedInRound) break;
   }
 
-  return result;
+  return result.map(({ __canonical, __creatorKey, ...rest }) => rest);
 };
 
 const postYouTubeCommand = (iframeEl, command) => {
@@ -450,6 +497,7 @@ function App() {
   const reelUploadInputRef = useRef(null);
   const reelVideoRefs = useRef({});
   const reelYouTubeRefs = useRef({});
+  const hasUnlockedVideoAudioRef = useRef(false);
   const lastTrackedReelRef = useRef('');
   const wakeLockRef = useRef(null);
   const device = useDevice();
@@ -458,6 +506,9 @@ function App() {
   const [featured, setFeatured] = useState([]);
   const [selectedStory, setSelectedStory] = useState(null);
   const [status, setStatus] = useState({ state: 'idle', message: '' });
+  const [isNewsLoading, setIsNewsLoading] = useState(true);
+  const [isReelsLoading, setIsReelsLoading] = useState(true);
+  const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem('alok_token') || '');
   const [adminProfile, setAdminProfile] = useState(null);
   const [adminList, setAdminList] = useState([]);
@@ -580,6 +631,17 @@ function App() {
   const [showTermsBanner, setShowTermsBanner] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [visitorName, setVisitorName] = useState(() => localStorage.getItem('alok_visitor_name') || '');
+  const [reelFeedSeed] = useState(() => {
+    if (typeof window === 'undefined') return 'seed';
+    const dayKey = new Date().toISOString().slice(0, 10);
+    const storageKey = 'alok_reel_feed_seed';
+    let baseSeed = localStorage.getItem(storageKey);
+    if (!baseSeed) {
+      baseSeed = Math.random().toString(36).slice(2, 12);
+      localStorage.setItem(storageKey, baseSeed);
+    }
+    return `${baseSeed}:${dayKey}`;
+  });
   const [liveVisitors, setLiveVisitors] = useState(1);
   const [totalSiteViews, setTotalSiteViews] = useState(0);
   const [showStartupSplash, setShowStartupSplash] = useState(() => {
@@ -668,6 +730,22 @@ function App() {
   };
 
   const disableVideoImmersiveMode = async () => {
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    } catch (error) {
+      // Ignore fullscreen exit failures.
+    }
+
+    try {
+      if (window.screen?.orientation?.unlock) {
+        window.screen.orientation.unlock();
+      }
+    } catch (error) {
+      // Orientation unlock may be unsupported.
+    }
+
     try {
       if (wakeLockRef.current) {
         await wakeLockRef.current.release();
@@ -1418,6 +1496,7 @@ function App() {
 
   useEffect(() => {
     const loadNews = async () => {
+      setIsNewsLoading(true);
       setStatus({ state: 'loading', message: 'डेटा कनेक्शन सक्रिय हो रहा है...' });
       try {
         const response = await fetch(`${API_URL}/api/news?limit=12`);
@@ -1431,6 +1510,8 @@ function App() {
         setNews(demoNews);
         setFeatured(demoNews.filter((item) => item.is_featured));
         setStatus({ state: 'offline', message: 'लोकल डेमो डेटा चल रहा है।' });
+      } finally {
+        setIsNewsLoading(false);
       }
     };
 
@@ -1862,6 +1943,7 @@ function App() {
 
   useEffect(() => {
     const loadReels = async () => {
+      setIsReelsLoading(true);
       try {
         const response = await fetch(`${API_URL}/api/reels/recommendations?limit=200`);
         if (!response.ok) throw new Error('Reels API unavailable');
@@ -1869,6 +1951,8 @@ function App() {
         setReels(Array.isArray(payload.data) ? payload.data : []);
       } catch (error) {
         setReels(demoNews); 
+      } finally {
+        setIsReelsLoading(false);
       }
     };
 
@@ -1906,6 +1990,7 @@ function App() {
   // Load site settings
   useEffect(() => {
     const loadSettings = async () => {
+      setIsSettingsLoading(true);
       try {
         const response = await fetch(`${API_URL}/api/settings`);
         if (response.ok) {
@@ -1917,11 +2002,13 @@ function App() {
               campaign: mergeCampaignSettings(payload.data.campaign),
             }));
             localStorage.setItem(SITE_SETTINGS_CACHE_KEY, JSON.stringify(payload.data));
-            document.title = payload.data.site_title || 'ALOK - बीजेएमसी न्यूज़';
+            document.title = payload.data.site_title || payload.data.site_name || 'Website';
           }
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
+      } finally {
+        setIsSettingsLoading(false);
       }
     };
     loadSettings();
@@ -2117,7 +2204,7 @@ function App() {
       if (!response.ok) throw new Error(payload.error || 'Update failed');
 
       setSiteSettings(payload.data);
-      document.title = payload.data.site_title || 'ALOK - बीजेएमसी न्यूज़';
+      document.title = payload.data.site_title || payload.data.site_name || 'Website';
       setShowSettingsModal(false);
       setStatus({ state: 'online', message: 'सेटिंग्स अपडेट हो गईं!' });
     } catch (error) {
@@ -2137,7 +2224,7 @@ function App() {
 
   // Auto-detect language on first visit
   useEffect(() => {
-    document.title = siteSettings.site_title || `${siteSettings.site_name || 'ALOK'} - बीजेएमसी न्यूज़`;
+    document.title = siteSettings.site_title || siteSettings.site_name || 'Website';
     try {
       localStorage.setItem(SITE_SETTINGS_CACHE_KEY, JSON.stringify(siteSettings));
     } catch (error) {
@@ -2181,6 +2268,8 @@ function App() {
 
   useEffect(() => {
     if (currentPageKey === 'videos') {
+      hasUnlockedVideoAudioRef.current = false;
+      setReelsMuted(false);
       enableVideoImmersiveMode();
 
       const handleInteraction = () => {
@@ -2205,6 +2294,35 @@ function App() {
       disableVideoImmersiveMode();
     };
   }, []);
+
+  useEffect(() => {
+    if (currentPageKey !== 'videos') {
+      hasUnlockedVideoAudioRef.current = false;
+      return;
+    }
+
+    const unlockAudio = () => {
+      if (hasUnlockedVideoAudioRef.current) return;
+      hasUnlockedVideoAudioRef.current = true;
+      setReelsMuted(false);
+
+      const activeVideo = reelVideoRefs.current[activeReelIndex];
+      if (activeVideo) {
+        activeVideo.muted = false;
+        activeVideo.volume = 1;
+        activeVideo.play().catch(() => {});
+      }
+
+      const activeIframe = reelYouTubeRefs.current[activeReelIndex];
+      if (activeIframe) {
+        syncYouTubeAudioState(activeIframe, false);
+        postYouTubeCommand(activeIframe, 'playVideo');
+      }
+    };
+
+    window.addEventListener('pointerdown', unlockAudio, { passive: true });
+    return () => window.removeEventListener('pointerdown', unlockAudio);
+  }, [currentPageKey, activeReelIndex]);
 
   // Reels: IntersectionObserver for active reel detection + native video play/pause
   useEffect(() => {
@@ -2289,9 +2407,6 @@ function App() {
       if (!videoEl || Number.isNaN(idx)) return;
       const distance = idx - activeReelIndex;
       videoEl.preload = distance >= 0 && distance <= REEL_PRELOAD_AHEAD ? 'auto' : 'metadata';
-      if (distance >= 0 && distance <= REEL_PRELOAD_AHEAD) {
-        videoEl.load();
-      }
     });
   }, [activeReelIndex, currentPageKey, reels.length]);
 
@@ -2331,7 +2446,10 @@ function App() {
   const tickerItems = breakingNews.length > 0 ? breakingNews.slice(0, 5) : news.slice(0, 5);
 
   const heroStory = featured[0] || news[0];
-  const reelItems = useMemo(() => reels.filter((item) => item.video_url), [reels]);
+  const reelItems = useMemo(() => {
+    const ranked = rankReelsForFeed(reels, reelSignals, followedCreators, reelFeedSeed);
+    return ranked.filter((item) => item.video_url);
+  }, [reels, reelSignals, followedCreators, reelFeedSeed]);
   const reelPageItem = routeReel || reelItems[0] || null;
   const reelCreatorName = reelPageItem?.creator_name || reelPageItem?.author_name || reelPageItem?.source || siteSettings.site_name || 'ALOK Creator';
   const reelCreatorKey = reelPageItem ? getCreatorKey(reelPageItem) : '';
