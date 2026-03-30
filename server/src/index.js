@@ -299,7 +299,7 @@ app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req
 app.get('/api/news', async (req, res) => {
   try {
     const { limit = 12, category, q } = req.query;
-    const query = {};
+    const query = { status: 'published' };
     if (category) query.category = category;
     if (q) {
       query.$or = [

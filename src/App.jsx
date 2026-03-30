@@ -232,6 +232,14 @@ function App() {
         if (!response.ok) throw new Error('API unavailable');
         const payload = await response.json();
         const list = payload.data || [];
+        if (list.length === 0) {
+          // Database is connected but empty — show demo content so the page isn't blank
+          setNews(demoNews);
+          setFeatured(demoNews.filter((item) => item.is_featured));
+          setSelectedStory(null);
+          setStatus({ state: 'online', message: 'डेटाबेस खाली है, डेमो डेटा दिखाया जा रहा है।' });
+          return;
+        }
         setNews(list);
         setFeatured(list.filter((item) => item.is_featured));
         setSelectedStory(null);
