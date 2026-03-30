@@ -10,7 +10,7 @@ import { CampaignLayer } from './components/CampaignLayer';
 import { t, detectLanguage } from './translations';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://server-kappa-lac.vercel.app');
-const REEL_PRELOAD_AHEAD = 2;
+const REEL_PRELOAD_AHEAD = 1;
 
 const demoNews = [
   {
@@ -394,6 +394,13 @@ const postYouTubeCommand = (iframeEl, command) => {
     JSON.stringify({ event: 'command', func: command, args: [] }),
     '*'
   );
+};
+
+const syncYouTubeAudioState = (iframeEl, shouldMute) => {
+  const command = shouldMute ? 'mute' : 'unMute';
+  [120, 450, 900].forEach((delay) => {
+    window.setTimeout(() => postYouTubeCommand(iframeEl, command), delay);
+  });
 };
 
 const resolveMediaUrl = (value) => {
@@ -2173,21 +2180,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const firstOpenDone = sessionStorage.getItem('alok_video_first_open_done') === 'true';
-
-    if (!firstOpenDone && (currentPath === '/' || currentPath === '')) {
-      sessionStorage.setItem('alok_video_first_open_done', 'true');
-      navigateTo('/videos', { replace: true });
-      return;
-    }
-
-    if (!firstOpenDone) {
-      sessionStorage.setItem('alok_video_first_open_done', 'true');
-    }
-  }, [currentPath]);
-
-  useEffect(() => {
     if (currentPageKey === 'videos') {
       enableVideoImmersiveMode();
 
@@ -2245,34 +2237,49 @@ function App() {
     const frames = reelsContainerRef.current.querySelectorAll('.reel-frame');
     frames.forEach((frame) => {
       const idx = parseInt(frame.dataset.reelIdx, 10);
+      if (Number.isNaN(idx)) return;
+      const isActive = idx === activeReelIndex;
       const videoEl = frame.querySelector('video');
       const iframeEl = frame.querySelector('iframe');
       if (videoEl) {
-        if (idx === activeReelIndex && !reelPaused.has(idx)) {
+        videoEl.muted = isActive ? reelsMuted : true;
+        if (isActive && !reelPaused.has(idx)) {
           videoEl.play().catch(() => {});
         } else {
           videoEl.pause();
         }
       }
       if (iframeEl) {
-        if (idx === activeReelIndex && !reelPaused.has(idx)) {
+        if (isActive && !reelPaused.has(idx)) {
           postYouTubeCommand(iframeEl, 'playVideo');
+          syncYouTubeAudioState(iframeEl, reelsMuted);
         } else {
+          postYouTubeCommand(iframeEl, 'stopVideo');
           postYouTubeCommand(iframeEl, 'pauseVideo');
+          syncYouTubeAudioState(iframeEl, true);
         }
       }
     });
-  }, [activeReelIndex, reelPaused, currentPageKey]);
+  }, [activeReelIndex, reelPaused, currentPageKey, reelsMuted]);
 
   // Sync mute state to all native video elements in reels
   useEffect(() => {
     if (currentPageKey !== 'videos' || !reelsContainerRef.current) return;
-    reelsContainerRef.current.querySelectorAll('video').forEach((v) => { v.muted = reelsMuted; });
-
-    Object.values(reelYouTubeRefs.current).forEach((iframeEl) => {
-      postYouTubeCommand(iframeEl, reelsMuted ? 'mute' : 'unMute');
+    const frames = reelsContainerRef.current.querySelectorAll('.reel-frame');
+    frames.forEach((frame) => {
+      const idx = parseInt(frame.dataset.reelIdx, 10);
+      if (Number.isNaN(idx)) return;
+      const isActive = idx === activeReelIndex;
+      const videoEl = frame.querySelector('video');
+      if (videoEl) {
+        videoEl.muted = isActive ? reelsMuted : true;
+      }
+      const iframeEl = frame.querySelector('iframe');
+      if (iframeEl) {
+        syncYouTubeAudioState(iframeEl, isActive ? reelsMuted : true);
+      }
     });
-  }, [reelsMuted, currentPageKey]);
+  }, [reelsMuted, currentPageKey, activeReelIndex]);
 
   useEffect(() => {
     if (currentPageKey !== 'videos') return;
@@ -2746,7 +2753,9 @@ function App() {
                 const isPaused = reelPaused.has(idx);
                 const creatorInitial = (item.creator_name || 'A').charAt(0).toUpperCase();
                 const creatorAvatar = item.creator_avatar || '';
-                const shouldWarm = idx >= activeReelIndex && idx <= activeReelIndex + REEL_PRELOAD_AHEAD;
+                const shouldWarm = embed.type === 'video'
+                  && idx >= activeReelIndex
+                  && idx <= activeReelIndex + REEL_PRELOAD_AHEAD;
                 return (
                   <div
                     key={item.id}
@@ -2786,6 +2795,11 @@ function App() {
                           <iframe
                             ref={(el) => {
                               if (el) reelYouTubeRefs.current[idx] = el;
+                            }}
+                            onLoad={(event) => {
+                              const iframeEl = event.currentTarget;
+                              const shouldMute = isActive ? reelsMuted : true;
+                              syncYouTubeAudioState(iframeEl, shouldMute);
                             }}
                             src={`${embed.src}?autoplay=${isActive ? 1 : 0}&mute=${isActive ? (reelsMuted ? 1 : 0) : 1}&loop=1&playlist=${embed.id}&controls=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&fs=0&disablekb=1&vq=hd1080&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
                             title={item.title}
@@ -3089,6 +3103,9 @@ function App() {
                       if (embed.type === 'youtube') {
                         return (
                       <iframe
+                        onLoad={(event) => {
+                          syncYouTubeAudioState(event.currentTarget, reelsMuted);
+                        }}
                         src={`${embed.src}?autoplay=1&mute=${reelsMuted ? 1 : 0}&loop=1&playlist=${embed.id}&controls=1&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&disablekb=1&vq=hd1080&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
                         title={reelPageItem.title}
                         frameBorder="0"
@@ -3335,7 +3352,10 @@ function App() {
                             <iframe
                               width="100%"
                               height="100%"
-                              src={`${embed.src}?autoplay=1&mute=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&disablekb=1&vq=hd1080`}
+                              onLoad={(event) => {
+                                syncYouTubeAudioState(event.currentTarget, false);
+                              }}
+                              src={`${embed.src}?autoplay=0&mute=0&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&disablekb=1&vq=hd1080`}
                               title="YouTube video player"
                               frameBorder="0"
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
