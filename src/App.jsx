@@ -12,6 +12,53 @@ import { t, detectLanguage } from './translations';
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://server-kappa-lac.vercel.app');
 const REEL_PRELOAD_AHEAD = 1;
 
+const buildApiCandidates = () => {
+  const candidates = [
+    import.meta.env.VITE_API_URL,
+    import.meta.env.DEV ? '' : null,
+    '',
+    'https://server-kappa-lac.vercel.app',
+  ]
+    .map((value) => (typeof value === 'string' ? value.trim().replace(/\/$/, '') : ''))
+    .filter(Boolean);
+
+  if (!candidates.includes('')) {
+    candidates.unshift('');
+  }
+
+  return Array.from(new Set(candidates));
+};
+
+const PUBLIC_API_BASES = buildApiCandidates();
+
+const fetchPublicJson = async (path, { timeoutMs = 9000, options = {} } = {}) => {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  let lastError = null;
+
+  for (const base of PUBLIC_API_BASES) {
+    const url = `${base}${normalizedPath}`;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        lastError = new Error(`HTTP ${response.status}`);
+        continue;
+      }
+      return await response.json();
+    } catch (error) {
+      lastError = error;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
+  throw lastError || new Error(`Failed to fetch ${normalizedPath}`);
+};
+
 const demoNews = [
   {
     id: 1,
@@ -445,8 +492,18 @@ const postYouTubeCommand = (iframeEl, command) => {
 
 const syncYouTubeAudioState = (iframeEl, shouldMute) => {
   const command = shouldMute ? 'mute' : 'unMute';
-  [120, 450, 900].forEach((delay) => {
+  [0, 120, 450, 900, 1500, 2200].forEach((delay) => {
     window.setTimeout(() => postYouTubeCommand(iframeEl, command), delay);
+  });
+};
+
+const syncYouTubePlaybackState = (iframeEl, { shouldMute, shouldPlay }) => {
+  const command = shouldPlay ? 'playVideo' : 'pauseVideo';
+  [0, 120, 450, 900, 1500, 2200].forEach((delay) => {
+    window.setTimeout(() => {
+      postYouTubeCommand(iframeEl, command);
+      syncYouTubeAudioState(iframeEl, shouldMute);
+    }, delay);
   });
 };
 
@@ -660,16 +717,17 @@ function App() {
 
     const pingStats = async () => {
       try {
-        const response = await fetch(`${API_URL}/stats/ping`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ visitorId })
+        const payload = await fetchPublicJson('/api/stats/ping', {
+          timeoutMs: 6000,
+          options: {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ visitorId }),
+          },
         });
-        if (response.ok) {
-          const data = await response.json();
-          setLiveVisitors(data.activeVisitors);
-          setTotalSiteViews(data.totalViews);
-        }
+
+        setLiveVisitors(Number(payload.liveVisitors ?? payload.activeVisitors) || 1);
+        setTotalSiteViews(Number(payload.totalViews) || 0);
       } catch (err) {
         console.error('Error fetching live stats:', err);
       }
@@ -1499,9 +1557,7 @@ function App() {
       setIsNewsLoading(true);
       setStatus({ state: 'loading', message: 'डेटा कनेक्शन सक्रिय हो रहा है...' });
       try {
-        const response = await fetch(`${API_URL}/api/news?limit=12`);
-        if (!response.ok) throw new Error('API unavailable');
-        const payload = await response.json();
+        const payload = await fetchPublicJson('/api/news?limit=12', { timeoutMs: 9000 });
         const list = payload.data || [];
         setNews(list);
         setFeatured(list.filter((item) => item.is_featured));
@@ -1519,7 +1575,7 @@ function App() {
 
     // Background Keep-Alive Ping to prevent Vercel from sleeping completely while users are active
     const keepAliveInterval = setInterval(() => {
-      fetch(`${API_URL}/api/health`).catch(() => {});
+      fetchPublicJson('/api/health', { timeoutMs: 4000 }).catch(() => {});
     }, 60000); // Prompts backend strictly every 60 seconds
 
     return () => clearInterval(keepAliveInterval);
@@ -1945,9 +2001,7 @@ function App() {
     const loadReels = async () => {
       setIsReelsLoading(true);
       try {
-        const response = await fetch(`${API_URL}/api/reels/recommendations?limit=200`);
-        if (!response.ok) throw new Error('Reels API unavailable');
-        const payload = await response.json();
+        const payload = await fetchPublicJson('/api/reels/recommendations?limit=200', { timeoutMs: 9000 });
         setReels(Array.isArray(payload.data) ? payload.data : []);
       } catch (error) {
         setReels(demoNews); 
@@ -1992,18 +2046,15 @@ function App() {
     const loadSettings = async () => {
       setIsSettingsLoading(true);
       try {
-        const response = await fetch(`${API_URL}/api/settings`);
-        if (response.ok) {
-          const payload = await response.json();
-          if (payload.data) {
-            setSiteSettings((prev) => ({
-              ...prev,
-              ...payload.data,
-              campaign: mergeCampaignSettings(payload.data.campaign),
-            }));
-            localStorage.setItem(SITE_SETTINGS_CACHE_KEY, JSON.stringify(payload.data));
-            document.title = payload.data.site_title || payload.data.site_name || 'Website';
-          }
+        const payload = await fetchPublicJson('/api/settings', { timeoutMs: 9000 });
+        if (payload.data) {
+          setSiteSettings((prev) => ({
+            ...prev,
+            ...payload.data,
+            campaign: mergeCampaignSettings(payload.data.campaign),
+          }));
+          localStorage.setItem(SITE_SETTINGS_CACHE_KEY, JSON.stringify(payload.data));
+          document.title = payload.data.site_title || payload.data.site_name || 'Website';
         }
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -2315,8 +2366,7 @@ function App() {
 
       const activeIframe = reelYouTubeRefs.current[activeReelIndex];
       if (activeIframe) {
-        syncYouTubeAudioState(activeIframe, false);
-        postYouTubeCommand(activeIframe, 'playVideo');
+        syncYouTubePlaybackState(activeIframe, { shouldMute: false, shouldPlay: true });
       }
     };
 
@@ -2369,12 +2419,10 @@ function App() {
       }
       if (iframeEl) {
         if (isActive && !reelPaused.has(idx)) {
-          postYouTubeCommand(iframeEl, 'playVideo');
-          syncYouTubeAudioState(iframeEl, reelsMuted);
+          syncYouTubePlaybackState(iframeEl, { shouldMute: reelsMuted, shouldPlay: true });
         } else {
           postYouTubeCommand(iframeEl, 'stopVideo');
-          postYouTubeCommand(iframeEl, 'pauseVideo');
-          syncYouTubeAudioState(iframeEl, true);
+          syncYouTubePlaybackState(iframeEl, { shouldMute: true, shouldPlay: false });
         }
       }
     });
@@ -2917,9 +2965,12 @@ function App() {
                             onLoad={(event) => {
                               const iframeEl = event.currentTarget;
                               const shouldMute = isActive ? reelsMuted : true;
-                              syncYouTubeAudioState(iframeEl, shouldMute);
+                              syncYouTubePlaybackState(iframeEl, {
+                                shouldMute,
+                                shouldPlay: isActive && !isPaused,
+                              });
                             }}
-                            src={`${embed.src}?autoplay=${isActive ? 1 : 0}&mute=${isActive ? (reelsMuted ? 1 : 0) : 1}&loop=1&playlist=${embed.id}&controls=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&fs=0&disablekb=1&vq=hd1080&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
+                            src={`${embed.src}?autoplay=${isActive ? 1 : 0}&mute=${isActive ? (reelsMuted ? 1 : 0) : 1}&loop=1&playlist=${embed.id}&controls=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&fs=0&disablekb=1&vq=hd1080&enablejsapi=1&origin=${window.location.origin}`}
                             title={item.title}
                             frameBorder="0"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -3224,7 +3275,7 @@ function App() {
                         onLoad={(event) => {
                           syncYouTubeAudioState(event.currentTarget, reelsMuted);
                         }}
-                        src={`${embed.src}?autoplay=1&mute=${reelsMuted ? 1 : 0}&loop=1&playlist=${embed.id}&controls=1&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&disablekb=1&vq=hd1080&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
+                        src={`${embed.src}?autoplay=1&mute=${reelsMuted ? 1 : 0}&loop=1&playlist=${embed.id}&controls=1&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&disablekb=1&vq=hd1080&enablejsapi=1&origin=${window.location.origin}`}
                         title={reelPageItem.title}
                         frameBorder="0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
