@@ -90,9 +90,15 @@ const reelSchema = new mongoose.Schema({
   slug: { type: String, required: true, unique: true },
   caption: { type: String, default: '' },
   video_url: { type: String, required: true },
+  dedup_key: { type: String, default: '' },
   cover_image_url: { type: String, default: '' },
   creator_name: { type: String, default: 'ALOK Creator' },
   creator_handle: { type: String, default: 'alok' },
+  creator_avatar: { type: String, default: '' },
+  creator_mode: { type: String, default: 'auto' },
+  is_official_creator: { type: Boolean, default: false },
+  is_demo_creator: { type: Boolean, default: false },
+  follower_count: { type: Number, default: 0 },
   tags: { type: [String], default: [] },
   status: { type: String, default: 'published' },
   is_active: { type: Boolean, default: true },
@@ -108,6 +114,7 @@ reelSchema.index({ status: 1, published_at: -1 });
 reelSchema.index({ views: -1 });
 reelSchema.index({ creator_handle: 1, published_at: -1 });
 reelSchema.index({ tags: 1 });
+reelSchema.index({ dedup_key: 1 });
 
 reelSchema.set('toJSON', {
   transform: (document, returnedObject) => {

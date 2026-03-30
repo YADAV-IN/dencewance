@@ -1,6 +1,6 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "ALOK",
+  "name": "ALOK News",
   "icons": [
     {
       "src": "favicon.ico",
@@ -18,8 +18,38 @@
       "sizes": "512x512"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
+  "scope": "/",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "display": "standalone",
+  "orientation": "portrait",
   "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "background_color": "#000000",
+  "description": "ALOK short video stories and news",
+  "shortcuts": [
+    {
+      "name": "Video Stories",
+      "short_name": "Stories",
+      "url": "/videos",
+      "icons": [
+        {
+          "src": "logo192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Trending",
+      "short_name": "Trending",
+      "url": "/trending",
+      "icons": [
+        {
+          "src": "logo192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
 }

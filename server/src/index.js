@@ -389,6 +389,240 @@ async function findUniqueReelSlug(baseSlug) {
   return uniqueSlug;
 }
 
+function detectReelSourceType(url = '') {
+  if (!url || typeof url !== 'string') return 'upload';
+  if (/youtu\.be|youtube\.com/i.test(url)) return 'youtube';
+  if (/instagram\.com\/(reel|p|tv)\//i.test(url)) return 'instagram';
+  return 'upload';
+}
+
+function extractYouTubeId(url = '') {
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|shorts\/|watch\?v=|watch\?.+&v=))([\w-]{11})/i);
+  return match?.[1] || '';
+}
+
+function extractInstagramCode(url = '') {
+  const match = url.match(/instagram\.com\/(?:reel|p|tv)\/([A-Za-z0-9_-]+)/i);
+  return match?.[1] || '';
+}
+
+function normalizeReelVideoUrl(url = '') {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+
+  const ytId = extractYouTubeId(trimmed);
+  if (ytId) return `https://www.youtube.com/watch?v=${ytId}`;
+
+  const instaCode = extractInstagramCode(trimmed);
+  if (instaCode) return `https://www.instagram.com/reel/${instaCode}/`;
+
+  try {
+    const parsed = new URL(trimmed);
+    parsed.hash = '';
+    return parsed.toString();
+  } catch {
+    return trimmed;
+  }
+}
+
+function getVideoDedupKey(url = '') {
+  const normalized = normalizeReelVideoUrl(url);
+  if (!normalized) return '';
+
+  const ytId = extractYouTubeId(normalized);
+  if (ytId) return `yt:${ytId}`;
+
+  const instaCode = extractInstagramCode(normalized);
+  if (instaCode) return `ig:${instaCode.toLowerCase()}`;
+
+  try {
+    const parsed = new URL(normalized);
+    return `url:${parsed.hostname.toLowerCase()}${parsed.pathname.replace(/\/$/, '')}`;
+  } catch {
+    return `raw:${normalized.toLowerCase()}`;
+  }
+}
+
+const DEMO_CREATOR_POOL_SIZE = 3000;
+
+function createSeedHash(input = '') {
+  const value = String(input || 'seed');
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+function getSyntheticFollowerCount(seedInput = '') {
+  const hash = createSeedHash(seedInput || Date.now());
+  const bucket = hash % 100;
+
+  if (bucket < 12) {
+    return 50 + (hash % 700); // 50 - 749
+  }
+  if (bucket < 67) {
+    return 100000 + (hash % 900000); // 100k - 999k
+  }
+  return 1000 + (hash % 98000); // 1k - 99k
+}
+
+function pickAutoCreatorProfile(seedInput = '') {
+  const hash = createSeedHash(seedInput || Date.now());
+  const number = (hash % DEMO_CREATOR_POOL_SIZE) + 1;
+  const padded = String(number).padStart(4, '0');
+  return {
+    name: `Demo Creator ${padded}`,
+    handle: `demo_creator_${padded}`,
+    follower_count: getSyntheticFollowerCount(`${seedInput}-${padded}`),
+  };
+}
+
+function resolveCreatorIdentity({ payload = {}, currentUser = null, fallbackSeed = '' } = {}) {
+  const mode = payload.creator_mode === 'official' ? 'official' : 'auto';
+
+  if (mode === 'official') {
+    return {
+      creator_mode: 'official',
+      is_official_creator: true,
+      is_demo_creator: false,
+      creator_name: payload.creator_name || currentUser?.name || 'ALOK Official',
+      creator_handle: payload.creator_handle || slugify((currentUser?.name || 'alokofficial').toLowerCase()),
+      creator_avatar: payload.creator_avatar || currentUser?.avatar_url || '',
+      follower_count: Number(payload.follower_count) > 0
+        ? Number(payload.follower_count)
+        : (Number(currentUser?.followers) > 0 ? Number(currentUser.followers) : 12500),
+    };
+  }
+
+  const autoProfile = pickAutoCreatorProfile(fallbackSeed || payload.title || payload.video_url);
+  return {
+    creator_mode: 'auto',
+    is_official_creator: false,
+    is_demo_creator: true,
+    creator_name: payload.creator_name || autoProfile.name,
+    creator_handle: payload.creator_handle || autoProfile.handle,
+    creator_avatar: payload.creator_avatar || '',
+    follower_count: Number(payload.follower_count) > 0
+      ? Number(payload.follower_count)
+      : autoProfile.follower_count,
+  };
+}
+
+function getHostname(url = '') {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function getDomainQualityScore(url = '') {
+  const host = getHostname(url);
+  if (!host) return 0;
+
+  const trustedHosts = [
+    'youtube.com',
+    'www.youtube.com',
+    'youtu.be',
+    'instagram.com',
+    'www.instagram.com',
+    'cdninstagram.com',
+    'fbcdn.net',
+    'cloudinary.com',
+    'res.cloudinary.com',
+  ];
+
+  if (trustedHosts.some((item) => host === item || host.endsWith(`.${item}`))) return 12;
+  if (host.includes('cdn')) return 7;
+  return 3;
+}
+
+function isValidHttpUrl(url = '') {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+async function isLikelyPlayableVideoUrl(url = '') {
+  const sourceType = detectReelSourceType(url);
+  if (sourceType === 'youtube' || sourceType === 'instagram') {
+    return true;
+  }
+
+  const lower = url.toLowerCase();
+  if (/\.(mp4|mov|webm|m3u8)(\?|$)/i.test(lower)) return true;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3500);
+  try {
+    const response = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+      signal: controller.signal,
+    });
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+    if (response.ok && contentType.includes('video')) return true;
+    if (response.ok && (contentType.includes('octet-stream') || contentType.includes('application/vnd.apple.mpegurl'))) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function scoreReelForGlobalFeed(item) {
+  const now = Date.now();
+  const publishedAt = item.published_at ? new Date(item.published_at).getTime() : now;
+  const ageHours = Math.max(1, (now - publishedAt) / 3600000);
+  const freshness = 48 / Math.sqrt(ageHours);
+  const views = Number(item.views) || 0;
+  const likes = Number(item.likes) || 0;
+  const shares = Number(item.shares) || 0;
+  const engagement = likes * 2.8 + shares * 4 + views * 0.22;
+  const domainQuality = getDomainQualityScore(item.video_url);
+  return engagement + freshness + domainQuality;
+}
+
+function mixSourcesForFeed(list = []) {
+  const buckets = {
+    youtube: [],
+    instagram: [],
+    upload: [],
+  };
+
+  list.forEach((item) => {
+    const source = item.source_type || 'upload';
+    if (buckets[source]) buckets[source].push(item);
+    else buckets.upload.push(item);
+  });
+
+  Object.values(buckets).forEach((arr) => arr.sort((a, b) => b.feed_score - a.feed_score));
+
+  const order = ['upload', 'youtube', 'instagram'];
+  const mixed = [];
+
+  while (mixed.length < list.length) {
+    let pushedInCycle = false;
+    order.forEach((source) => {
+      const next = buckets[source].shift();
+      if (next) {
+        mixed.push(next);
+        pushedInCycle = true;
+      }
+    });
+    if (!pushedInCycle) break;
+  }
+
+  return mixed;
+}
+
 app.get('/api/reels', async (req, res) => {
   try {
     const { limit = 50, active = 'true' } = req.query;
@@ -404,6 +638,151 @@ app.get('/api/reels', async (req, res) => {
   } catch (error) {
     console.error('Reels list error:', error);
     return res.status(500).json({ error: 'Failed to fetch reels.' });
+  }
+});
+
+app.get('/api/reels/recommendations', async (req, res) => {
+  try {
+    const { limit = 120, active = 'true' } = req.query;
+    const query = {};
+    if (active === 'true') query.is_active = true;
+
+    const reels = await Reel.find(query)
+      .sort({ published_at: -1 })
+      .limit(Math.min(Number(limit) || 120, 250))
+      .lean();
+
+    const scored = reels.map((item) => {
+      const sourceType = detectReelSourceType(item.video_url);
+      return {
+        ...item,
+        source_type: sourceType,
+        feed_score: Number(scoreReelForGlobalFeed(item).toFixed(3)),
+      };
+    });
+
+    const mixed = mixSourcesForFeed(scored).map((item) => ({
+      ...item,
+      id: item._id.toString(),
+      _id: undefined,
+      __v: undefined,
+    }));
+
+    return res.json({ data: mixed });
+  } catch (error) {
+    console.error('Reel recommendations error:', error);
+    return res.status(500).json({ error: 'Failed to fetch reel recommendations.' });
+  }
+});
+
+app.post('/api/reels/bulk', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser) return res.status(404).json({ error: 'User not found.' });
+    if (!['admin', 'editor', 'author'].includes(currentUser.role)) {
+      return res.status(403).json({ error: 'Permission denied to bulk create reels.' });
+    }
+
+    const links = Array.isArray(req.body?.links) ? req.body.links : [];
+    const creatorMode = req.body?.creator_mode === 'official' ? 'official' : 'auto';
+    if (!links.length) {
+      return res.status(400).json({ error: 'links array is required.' });
+    }
+
+    const limitedLinks = links
+      .map((value) => (typeof value === 'string' ? value.trim() : ''))
+      .filter(Boolean)
+      .slice(0, 250);
+
+    const invalidLinks = limitedLinks.filter((url) => !isValidHttpUrl(url));
+    const normalizedLinks = limitedLinks
+      .filter((url) => isValidHttpUrl(url))
+      .map((url) => normalizeReelVideoUrl(url));
+
+    const incomingByKey = new Map();
+    normalizedLinks.forEach((url) => {
+      const key = getVideoDedupKey(url);
+      if (!key) return;
+      if (!incomingByKey.has(key)) incomingByKey.set(key, url);
+    });
+    const uniqueIncoming = Array.from(incomingByKey.values());
+
+    const existing = await Reel.find({})
+      .select('video_url dedup_key')
+      .lean();
+    const existingSet = new Set();
+    existing.forEach((item) => {
+      const key = item.dedup_key || getVideoDedupKey(item.video_url);
+      if (key) existingSet.add(key);
+    });
+
+    const candidates = uniqueIncoming.filter((url) => {
+      const key = getVideoDedupKey(url);
+      return key && !existingSet.has(key);
+    });
+
+    const deadLinks = [];
+    const healthyLinks = [];
+
+    for (const url of candidates) {
+      // Keep only links that look playable to avoid repeated buffering/failures in feed.
+      const ok = await isLikelyPlayableVideoUrl(url);
+      if (ok) healthyLinks.push(url);
+      else deadLinks.push(url);
+    }
+
+    const created = [];
+    for (let i = 0; i < healthyLinks.length; i += 1) {
+      const videoUrl = healthyLinks[i];
+      const sourceType = detectReelSourceType(videoUrl);
+      const dedupKey = getVideoDedupKey(videoUrl);
+      const title = `Reel ${Date.now()}-${i + 1}`;
+      const baseSlug = slugify(`${sourceType}-${title}`) || `reel-${Date.now()}-${i + 1}`;
+      const slug = await findUniqueReelSlug(baseSlug);
+      const creatorIdentity = resolveCreatorIdentity({
+        payload: { creator_mode: creatorMode, title, video_url: videoUrl },
+        currentUser,
+        fallbackSeed: `${videoUrl}-${i}`,
+      });
+
+      const reel = await Reel.create({
+        title,
+        slug,
+        caption: `Imported ${sourceType} reel`,
+        video_url: videoUrl,
+        dedup_key: dedupKey,
+        cover_image_url: '',
+        creator_name: creatorIdentity.creator_name,
+        creator_handle: creatorIdentity.creator_handle,
+        creator_avatar: creatorIdentity.creator_avatar,
+        creator_mode: creatorIdentity.creator_mode,
+        is_official_creator: creatorIdentity.is_official_creator,
+        is_demo_creator: creatorIdentity.is_demo_creator,
+        follower_count: creatorIdentity.follower_count,
+        tags: [sourceType, 'imported'],
+        status: 'published',
+        is_active: true,
+        published_at: new Date(),
+      });
+      created.push(reel.toJSON());
+    }
+
+    return res.status(201).json({
+      data: {
+        createdCount: created.length,
+        skipped: {
+          duplicates: uniqueIncoming.length - candidates.length,
+          invalid: invalidLinks.length,
+          dead: deadLinks.length,
+        },
+        deadLinks,
+        invalidLinks,
+        items: created,
+      },
+    });
+  } catch (error) {
+    console.error('Bulk reel import error:', error);
+    return res.status(500).json({ error: 'Failed to bulk create reels.' });
   }
 });
 
@@ -424,6 +803,23 @@ app.get('/api/reels/:slug', async (req, res) => {
   }
 });
 
+app.post('/api/reels/:id/like', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const reel = await Reel.findByIdAndUpdate(
+      id,
+      { $inc: { likes: 1 } },
+      { new: true }
+    );
+
+    if (!reel) return res.status(404).json({ error: 'Reel not found.' });
+    return res.json({ data: reel.toJSON() });
+  } catch (error) {
+    console.error('Reel like error:', error);
+    return res.status(500).json({ error: 'Failed to update reel likes.' });
+  }
+});
+
 app.post('/api/reels', requireAuth, async (req, res) => {
   const currentUser = await Admin.findById(req.adminId);
   if (!currentUser) return res.status(404).json({ error: 'User not found.' });
@@ -436,17 +832,41 @@ app.post('/api/reels', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Title and video_url required.' });
   }
 
+  payload.video_url = normalizeReelVideoUrl(payload.video_url);
+  const dedupKey = getVideoDedupKey(payload.video_url);
+
+  const existingReel = await Reel.findOne({
+    $or: [
+      { dedup_key: dedupKey },
+      { video_url: payload.video_url },
+    ],
+  });
+  if (existingReel) {
+    return res.status(200).json({ data: existingReel.toJSON(), message: 'Duplicate reel skipped.' });
+  }
+
   const baseSlug = slugify(payload.title) || `reel-${Date.now()}`;
   const slug = await findUniqueReelSlug(baseSlug);
+  const creatorIdentity = resolveCreatorIdentity({
+    payload,
+    currentUser,
+    fallbackSeed: `${payload.video_url}-${payload.title}`,
+  });
 
   const reel = await Reel.create({
     title: payload.title,
     slug,
     caption: payload.caption || '',
     video_url: payload.video_url,
+    dedup_key: dedupKey,
     cover_image_url: payload.cover_image_url || '',
-    creator_name: payload.creator_name || currentUser.name || 'ALOK Creator',
-    creator_handle: payload.creator_handle || slugify((currentUser.name || 'alok').toLowerCase()),
+    creator_name: creatorIdentity.creator_name,
+    creator_handle: creatorIdentity.creator_handle,
+    creator_avatar: creatorIdentity.creator_avatar,
+    creator_mode: creatorIdentity.creator_mode,
+    is_official_creator: creatorIdentity.is_official_creator,
+    is_demo_creator: creatorIdentity.is_demo_creator,
+    follower_count: creatorIdentity.follower_count,
     tags: Array.isArray(payload.tags) ? payload.tags : [],
     status: payload.status || 'published',
     is_active: payload.is_active !== false,
@@ -465,6 +885,23 @@ app.put('/api/reels/:id', requireAuth, async (req, res) => {
 
   const { id } = req.params;
   const payload = { ...(req.body || {}) };
+
+  if (payload.video_url) {
+    payload.video_url = normalizeReelVideoUrl(payload.video_url);
+    payload.dedup_key = getVideoDedupKey(payload.video_url);
+
+    const duplicate = await Reel.findOne({
+      _id: { $ne: id },
+      $or: [
+        { dedup_key: payload.dedup_key },
+        { video_url: payload.video_url },
+      ],
+    });
+    if (duplicate) {
+      return res.status(409).json({ error: 'Duplicate reel video link already exists.' });
+    }
+  }
+
   const reel = await Reel.findByIdAndUpdate(id, payload, { new: true });
   if (!reel) return res.status(404).json({ error: 'Reel not found.' });
   return res.json({ data: reel.toJSON() });

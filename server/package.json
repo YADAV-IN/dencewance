@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch-path=src src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "import:reels": "node scripts/import-reels.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -1,0 +1,6 @@
+# Paste one video URL per line.
+# Supported: YouTube, Instagram Reel/Post, direct MP4/video URL.
+# Example:
+# https://www.youtube.com/watch?v=dQw4w9WgXcQ
+# https://www.instagram.com/reel/C8abcDEF12G/
+# https://example-cdn.com/videos/reel-001.mp4

@@ -10,6 +10,7 @@ import { CampaignLayer } from './components/CampaignLayer';
 import { t, detectLanguage } from './translations';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://server-kappa-lac.vercel.app');
+const REEL_PRELOAD_AHEAD = 999;
 
 const demoNews = [
   {
@@ -198,6 +199,62 @@ const defaultCampaignSettings = {
   openInNewTab: true,
 };
 
+const defaultSiteSettings = {
+  site_name: 'ALOK',
+  site_subtitle: 'बीजेएमसी न्यूज़',
+  site_title: 'ALOK - बीजेएमसी न्यूज़',
+  site_description: 'बीजेएमसी न्यूज़रूम - आपकी खबरों का भरोसेमंद स्रोत',
+  campaign: { ...defaultCampaignSettings },
+};
+
+const TERMS_ACCEPTED_KEY = 'alok_terms_agreed';
+const INTRO_SEEN_KEY = 'alok_intro_seen_v1';
+const SITE_SETTINGS_CACHE_KEY = 'alok_site_settings_cache';
+
+const getCookieValue = (name) => {
+  if (typeof document === 'undefined') return '';
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = document.cookie.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : '';
+};
+
+const setPersistentDeviceFlag = (key, value = 'true', days = 365) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    // Ignore localStorage write issues.
+  }
+
+  if (typeof document !== 'undefined') {
+    const maxAge = Math.max(1, Math.floor(days * 24 * 60 * 60));
+    document.cookie = `${key}=${encodeURIComponent(value)}; Max-Age=${maxAge}; Path=/; SameSite=Lax`;
+  }
+};
+
+const hasPersistentDeviceFlag = (key) => {
+  try {
+    if (localStorage.getItem(key) === 'true') return true;
+  } catch (error) {
+    // Ignore localStorage read issues.
+  }
+  return getCookieValue(key) === 'true';
+};
+
+const getInitialSiteSettings = () => {
+  try {
+    const raw = localStorage.getItem(SITE_SETTINGS_CACHE_KEY);
+    if (!raw) return { ...defaultSiteSettings };
+    const parsed = JSON.parse(raw);
+    return {
+      ...defaultSiteSettings,
+      ...(parsed || {}),
+      campaign: mergeCampaignSettings(parsed?.campaign),
+    };
+  } catch (error) {
+    return { ...defaultSiteSettings };
+  }
+};
+
 const mergeCampaignSettings = (campaign = {}) => ({
   ...defaultCampaignSettings,
   ...(campaign || {}),
@@ -219,6 +276,124 @@ const extractYouTubeId = (url) => {
     return match[1];
   }
   return '';
+};
+
+const extractInstagramCode = (url) => {
+  if (!url || typeof url !== 'string') return '';
+  const match = url.match(/instagram\.com\/(?:reel|p|tv)\/([A-Za-z0-9_-]+)/i);
+  return match?.[1] || '';
+};
+
+const getEmbedSource = (url = '') => {
+  if (!url || typeof url !== 'string') {
+    return { type: 'none', src: '', id: '' };
+  }
+
+  const ytId = extractYouTubeId(url);
+  if (ytId) {
+    return {
+      type: 'youtube',
+      id: ytId,
+      src: `https://www.youtube-nocookie.com/embed/${ytId}`,
+    };
+  }
+
+  const instaCode = extractInstagramCode(url);
+  if (instaCode) {
+    return {
+      type: 'instagram',
+      id: instaCode,
+      src: `https://www.instagram.com/reel/${instaCode}/embed`,
+    };
+  }
+
+  return { type: 'video', src: url, id: '' };
+};
+
+const getVideoSourceType = (url = '') => {
+  const source = getEmbedSource(url);
+  if (source.type === 'youtube') return 'youtube';
+  if (source.type === 'instagram') return 'instagram';
+  return 'upload';
+};
+
+const getReelIdentity = (item = {}) => String(item?.id || item?._id || item?.slug || item?.title || 'reel');
+
+const rankReelsForFeed = (reels = [], signals = {}, followedCreators = []) => {
+  if (!Array.isArray(reels) || reels.length === 0) return [];
+
+  const seenByReel = signals?.seenByReel || {};
+  const likedByReel = signals?.likedByReel || {};
+  const sourceAffinity = signals?.sourceAffinity || { youtube: 0, instagram: 0, upload: 0 };
+
+  const now = Date.now();
+
+  const scored = reels.map((item, index) => {
+    const reelId = getReelIdentity(item);
+    const sourceType = getVideoSourceType(item.video_url);
+    const views = Number(item.views) || 0;
+    const likes = Number(item.likes) || 0;
+    const shares = Number(item.shares) || 0;
+    const publishedAt = item.published_at || item.created_at;
+    const ageHours = publishedAt ? Math.max(1, (now - new Date(publishedAt).getTime()) / 3600000) : 72;
+    const freshnessScore = 30 / Math.sqrt(ageHours);
+    const engagementScore = likes * 2 + views * 0.2 + shares * 3;
+    const seenPenalty = (Number(seenByReel[reelId]) || 0) * 8;
+    const likedBoost = likedByReel[reelId] ? 14 : 0;
+    const affinityBoost = (Number(sourceAffinity[sourceType]) || 0) * 3;
+    const creatorKey = slugifyText(item?.creator_name || item?.author_name || item?.source || 'creator');
+    const followBoost = followedCreators.includes(creatorKey) ? 12 : 0;
+
+    return {
+      ...item,
+      __sourceType: sourceType,
+      __score: engagementScore + freshnessScore + likedBoost + affinityBoost + followBoost - seenPenalty,
+      __index: index,
+    };
+  });
+
+  const buckets = {
+    youtube: [],
+    instagram: [],
+    upload: [],
+  };
+
+  scored.forEach((item) => {
+    buckets[item.__sourceType]?.push(item);
+  });
+
+  Object.keys(buckets).forEach((key) => {
+    buckets[key].sort((a, b) => b.__score - a.__score || a.__index - b.__index);
+  });
+
+  const activeSources = Object.keys(buckets)
+    .filter((source) => buckets[source].length > 0)
+    .sort((a, b) => (Number(sourceAffinity[b]) || 0) - (Number(sourceAffinity[a]) || 0));
+
+  if (!activeSources.length) return [];
+
+  const result = [];
+  while (result.length < scored.length) {
+    let pushedInRound = false;
+    activeSources.forEach((source) => {
+      const next = buckets[source].shift();
+      if (next) {
+        result.push(next);
+        pushedInRound = true;
+      }
+    });
+    if (!pushedInRound) break;
+  }
+
+  return result;
+};
+
+const postYouTubeCommand = (iframeEl, command) => {
+  if (!iframeEl?.contentWindow) return;
+  iframeEl.contentWindow.postMessage(
+    JSON.stringify({ event: 'command', func: command, args: [] }),
+    '*'
+  );
 };
 
 const resolveMediaUrl = (value) => {
@@ -267,6 +442,9 @@ function App() {
   const videoFileInputRef = useRef(null);
   const reelUploadInputRef = useRef(null);
   const reelVideoRefs = useRef({});
+  const reelYouTubeRefs = useRef({});
+  const lastTrackedReelRef = useRef('');
+  const wakeLockRef = useRef(null);
   const device = useDevice();
   const [news, setNews] = useState([]);
   const [reels, setReels] = useState([]);
@@ -280,10 +458,39 @@ function App() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [activeReelIndex, setActiveReelIndex] = useState(0);
-  const [reelsMuted, setReelsMuted] = useState(false);
+  const [reelsMuted, setReelsMuted] = useState(true);
   const [videoUploadState, setVideoUploadState] = useState({ state: 'idle', message: '' });
   const [reelUploadProgress, setReelUploadProgress] = useState(0);
   const [reelPaused, setReelPaused] = useState(new Set());
+  const [reelCreatorMode, setReelCreatorMode] = useState(() => localStorage.getItem('alok_reel_creator_mode') || 'auto');
+  const [reelSignals, setReelSignals] = useState(() => {
+    try {
+      const raw = localStorage.getItem('alok_reel_signals');
+      if (!raw) {
+        return {
+          seenByReel: {},
+          likedByReel: {},
+          sourceAffinity: { youtube: 0, instagram: 0, upload: 0 },
+        };
+      }
+      const parsed = JSON.parse(raw);
+      return {
+        seenByReel: parsed?.seenByReel || {},
+        likedByReel: parsed?.likedByReel || {},
+        sourceAffinity: {
+          youtube: Number(parsed?.sourceAffinity?.youtube) || 0,
+          instagram: Number(parsed?.sourceAffinity?.instagram) || 0,
+          upload: Number(parsed?.sourceAffinity?.upload) || 0,
+        },
+      };
+    } catch (error) {
+      return {
+        seenByReel: {},
+        likedByReel: {},
+        sourceAffinity: { youtube: 0, instagram: 0, upload: 0 },
+      };
+    }
+  });
   const [followedCreators, setFollowedCreators] = useState(() => {
     try {
       const raw = localStorage.getItem('alok_reel_follows');
@@ -345,13 +552,7 @@ function App() {
   const [reelForm, setReelForm] = useState({
     title: '', caption: '', video_url: '', tags: '', status: 'published'
   });
-  const [siteSettings, setSiteSettings] = useState({
-    site_name: 'ALOK',
-    site_subtitle: 'बीजेएमसी न्यूज़',
-    site_title: 'ALOK - बीजेएमसी न्यूज़',
-    site_description: 'बीजेएमसी न्यूज़रूम - आपकी खबरों का भरोसेमंद स्रोत',
-    campaign: { ...defaultCampaignSettings },
-  });
+  const [siteSettings, setSiteSettings] = useState(() => getInitialSiteSettings());
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('alok_theme') || 'light');
   const [language, setLanguage] = useState(() => {
@@ -374,6 +575,12 @@ function App() {
   const [visitorName, setVisitorName] = useState(() => localStorage.getItem('alok_visitor_name') || '');
   const [liveVisitors, setLiveVisitors] = useState(1);
   const [totalSiteViews, setTotalSiteViews] = useState(0);
+  const [showStartupSplash, setShowStartupSplash] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem('alok_startup_splash_seen_v1') !== 'true';
+  });
+  const [installPromptEvent, setInstallPromptEvent] = useState(null);
+  const [isAppInstalled, setIsAppInstalled] = useState(false);
 
   // Live stats effect connecting to backend
   useEffect(() => {
@@ -407,6 +614,43 @@ function App() {
     return () => clearInterval(visitorInterval);
   }, []);
 
+  useEffect(() => {
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if (standalone) {
+      setIsAppInstalled(true);
+      return;
+    }
+
+    const handleBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setInstallPromptEvent(event);
+    };
+
+    const handleAppInstalled = () => {
+      setIsAppInstalled(true);
+      setInstallPromptEvent(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!installPromptEvent) return;
+    installPromptEvent.prompt();
+    try {
+      await installPromptEvent.userChoice;
+    } catch (error) {
+      // Ignore prompt result errors.
+    }
+    setInstallPromptEvent(null);
+  };
+
   const currentPath = routeState.pathname;
   const currentSearch = routeState.search;
   const currentPageKey = useMemo(() => resolvePageKey(currentPath), [currentPath]);
@@ -425,6 +669,45 @@ function App() {
     window.history[replace ? 'replaceState' : 'pushState']({}, '', nextPath);
     setRouteState(getRouteSnapshot());
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const enableVideoImmersiveMode = async () => {
+    if (typeof document === 'undefined') return;
+
+    try {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+      }
+    } catch (error) {
+      // Fullscreen can fail without user gesture; continue with other locks.
+    }
+
+    try {
+      if (window.screen?.orientation?.lock) {
+        await window.screen.orientation.lock('portrait');
+      }
+    } catch (error) {
+      // Orientation lock may be unsupported or permission-restricted.
+    }
+
+    try {
+      if (!wakeLockRef.current && navigator.wakeLock?.request) {
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+      }
+    } catch (error) {
+      // Wake lock not available on all browsers/devices.
+    }
+  };
+
+  const disableVideoImmersiveMode = async () => {
+    try {
+      if (wakeLockRef.current) {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+    } catch (error) {
+      wakeLockRef.current = null;
+    }
   };
 
   const featureGroups = useMemo(() => ([
@@ -680,6 +963,41 @@ function App() {
       }
     } catch (error) {
       setStatus({ state: 'error', message: 'Reel delete failed.' });
+    }
+  };
+
+  const handleReelLike = async (item) => {
+    const reelId = item?.id || item?._id;
+    if (!reelId) return;
+    const identity = getReelIdentity(item);
+    const sourceType = getVideoSourceType(item?.video_url);
+
+    setReelSignals((prev) => ({
+      ...prev,
+      likedByReel: {
+        ...(prev?.likedByReel || {}),
+        [identity]: true,
+      },
+      sourceAffinity: {
+        youtube: Number(prev?.sourceAffinity?.youtube) || 0,
+        instagram: Number(prev?.sourceAffinity?.instagram) || 0,
+        upload: Number(prev?.sourceAffinity?.upload) || 0,
+        [sourceType]: (Number(prev?.sourceAffinity?.[sourceType]) || 0) + 2,
+      },
+    }));
+
+    setReels((prev) => prev.map((reel) => {
+      const currentId = reel.id || reel._id;
+      if (currentId !== reelId) return reel;
+      return { ...reel, likes: (Number(reel.likes) || 0) + 1 };
+    }));
+
+    if (typeof reelId === 'string' && reelId.startsWith('local-')) return;
+
+    try {
+      await fetch(`${API_URL}/api/reels/${reelId}/like`, { method: 'POST' });
+    } catch (error) {
+      // Keep optimistic UI update even if network request fails.
     }
   };
 
@@ -1003,9 +1321,10 @@ function App() {
       title: baseTitle,
       caption: `Fresh upload: ${baseTitle}`,
       video_url: uploadedUrl,
-      creator_name: adminProfile?.name || siteSettings.site_name || 'ALOK Creator',
-      creator_avatar: adminProfile?.avatar_url || '',
-      creator_handle: adminProfile?.handle || adminProfile?.name?.toLowerCase().replace(/\s+/g, '') || 'aloklive',
+      creator_mode: reelCreatorMode === 'official' ? 'official' : 'auto',
+      creator_name: reelCreatorMode === 'official' ? (adminProfile?.name || siteSettings.site_name || 'ALOK Official') : '',
+      creator_avatar: reelCreatorMode === 'official' ? (adminProfile?.avatar_url || '') : '',
+      creator_handle: reelCreatorMode === 'official' ? (adminProfile?.handle || adminProfile?.name?.toLowerCase().replace(/\s+/g, '') || 'alokofficial') : '',
       tags: ['upload'],
       status: 'published',
       published_at: new Date().toISOString(),
@@ -1028,7 +1347,7 @@ function App() {
 
         // Re-fetch all reels from DB so state is in sync
         try {
-          const reloadRes = await fetch(`${API_URL}/api/reels?limit=80`);
+          const reloadRes = await fetch(`${API_URL}/api/reels/recommendations?limit=200`);
           if (reloadRes.ok) {
             const reloadData = await reloadRes.json();
             setReels(Array.isArray(reloadData.data) ? reloadData.data : [payload.data]);
@@ -1213,27 +1532,37 @@ function App() {
       localStorage.setItem('alok_imei_uuid', generateUUID());
     }
 
-    // 2. Term & Conditions Check
-    if (!localStorage.getItem('alok_terms_agreed')) {
+    // 2. Term/Onboarding gate - show once per device.
+    const termsAccepted = hasPersistentDeviceFlag(TERMS_ACCEPTED_KEY);
+    const introSeen = hasPersistentDeviceFlag(INTRO_SEEN_KEY);
+
+    if (!termsAccepted) {
       setShowTermsBanner(true);
-    } else if (!localStorage.getItem('alok_visitor_name')) {
-      // 3. Username Onboarding Check
+      return;
+    }
+
+    if (!introSeen && !localStorage.getItem('alok_visitor_name')) {
       setShowOnboardingModal(true);
     }
   }, []);
 
   const handleAcceptTerms = () => {
-    localStorage.setItem('alok_terms_agreed', 'true');
+    setPersistentDeviceFlag(TERMS_ACCEPTED_KEY, 'true');
     setShowTermsBanner(false);
-    if (!localStorage.getItem('alok_visitor_name')) {
+
+    if (!hasPersistentDeviceFlag(INTRO_SEEN_KEY) && !localStorage.getItem('alok_visitor_name')) {
       setShowOnboardingModal(true);
+      return;
     }
+
+    setPersistentDeviceFlag(INTRO_SEEN_KEY, 'true');
   };
 
   const handleSaveVisitorName = (e) => {
     e.preventDefault();
     if (visitorName.trim()) {
       localStorage.setItem('alok_visitor_name', visitorName.trim());
+      setPersistentDeviceFlag(INTRO_SEEN_KEY, 'true');
       setShowOnboardingModal(false);
     }
   };
@@ -1566,7 +1895,7 @@ function App() {
   useEffect(() => {
     const loadReels = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/reels?limit=80`);
+        const response = await fetch(`${API_URL}/api/reels/recommendations?limit=200`);
         if (!response.ok) throw new Error('Reels API unavailable');
         const payload = await response.json();
         setReels(Array.isArray(payload.data) ? payload.data : []);
@@ -1592,7 +1921,7 @@ function App() {
           if (data.data?.deleted > 0) {
             console.info(`[Cleanup] Removed ${data.data.deleted} junk reel(s):`, data.data.titles);
             // Reload reels after cleanup
-            const reloadRes = await fetch(`${API_URL}/api/reels?limit=80`);
+            const reloadRes = await fetch(`${API_URL}/api/reels/recommendations?limit=200`);
             if (reloadRes.ok) {
               const reload = await reloadRes.json();
               setReels(Array.isArray(reload.data) ? reload.data : []);
@@ -1619,6 +1948,7 @@ function App() {
               ...payload.data,
               campaign: mergeCampaignSettings(payload.data.campaign),
             }));
+            localStorage.setItem(SITE_SETTINGS_CACHE_KEY, JSON.stringify(payload.data));
             document.title = payload.data.site_title || 'ALOK - बीजेएमसी न्यूज़';
           }
         }
@@ -1737,9 +2067,10 @@ function App() {
       const payload = {
         ...reelForm,
         tags: tagsArray,
-        creator_name: adminProfile?.name || siteSettings.site_name || 'ALOK Creator',
-        creator_avatar: adminProfile?.avatar_url || '',
-        creator_handle: adminProfile?.handle || adminProfile?.name?.toLowerCase().replace(/\s+/g, '') || 'aloklive',
+        creator_mode: reelCreatorMode === 'official' ? 'official' : 'auto',
+        creator_name: reelCreatorMode === 'official' ? (adminProfile?.name || siteSettings.site_name || 'ALOK Official') : '',
+        creator_avatar: reelCreatorMode === 'official' ? (adminProfile?.avatar_url || '') : '',
+        creator_handle: reelCreatorMode === 'official' ? (adminProfile?.handle || adminProfile?.name?.toLowerCase().replace(/\s+/g, '') || 'alokofficial') : '',
         published_at: new Date().toISOString(),
       };
 
@@ -1838,6 +2169,28 @@ function App() {
 
   // Auto-detect language on first visit
   useEffect(() => {
+    document.title = siteSettings.site_title || `${siteSettings.site_name || 'ALOK'} - बीजेएमसी न्यूज़`;
+    try {
+      localStorage.setItem(SITE_SETTINGS_CACHE_KEY, JSON.stringify(siteSettings));
+    } catch (error) {
+      // Ignore localStorage write issues.
+    }
+  }, [siteSettings]);
+
+  useEffect(() => {
+    if (!showStartupSplash) return;
+
+    const timer = setTimeout(() => {
+      setShowStartupSplash(false);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('alok_startup_splash_seen_v1', 'true');
+      }
+    }, 1700);
+
+    return () => clearTimeout(timer);
+  }, [showStartupSplash]);
+
+  useEffect(() => {
     if (!languageOverride) {
       const detected = detectLanguage();
       setLanguage(detected);
@@ -1856,6 +2209,48 @@ function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const firstOpenDone = sessionStorage.getItem('alok_video_first_open_done') === 'true';
+
+    if (!firstOpenDone && (currentPath === '/' || currentPath === '')) {
+      sessionStorage.setItem('alok_video_first_open_done', 'true');
+      navigateTo('/videos', { replace: true });
+      return;
+    }
+
+    if (!firstOpenDone) {
+      sessionStorage.setItem('alok_video_first_open_done', 'true');
+    }
+  }, [currentPath]);
+
+  useEffect(() => {
+    if (currentPageKey === 'videos') {
+      enableVideoImmersiveMode();
+
+      const handleInteraction = () => {
+        enableVideoImmersiveMode();
+      };
+
+      window.addEventListener('touchstart', handleInteraction, { passive: true });
+      window.addEventListener('click', handleInteraction, { passive: true });
+
+      return () => {
+        window.removeEventListener('touchstart', handleInteraction);
+        window.removeEventListener('click', handleInteraction);
+      };
+    }
+
+    disableVideoImmersiveMode();
+    return undefined;
+  }, [currentPageKey]);
+
+  useEffect(() => {
+    return () => {
+      disableVideoImmersiveMode();
+    };
   }, []);
 
   // Reels: IntersectionObserver for active reel detection + native video play/pause
@@ -1890,11 +2285,19 @@ function App() {
     frames.forEach((frame) => {
       const idx = parseInt(frame.dataset.reelIdx, 10);
       const videoEl = frame.querySelector('video');
+      const iframeEl = frame.querySelector('iframe');
       if (videoEl) {
         if (idx === activeReelIndex && !reelPaused.has(idx)) {
           videoEl.play().catch(() => {});
         } else {
           videoEl.pause();
+        }
+      }
+      if (iframeEl) {
+        if (idx === activeReelIndex && !reelPaused.has(idx)) {
+          postYouTubeCommand(iframeEl, 'playVideo');
+        } else {
+          postYouTubeCommand(iframeEl, 'pauseVideo');
         }
       }
     });
@@ -1904,7 +2307,25 @@ function App() {
   useEffect(() => {
     if (currentPageKey !== 'videos' || !reelsContainerRef.current) return;
     reelsContainerRef.current.querySelectorAll('video').forEach((v) => { v.muted = reelsMuted; });
+
+    Object.values(reelYouTubeRefs.current).forEach((iframeEl) => {
+      postYouTubeCommand(iframeEl, reelsMuted ? 'mute' : 'unMute');
+    });
   }, [reelsMuted, currentPageKey]);
+
+  useEffect(() => {
+    if (currentPageKey !== 'videos') return;
+
+    Object.entries(reelVideoRefs.current).forEach(([idxStr, videoEl]) => {
+      const idx = Number(idxStr);
+      if (!videoEl || Number.isNaN(idx)) return;
+      const distance = idx - activeReelIndex;
+      videoEl.preload = distance >= 0 && distance <= REEL_PRELOAD_AHEAD ? 'auto' : 'metadata';
+      if (distance >= 0 && distance <= REEL_PRELOAD_AHEAD) {
+        videoEl.load();
+      }
+    });
+  }, [activeReelIndex, currentPageKey, reels.length]);
 
   useEffect(() => {
     setShowAdmin(isWorkspacePage);
@@ -1929,22 +2350,72 @@ function App() {
     localStorage.setItem('alok_reel_follows', JSON.stringify(followedCreators));
   }, [followedCreators]);
 
+  useEffect(() => {
+    localStorage.setItem('alok_reel_creator_mode', reelCreatorMode);
+  }, [reelCreatorMode]);
+
+  useEffect(() => {
+    localStorage.setItem('alok_reel_signals', JSON.stringify(reelSignals));
+  }, [reelSignals]);
+
   // Breaking news: Manual (is_breaking) या Automatic (latest 5)
   const breakingNews = news.filter((item) => item.is_breaking);
   const tickerItems = breakingNews.length > 0 ? breakingNews.slice(0, 5) : news.slice(0, 5);
 
   const heroStory = featured[0] || news[0];
-  const reelItems = reels;
+  const reelItems = useMemo(() => reels.filter((item) => item.video_url), [reels]);
   const reelPageItem = routeReel || reelItems[0] || null;
   const reelCreatorName = reelPageItem?.creator_name || reelPageItem?.author_name || reelPageItem?.source || siteSettings.site_name || 'ALOK Creator';
   const reelCreatorKey = reelPageItem ? getCreatorKey(reelPageItem) : '';
   const isFollowingReelCreator = reelCreatorKey ? followedCreators.includes(reelCreatorKey) : false;
-  const reelFollowers = formatCompactNumber((reelPageItem?.views || 0) * 6 + 1200);
+  const reelFollowers = formatCompactNumber(
+    Number(reelPageItem?.follower_count) > 0
+      ? Number(reelPageItem.follower_count)
+      : (reelPageItem?.is_demo_creator ? 0 : ((reelPageItem?.views || 0) * 6 + 1200))
+  );
   const reelLikes = formatCompactNumber(reelPageItem?.likes ?? ((reelPageItem?.views || 0) * 2 + 180));
   const reelShares = formatCompactNumber(reelPageItem?.shares ?? (Math.round((reelPageItem?.views || 0) * 0.18) + 24));
 
+  useEffect(() => {
+    if (currentPageKey !== 'videos') return;
+    const activeItem = reelItems[activeReelIndex];
+    if (!activeItem) return;
+
+    const identity = getReelIdentity(activeItem);
+    const marker = `${activeReelIndex}-${identity}`;
+    if (lastTrackedReelRef.current === marker) return;
+    lastTrackedReelRef.current = marker;
+
+    const sourceType = getVideoSourceType(activeItem.video_url);
+
+    setReelSignals((prev) => ({
+      ...prev,
+      seenByReel: {
+        ...(prev?.seenByReel || {}),
+        [identity]: (Number(prev?.seenByReel?.[identity]) || 0) + 1,
+      },
+      sourceAffinity: {
+        youtube: Number(prev?.sourceAffinity?.youtube) || 0,
+        instagram: Number(prev?.sourceAffinity?.instagram) || 0,
+        upload: Number(prev?.sourceAffinity?.upload) || 0,
+        [sourceType]: (Number(prev?.sourceAffinity?.[sourceType]) || 0) + 0.5,
+      },
+    }));
+  }, [activeReelIndex, currentPageKey, reelItems]);
+
   return (
     <div className={`App ${currentPageKey === 'videos' ? 'app-videos-mode' : ''}`}>
+      {showStartupSplash && (
+        <div className="startup-splash" role="status" aria-live="polite">
+          <div className="startup-splash-mark" aria-hidden="true">
+            <span className="startup-splash-ring" />
+            <span className="startup-splash-dot" />
+          </div>
+          <h1>{siteSettings.site_name || 'ALOK'}</h1>
+          <p>{siteSettings.site_subtitle || 'बीजेएमसी न्यूज़'}</p>
+        </div>
+      )}
+
       <CampaignLayer campaign={isCampaignVisible ? campaignConfig : null} resolveMediaUrl={resolveMediaUrl} onDismiss={handleDismissCampaign} />
       {isFullPageCampaign && adminToken && (
         <button className="campaign-admin-exit" onClick={() => setShowSettingsModal(true)}>
@@ -2307,12 +2778,14 @@ function App() {
                 </div>
               )}
               {reelItems.map((item, idx) => {
-                const isYT = item.video_url && (item.video_url.includes('youtube') || item.video_url.includes('youtu.be') || item.video_url.includes('/embed/'));
-                const ytId = isYT ? extractYouTubeId(item.video_url) : '';
+                const embed = getEmbedSource(item.video_url);
+                const isYouTube = embed.type === 'youtube';
+                const isInstagram = embed.type === 'instagram';
                 const isActive = activeReelIndex === idx;
                 const isPaused = reelPaused.has(idx);
                 const creatorInitial = (item.creator_name || 'A').charAt(0).toUpperCase();
                 const creatorAvatar = item.creator_avatar || '';
+                const shouldWarm = idx >= activeReelIndex - 1 && idx <= activeReelIndex + REEL_PRELOAD_AHEAD;
                 return (
                   <div
                     key={item.id}
@@ -2335,10 +2808,13 @@ function App() {
                         }
                       }}
                     >
-                      {isYT && ytId ? (
-                        isActive ? (
+                      {isYouTube ? (
+                        (isActive || shouldWarm) ? (
                           <iframe
-                            src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=${reelsMuted ? 1 : 0}&loop=1&playlist=${ytId}&controls=0&modestbranding=1&rel=0&showinfo=0&playsinline=1&iv_load_policy=3&fs=0`}
+                            ref={(el) => {
+                              if (el) reelYouTubeRefs.current[idx] = el;
+                            }}
+                            src={`${embed.src}?autoplay=${isActive ? 1 : 0}&mute=1&loop=1&playlist=${embed.id}&controls=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&fs=0&disablekb=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
                             title={item.title}
                             frameBorder="0"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -2348,10 +2824,26 @@ function App() {
                         ) : (
                           <div
                             className="reel-cover-fallback"
-                            style={{ backgroundImage: `url(https://img.youtube.com/vi/${ytId}/hqdefault.jpg)` }}
+                            style={{ backgroundImage: `url(https://img.youtube.com/vi/${embed.id}/hqdefault.jpg)` }}
                           />
                         )
-                      ) : item.video_url ? (
+                      ) : isInstagram ? (
+                        (isActive || shouldWarm) ? (
+                          <iframe
+                            src={`${embed.src}?autoplay=${isActive ? 1 : 0}`}
+                            title={item.title}
+                            frameBorder="0"
+                            allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                            allowFullScreen
+                            className="reel-iframe"
+                          />
+                        ) : (
+                          <div
+                            className="reel-cover-fallback"
+                            style={{ backgroundImage: `url(${resolveMediaUrl(item.cover_image_url)})` }}
+                          />
+                        )
+                      ) : embed.type === 'video' && item.video_url ? (
                         <video
                           ref={(el) => { if (el) reelVideoRefs.current[idx] = el; }}
                           src={resolveMediaUrl(item.video_url)}
@@ -2359,6 +2851,9 @@ function App() {
                           loop
                           playsInline
                           muted={reelsMuted}
+                          autoPlay={isActive && !isPaused}
+                          preload={shouldWarm ? 'auto' : 'metadata'}
+                          poster={item.cover_image_url ? resolveMediaUrl(item.cover_image_url) : undefined}
                         />
                       ) : (
                         <div
@@ -2404,7 +2899,7 @@ function App() {
 
                       {/* Like */}
                       <div className="reel-action-item">
-                        <button className="reel-action-btn" onClick={(e) => e.stopPropagation()}>
+                        <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); handleReelLike(item); }}>
                           <span className="reel-action-icon">
                             <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
                               <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
@@ -2492,6 +2987,7 @@ function App() {
                         <strong className="reel-creator-handle">
                           @{item.creator_handle || slugifyText(item.creator_name || 'creator').replace(/-/g, '')}
                         </strong>
+                        {item.is_demo_creator && <span className="reel-category-badge">Demo</span>}
                         {item.category && <span className="reel-category-badge">{item.category}</span>}
                       </div>
                       <p className="reel-caption-text">
@@ -2539,6 +3035,25 @@ function App() {
               })}
 
               {/* Floating Upload Button (FAB) */}
+              {adminToken && (
+                <div className="reel-creator-mode-switch">
+                  <button
+                    className={`reel-mode-btn ${reelCreatorMode === 'auto' ? 'active' : ''}`}
+                    onClick={() => setReelCreatorMode('auto')}
+                    title="Auto creator IDs"
+                  >
+                    Auto IDs
+                  </button>
+                  <button
+                    className={`reel-mode-btn ${reelCreatorMode === 'official' ? 'active' : ''}`}
+                    onClick={() => setReelCreatorMode('official')}
+                    title="Official admin ID"
+                  >
+                    Official ID
+                  </button>
+                </div>
+              )}
+
               {adminToken && (
                 <button
                   className="reel-upload-fab"
@@ -2590,16 +3105,33 @@ function App() {
               <div className="reel-share-stage">
                 <div className="reel-share-frame">
                   <div className="reel-video-wrap reel-share-video-wrap">
-                    {(reelPageItem.video_url && (reelPageItem.video_url.includes('youtube') || reelPageItem.video_url.includes('youtu.be') || reelPageItem.video_url.includes('/embed/'))) ? (
+                    {(() => {
+                      const embed = getEmbedSource(reelPageItem.video_url);
+                      if (embed.type === 'youtube') {
+                        return (
                       <iframe
-                        src={`https://www.youtube.com/embed/${extractYouTubeId(reelPageItem.video_url)}?autoplay=1&mute=${reelsMuted ? 1 : 0}&loop=1&playlist=${extractYouTubeId(reelPageItem.video_url)}&controls=1&modestbranding=1&rel=0`}
+                        src={`${embed.src}?autoplay=1&mute=${reelsMuted ? 1 : 0}&loop=1&playlist=${embed.id}&controls=1&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&disablekb=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
                         title={reelPageItem.title}
                         frameBorder="0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
                         className="reel-iframe"
                       />
-                    ) : (
+                        );
+                      }
+                      if (embed.type === 'instagram') {
+                        return (
+                          <iframe
+                            src={embed.src}
+                            title={reelPageItem.title}
+                            frameBorder="0"
+                            allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                            allowFullScreen
+                            className="reel-iframe"
+                          />
+                        );
+                      }
+                      return (
                       <video
                         src={resolveMediaUrl(reelPageItem.video_url)}
                         className="reel-video-el"
@@ -2608,8 +3140,11 @@ function App() {
                         muted={reelsMuted}
                         controls
                         autoPlay
+                        preload="auto"
+                        poster={reelPageItem.cover_image_url ? resolveMediaUrl(reelPageItem.cover_image_url) : undefined}
                       />
-                    )}
+                      );
+                    })()}
                   </div>
 
                   <div className="reel-overlay reel-share-overlay">
@@ -2626,6 +3161,7 @@ function App() {
                           <div>
                             <strong>@{slugifyText(reelCreatorName).replace(/-/g, '') || 'creator'}</strong>
                           <span>{reelFollowers} followers</span>
+                          {reelPageItem?.is_demo_creator && <span>Demo profile (no login)</span>}
                         </div>
                         <button className={`reel-follow-btn ${isFollowingReelCreator ? 'following' : ''}`} onClick={() => toggleFollowCreator(reelPageItem)}>
                           {isFollowingReelCreator ? 'Following' : 'Follow'}
@@ -2637,6 +3173,10 @@ function App() {
                       <button className="reel-action-btn" onClick={() => setReelsMuted((prev) => !prev)} title={reelsMuted ? 'Sound On' : 'Mute'}>
                         <span className="reel-action-icon">{reelsMuted ? '🔇' : '🔊'}</span>
                         <span className="reel-action-label">{reelsMuted ? 'Mute' : 'Sound'}</span>
+                      </button>
+                      <button className="reel-action-btn" onClick={() => handleReelLike(reelPageItem)} title="Like Reel">
+                        <span className="reel-action-icon">❤️</span>
+                        <span className="reel-action-label">{reelLikes}</span>
                       </button>
                       <button className="reel-action-btn" onClick={() => shareReel(reelPageItem)} title="Share Reel">
                         <span className="reel-action-icon">↗️</span>
@@ -2803,28 +3343,49 @@ function App() {
                       )}
                       {selectedStory.video_url && (
                         <div className="detail-video-container" style={{ marginBottom: '32px' }}>
-                          {(selectedStory.video_url && (selectedStory.video_url.includes('youtube.com') || selectedStory.video_url.includes('youtu.be'))) ? (
+                          {(() => {
+                            const embed = getEmbedSource(selectedStory.video_url);
+                            if (embed.type === 'youtube') {
+                              return (
                             <iframe
                               width="100%"
                               height="100%"
-                              src={selectedStory.video_url.includes('/embed/') ? selectedStory.video_url : `https://www.youtube.com/embed/${selectedStory.video_url.split('v=')[1]?.substring(0, 11) || selectedStory.video_url.split('.be/')[1]?.substring(0, 11)}`}
+                              src={`${embed.src}?autoplay=1&mute=1&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&disablekb=1`}
                               title="YouTube video player"
                               frameBorder="0"
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                               allowFullScreen
                               className="modern-video-player"
                             ></iframe>
-                          ) : (
+                              );
+                            }
+                            if (embed.type === 'instagram') {
+                              return (
+                                <iframe
+                                  width="100%"
+                                  height="100%"
+                                  src={embed.src}
+                                  title="Instagram reel player"
+                                  frameBorder="0"
+                                  allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                                  allowFullScreen
+                                  className="modern-video-player"
+                                ></iframe>
+                              );
+                            }
+                            return (
                             <video
                               controls
                               className="modern-video-player"
                               poster={selectedStory.cover_image_url ? resolveMediaUrl(selectedStory.cover_image_url) : undefined}
                               style={{ width: '100%', borderRadius: '20px', backgroundColor: '#000', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}
+                              preload="metadata"
                             >
                               <source src={resolveMediaUrl(selectedStory.video_url)} />
                               Your browser does not support the video tag.
                             </video>
-                          )}
+                            );
+                          })()}
                         </div>
                       )}
                       <div className="detail-body">
@@ -4435,6 +4996,12 @@ function App() {
         <span className="live-pill"><span className="pulse-dot"></span> <span style={{ fontWeight: 'bold' }}>{liveVisitors}</span> {t('activeNow', language) || 'Live'}</span>
         <span className="views-pill">👁 <span style={{ fontWeight: 'bold' }}>{(totalSiteViews + liveVisitors).toLocaleString()}</span> {t('views', language) || 'Total Views'}</span>
       </div>
+
+      {!isAppInstalled && installPromptEvent && (
+        <button className="a2hs-fab" onClick={handleInstallApp}>
+          Add to Home Screen
+        </button>
+      )}
 
       {/* Onboarding Modal */}
       {showOnboardingModal && (!showTermsBanner) && (

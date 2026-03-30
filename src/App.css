@@ -6,6 +6,134 @@
   overflow-x: hidden;
 }
 
+.startup-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  background:
+    radial-gradient(circle at 16% 24%, rgba(245, 158, 11, 0.26), transparent 34%),
+    radial-gradient(circle at 84% 78%, rgba(236, 72, 153, 0.22), transparent 36%),
+    #030303;
+  animation: splashFadeOut 0.42s ease 1.25s forwards;
+}
+
+.startup-splash-mark {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+}
+
+.startup-splash-ring {
+  position: absolute;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.24);
+  border-top-color: #f59e0b;
+  border-right-color: #ec4899;
+  animation: splashSpin 0.9s linear infinite;
+}
+
+.startup-splash-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f59e0b, #f43f5e);
+  box-shadow: 0 0 28px rgba(245, 158, 11, 0.72);
+  animation: splashPulse 0.8s ease-in-out infinite;
+}
+
+.startup-splash h1 {
+  margin: 6px 0 0;
+  font-size: clamp(28px, 6vw, 48px);
+  font-family: var(--font-display);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #fff;
+  animation: splashRise 0.5s ease;
+}
+
+.startup-splash p {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+  animation: splashRise 0.7s ease;
+}
+
+@keyframes splashSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes splashPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+@keyframes splashRise {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes splashFadeOut {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* Installed PWA app-like feel */
+.standalone-mode,
+.standalone-mode body {
+  overscroll-behavior: none;
+}
+
+body.standalone-mode {
+  min-height: 100dvh;
+}
+
+body.standalone-mode .header {
+  padding-top: calc(env(safe-area-inset-top) + 8px);
+}
+
+body.standalone-mode .main-content {
+  padding-bottom: calc(112px + env(safe-area-inset-bottom));
+}
+
+body.standalone-mode .mobile-nav {
+  bottom: calc(env(safe-area-inset-bottom) + 10px);
+}
+
+body.standalone-mode .live-stats-bar {
+  bottom: calc(env(safe-area-inset-bottom) + 92px);
+}
+
+body.standalone-mode .reel-top-overlay {
+  top: calc(env(safe-area-inset-top) + 10px);
+}
+
 .campaign-banner {
   position: sticky;
   top: 0;
@@ -4851,6 +4979,35 @@
     transform 0.2s,
     box-shadow 0.2s;
 }
+
+.reel-creator-mode-switch {
+  position: fixed;
+  right: 14px;
+  top: 76px;
+  z-index: 160;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reel-mode-btn {
+  min-width: 110px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+.reel-mode-btn.active {
+  background: linear-gradient(135deg, #fe2c55, #f59e0b);
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #fff;
+}
 .reel-upload-fab:hover {
   transform: translateX(-50%) scale(1.08);
   box-shadow:
@@ -5382,6 +5539,22 @@
   color: var(--text-secondary);
   backdrop-filter: blur(8px);
   animation: slideUp 0.5s ease;
+}
+
+.a2hs-fab {
+  position: fixed;
+  right: 14px;
+  bottom: 72px;
+  z-index: 2200;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #0ea5e9, #22c55e);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(2, 132, 199, 0.45);
 }
 
 .live-pill, .views-pill {
