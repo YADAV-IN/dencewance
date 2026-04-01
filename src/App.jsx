@@ -1376,6 +1376,7 @@ function App() {
       const signRes = await fetch(`${API_URL}/api/uploads/sign`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name, contentType: file.type || 'application/octet-stream' }),
       });
       const signJson = await signRes.json();
       if (!signRes.ok) throw new Error(signJson?.error || 'Could not get upload token');
@@ -1389,12 +1390,7 @@ function App() {
 
     // Step 2: upload file directly to Cloudinary (no Vercel size limit)
     return new Promise((resolve) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('api_key', signData.api_key);
-      formData.append('timestamp', signData.timestamp);
-      formData.append('signature', signData.signature);
-      formData.append('folder', signData.folder);
+      
 
       const xhr = new XMLHttpRequest();
 
@@ -1408,25 +1404,14 @@ function App() {
 
       xhr.onload = () => {
         setReelUploadProgress(100);
-        let result;
-        try {
-          result = JSON.parse(xhr.responseText);
-        } catch {
-          const msg = xhr.status === 413
-            ? 'File too large for Cloudinary.'
-            : `Upload failed (status ${xhr.status})`;
-          setVideoUploadState({ state: 'error', message: msg });
-          setStatus({ state: 'error', message: msg });
-          return resolve(null);
-        }
         if (xhr.status >= 200 && xhr.status < 300) {
-          const url = result.secure_url;
+          const url = signData.publicUrl;
           if (assignToForm) setNewsForm((prev) => ({ ...prev, video_url: url }));
           setVideoUploadState({ state: 'online', message: 'Upload complete. Saving reel...' });
           setStatus({ state: 'online', message: 'वीडियो सफलतापूर्वक अपलोड हो गया।' });
           resolve(url);
         } else {
-          const msg = result?.error?.message || `Cloudinary upload failed (${xhr.status})`;
+          const msg = `Upload failed (${xhr.status})`;
           setVideoUploadState({ state: 'error', message: msg });
           setStatus({ state: 'error', message: msg });
           resolve(null);
@@ -1439,9 +1424,10 @@ function App() {
         resolve(null);
       };
 
-      // Direct Cloudinary auto-upload endpoint
-      xhr.open('POST', `https://api.cloudinary.com/v1_1/${signData.cloud_name}/video/upload`);
-      xhr.send(formData);
+      // Direct R2 auto-upload endpoint
+      xhr.open('PUT', signData.uploadUrl);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      xhr.send(file);
     });
   };
 
