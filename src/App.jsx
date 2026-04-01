@@ -4836,12 +4836,12 @@ function App() {
                   <div className="form-section form-section-highlight">
                     <h4>📝 वीडियो डिटेल्स</h4>
                     <label>
-                      शीर्षक / टाइटल *
-                      <input required value={reelForm.title} onChange={(e) => setReelForm((prev) => ({ ...prev, title: e.target.value }))} placeholder="वीडियो का नाम..." />
+                      शीर्षक / टाइटल (Optional)
+                      <input value={reelForm.title} onChange={(e) => setReelForm((prev) => ({ ...prev, title: e.target.value }))} placeholder="वीडियो का नाम..." />
                     </label>
                     <label>
-                      कैप्शन *
-                      <textarea required rows="2" value={reelForm.caption} onChange={(e) => setReelForm((prev) => ({ ...prev, caption: e.target.value }))} placeholder="#tags और डिस्क्रिप्शन..." />
+                      कैप्शन (Optional)
+                      <textarea rows="2" value={reelForm.caption} onChange={(e) => setReelForm((prev) => ({ ...prev, caption: e.target.value }))} placeholder="#tags और डिस्क्रिप्शन..." />
                     </label>
                     <label>
                       टैग्स (कॉमा से अलग)

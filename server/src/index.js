@@ -788,8 +788,11 @@ app.post('/api/reels', requireAuth, async (req, res) => {
   }
 
   const payload = { ...(req.body || {}) };
-  if (!payload.title || !payload.video_url) {
-    return res.status(400).json({ error: 'Title and video_url required.' });
+  if (!payload.video_url) {
+    return res.status(400).json({ error: 'video_url required.' });
+  }
+  if (!payload.title || payload.title.trim() === '') {
+    payload.title = `Video Story ${new Date().toLocaleDateString('en-IN')}`;
   }
 
   payload.video_url = normalizeReelVideoUrl(payload.video_url);
