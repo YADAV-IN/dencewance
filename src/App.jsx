@@ -1091,6 +1091,27 @@ function App() {
     }
   };
 
+  const toggleReelsMute = (e) => {
+    if (e) e.stopPropagation();
+    const newMuted = !reelsMuted;
+    
+    const activeVideo = reelVideoRefs.current[activeReelIndex];
+    if (activeVideo) {
+      activeVideo.muted = newMuted;
+      if (!newMuted) {
+        activeVideo.volume = 1;
+        activeVideo.play().catch(() => {});
+      }
+    }
+    const activeIframe = reelYouTubeRefs.current[activeReelIndex];
+    if (activeIframe) {
+      syncYouTubeAudioState(activeIframe, newMuted);
+    }
+    
+    hasUnlockedVideoAudioRef.current = true;
+    setReelsMuted(newMuted);
+  };
+
   const handleReelLike = async (item) => {
     const reelId = item?.id || item?._id;
     if (!reelId) return;
@@ -3139,7 +3160,7 @@ function App() {
 
                       {/* Sound */}
                       <div className="reel-action-item">
-                        <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); setReelsMuted((m) => !m); }}>
+                        <button className="reel-action-btn" onClick={toggleReelsMute}>
                           <span className="reel-action-icon">
                             {reelsMuted ? (
                               <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
@@ -3373,7 +3394,7 @@ function App() {
                     </div>
 
                     <div className="reel-actions-col reel-share-actions">
-                      <button className="reel-action-btn" onClick={() => setReelsMuted((prev) => !prev)} title={reelsMuted ? 'Sound On' : 'Mute'}>
+                      <button className="reel-action-btn" onClick={toggleReelsMute} title={reelsMuted ? 'Sound On' : 'Mute'}>
                         <span className="reel-action-icon">{reelsMuted ? '🔇' : '🔊'}</span>
                         <span className="reel-action-label">{reelsMuted ? 'Mute' : 'Sound'}</span>
                       </button>
