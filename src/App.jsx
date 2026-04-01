@@ -780,60 +780,9 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const enableVideoImmersiveMode = async () => {
-    if (typeof document === 'undefined') return;
+  const enableVideoImmersiveMode = async () => {};
 
-    try {
-      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
-      }
-    } catch (error) {
-      // Fullscreen can fail without user gesture; continue with other locks.
-    }
-
-    try {
-      if (window.screen?.orientation?.lock) {
-        await window.screen.orientation.lock('portrait');
-      }
-    } catch (error) {
-      // Orientation lock may be unsupported or permission-restricted.
-    }
-
-    try {
-      if (!wakeLockRef.current && navigator.wakeLock?.request) {
-        wakeLockRef.current = await navigator.wakeLock.request('screen');
-      }
-    } catch (error) {
-      // Wake lock not available on all browsers/devices.
-    }
-  };
-
-  const disableVideoImmersiveMode = async () => {
-    try {
-      if (document.fullscreenElement && document.exitFullscreen) {
-        await document.exitFullscreen();
-      }
-    } catch (error) {
-      // Ignore fullscreen exit failures.
-    }
-
-    try {
-      if (window.screen?.orientation?.unlock) {
-        window.screen.orientation.unlock();
-      }
-    } catch (error) {
-      // Orientation unlock may be unsupported.
-    }
-
-    try {
-      if (wakeLockRef.current) {
-        await wakeLockRef.current.release();
-        wakeLockRef.current = null;
-      }
-    } catch (error) {
-      wakeLockRef.current = null;
-    }
-  };
+  const disableVideoImmersiveMode = async () => {};
 
   const featureGroups = useMemo(() => ([
     {
