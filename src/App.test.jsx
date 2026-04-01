@@ -13,6 +13,6 @@ beforeEach(() => {
 
 test('renders ALOK brand title', () => {
   render(<App />);
-  const title = screen.getByText(/ALOK/i);
-  expect(title).toBeDefined();
+  const titles = screen.getAllByText(/ALOK/i);
+  expect(titles.length).toBeGreaterThan(0);
 });

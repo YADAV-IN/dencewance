@@ -142,6 +142,85 @@ const demoNews = [
   },
 ];
 
+const demoReels = [
+  {
+    id: 'demo-reel-1',
+    title: 'BJMC न्यूज़रूम: डिजिटल जर्नलिज़्म का भविष्य',
+    slug: 'demo-reel-bjmc-newsroom',
+    caption: 'डिजिटल वर्कफ्लो, रियल टाइम फैक्ट चेक और मल्टी-पर्सपेक्टिव स्टोरी मैप्स।',
+    video_url: 'https://www.youtube.com/watch?v=ysz5S6PUM-U',
+    cover_image_url: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=1200&auto=format&fit=crop',
+    creator_name: 'ALOK न्यूज़',
+    creator_handle: 'aloknews',
+    creator_avatar: '',
+    tags: ['BJMC', 'न्यूज़रूम', 'डिजिटल'],
+    status: 'published',
+    is_active: true,
+    is_demo_creator: true,
+    views: 924,
+    likes: 88,
+    shares: 14,
+    published_at: '2026-02-15T10:30:00.000Z',
+  },
+  {
+    id: 'demo-reel-2',
+    title: 'मीडिया टेक्नोलॉजी: XR और इमर्सिव रिपोर्टिंग',
+    slug: 'demo-reel-xr-reporting',
+    caption: 'XR आधारित इमर्सिव स्टोरीटेलिंग — बीजेएमसी का नया अध्याय।',
+    video_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    cover_image_url: 'https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1200&auto=format&fit=crop',
+    creator_name: 'ALOK टेक',
+    creator_handle: 'aloktech',
+    creator_avatar: '',
+    tags: ['XR', 'इमर्सिव', 'रिपोर्टिंग'],
+    status: 'published',
+    is_active: true,
+    is_demo_creator: true,
+    views: 712,
+    likes: 65,
+    shares: 9,
+    published_at: '2026-02-12T08:15:00.000Z',
+  },
+  {
+    id: 'demo-reel-3',
+    title: 'डेटा जर्नलिज़्म: लोकल इशू ट्रैकर डेमो',
+    slug: 'demo-reel-data-desk',
+    caption: 'वार्ड-स्तर की समस्याओं को मैप करने वाला ओपन डैशबोर्ड।',
+    video_url: 'https://www.youtube.com/watch?v=9bZkp7q19f0',
+    cover_image_url: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?q=80&w=1200&auto=format&fit=crop',
+    creator_name: 'ALOK डेटा',
+    creator_handle: 'alokdata',
+    creator_avatar: '',
+    tags: ['डेटा', 'डैशबोर्ड', 'जर्नलिज़्म'],
+    status: 'published',
+    is_active: true,
+    is_demo_creator: true,
+    views: 488,
+    likes: 42,
+    shares: 6,
+    published_at: '2026-02-10T12:00:00.000Z',
+  },
+  {
+    id: 'demo-reel-4',
+    title: 'स्टूडेंट इनोवेशन फेयर: न्यूज़ ऑटोमेशन शोकेस',
+    slug: 'demo-reel-innovation-fair',
+    caption: '100+ प्रोजेक्ट्स, मीडिया-टेक और उन्नत प्रोटोटाइप्स।',
+    video_url: 'https://www.youtube.com/watch?v=L_jWHffIx5E',
+    cover_image_url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=1200&auto=format&fit=crop',
+    creator_name: 'ALOK इवेंट्स',
+    creator_handle: 'alokevents',
+    creator_avatar: '',
+    tags: ['इवेंट', 'इनोवेशन', 'BJMC'],
+    status: 'published',
+    is_active: true,
+    is_demo_creator: true,
+    views: 367,
+    likes: 31,
+    shares: 5,
+    published_at: '2026-02-09T09:40:00.000Z',
+  },
+];
+
 const formatDate = (iso) => {
   if (!iso) return '';
   const date = new Date(iso);
@@ -247,9 +326,9 @@ const defaultCampaignSettings = {
 };
 
 const defaultSiteSettings = {
-  site_name: 'Website',
-  site_subtitle: 'News',
-  site_title: 'Website',
+  site_name: 'ALOK',
+  site_subtitle: 'बीजेएमसी न्यूज़',
+  site_title: 'ALOK - बीजेएमसी न्यूज़',
   site_description: 'बीजेएमसी न्यूज़रूम - आपकी खबरों का भरोसेमंद स्रोत',
   campaign: { ...defaultCampaignSettings },
 };
@@ -759,60 +838,9 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const enableVideoImmersiveMode = async () => {
-    if (typeof document === 'undefined') return;
+  const enableVideoImmersiveMode = async () => {};
 
-    try {
-      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
-      }
-    } catch (error) {
-      // Fullscreen can fail without user gesture; continue with other locks.
-    }
-
-    try {
-      if (window.screen?.orientation?.lock) {
-        await window.screen.orientation.lock('portrait');
-      }
-    } catch (error) {
-      // Orientation lock may be unsupported or permission-restricted.
-    }
-
-    try {
-      if (!wakeLockRef.current && navigator.wakeLock?.request) {
-        wakeLockRef.current = await navigator.wakeLock.request('screen');
-      }
-    } catch (error) {
-      // Wake lock not available on all browsers/devices.
-    }
-  };
-
-  const disableVideoImmersiveMode = async () => {
-    try {
-      if (document.fullscreenElement && document.exitFullscreen) {
-        await document.exitFullscreen();
-      }
-    } catch (error) {
-      // Ignore fullscreen exit failures.
-    }
-
-    try {
-      if (window.screen?.orientation?.unlock) {
-        window.screen.orientation.unlock();
-      }
-    } catch (error) {
-      // Orientation unlock may be unsupported.
-    }
-
-    try {
-      if (wakeLockRef.current) {
-        await wakeLockRef.current.release();
-        wakeLockRef.current = null;
-      }
-    } catch (error) {
-      wakeLockRef.current = null;
-    }
-  };
+  const disableVideoImmersiveMode = async () => {};
 
   const featureGroups = useMemo(() => ([
     {
@@ -1068,6 +1096,27 @@ function App() {
     } catch (error) {
       setStatus({ state: 'error', message: 'Reel delete failed.' });
     }
+  };
+
+  const toggleReelsMute = (e) => {
+    if (e) e.stopPropagation();
+    const newMuted = !reelsMuted;
+    
+    const activeVideo = reelVideoRefs.current[activeReelIndex];
+    if (activeVideo) {
+      activeVideo.muted = newMuted;
+      if (!newMuted) {
+        activeVideo.volume = 1;
+        activeVideo.play().catch(() => {});
+      }
+    }
+    const activeIframe = reelYouTubeRefs.current[activeReelIndex];
+    if (activeIframe) {
+      syncYouTubeAudioState(activeIframe, newMuted);
+    }
+    
+    hasUnlockedVideoAudioRef.current = true;
+    setReelsMuted(newMuted);
   };
 
   const handleReelLike = async (item) => {
@@ -2004,7 +2053,7 @@ function App() {
         const payload = await fetchPublicJson('/api/reels/recommendations?limit=200', { timeoutMs: 9000 });
         setReels(Array.isArray(payload.data) ? payload.data : []);
       } catch (error) {
-        setReels(demoNews); 
+        setReels(demoReels);
       } finally {
         setIsReelsLoading(false);
       }
@@ -2958,6 +3007,7 @@ function App() {
                     >
                       {isYouTube ? (
                         (isActive || shouldWarm) ? (
+                          <>
                           <iframe
                             ref={(el) => {
                               if (el) reelYouTubeRefs.current[idx] = el;
@@ -2980,6 +3030,7 @@ function App() {
                           <div className="reel-youtube-logo-mask" aria-hidden="true">
                             <span>{siteSettings.site_name || 'Website'}</span>
                           </div>
+                          </>
                         ) : (
                           <div
                             className="reel-cover-fallback"
@@ -3109,7 +3160,7 @@ function App() {
 
                       {/* Sound */}
                       <div className="reel-action-item">
-                        <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); setReelsMuted((m) => !m); }}>
+                        <button className="reel-action-btn" onClick={toggleReelsMute}>
                           <span className="reel-action-icon">
                             {reelsMuted ? (
                               <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
@@ -3271,6 +3322,7 @@ function App() {
                       const embed = getEmbedSource(reelPageItem.video_url);
                       if (embed.type === 'youtube') {
                         return (
+                      <>
                       <iframe
                         onLoad={(event) => {
                           syncYouTubeAudioState(event.currentTarget, reelsMuted);
@@ -3285,6 +3337,7 @@ function App() {
                       <div className="reel-youtube-logo-mask" aria-hidden="true">
                         <span>{siteSettings.site_name || 'Website'}</span>
                       </div>
+                      </>
                         );
                       }
                       if (embed.type === 'instagram') {
@@ -3341,7 +3394,7 @@ function App() {
                     </div>
 
                     <div className="reel-actions-col reel-share-actions">
-                      <button className="reel-action-btn" onClick={() => setReelsMuted((prev) => !prev)} title={reelsMuted ? 'Sound On' : 'Mute'}>
+                      <button className="reel-action-btn" onClick={toggleReelsMute} title={reelsMuted ? 'Sound On' : 'Mute'}>
                         <span className="reel-action-icon">{reelsMuted ? '🔇' : '🔊'}</span>
                         <span className="reel-action-label">{reelsMuted ? 'Mute' : 'Sound'}</span>
                       </button>
@@ -3518,6 +3571,7 @@ function App() {
                             const embed = getEmbedSource(selectedStory.video_url);
                             if (embed.type === 'youtube') {
                               return (
+                            <>
                             <iframe
                               width="100%"
                               height="100%"
@@ -3534,6 +3588,7 @@ function App() {
                             <div className="reel-youtube-logo-mask" aria-hidden="true">
                               <span>{siteSettings.site_name || 'Website'}</span>
                             </div>
+                            </>
                               );
                             }
                             if (embed.type === 'instagram') {
