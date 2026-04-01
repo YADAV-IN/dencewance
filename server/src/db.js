@@ -236,3 +236,9 @@ export const initDb = async () => {
     throw err;
   }
 };
+
+import { UserProfileSchema, ReelCommentSchema, SavedReelSchema } from './db_new.js';
+
+export const UserProfile = mongoose.model('UserProfile', UserProfileSchema);
+export const ReelComment = mongoose.model('ReelComment', ReelCommentSchema);
+export const SavedReel = mongoose.model('SavedReel', SavedReelSchema);

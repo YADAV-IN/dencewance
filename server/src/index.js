@@ -1151,3 +1151,79 @@ if (!IS_VERCEL) {
 }
 
 export default app;
+
+// --- ADVANCED FEATURES: Profiles, Comments, Saved Reels ---
+import { UserProfile, ReelComment, SavedReel } from './db.js';
+
+// Get or Create generic test profile for simplified integration
+app.post('/api/profile/test-login', async (req, res) => {
+  try {
+    let profile = await UserProfile.findOne({ email: 'test@example.com' });
+    if (!profile) {
+      profile = await UserProfile.create({
+        name: 'Test Viewer',
+        handle: '@testviewer',
+        email: 'test@example.com',
+        avatar_url: 'https://ui-avatars.com/api/?name=Test+Viewer'
+      });
+    }
+    res.json(profile);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET Independent Comments for a specific video reel
+app.get('/api/reels/:id/comments', async (req, res) => {
+  try {
+    const comments = await ReelComment.find({ reel_id: req.params.id })
+      .sort({ created_at: -1 });
+    res.json(comments);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST a new Independent Comment 
+app.post('/api/reels/:id/comments', async (req, res) => {
+  try {
+    const { user_id, author_name, author_handle, author_avatar, text } = req.body;
+    
+    if (!text || text.trim() === '') {
+      return res.status(400).json({ error: 'Comment text is required.' });
+    }
+
+    const newComment = new ReelComment({
+      reel_id: req.params.id,
+      user_id: user_id || '60c72b2f9b1d8e4b88a91b2c', // Fallback objectId for test
+      author_name: author_name || 'Anonymous',
+      author_handle: author_handle || '@anonymous',
+      author_avatar: author_avatar || '',
+      text: text.trim()
+    });
+    
+    await newComment.save();
+    res.status(201).json(newComment);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Toggle Save/Bookmark for a Reel
+app.post('/api/reels/:id/save', async (req, res) => {
+  try {
+    const { user_id } = req.body;
+    const testUserId = user_id || '60c72b2f9b1d8e4b88a91b2c';
+    
+    const existing = await SavedReel.findOne({ reel_id: req.params.id, user_id: testUserId });
+    if (existing) {
+      await existing.deleteOne();
+      return res.json({ saved: false, message: 'Reel un-saved.' });
+    } else {
+      await SavedReel.create({ reel_id: req.params.id, user_id: testUserId });
+      return res.json({ saved: true, message: 'Reel saved locally in profile.' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});

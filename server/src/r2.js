@@ -15,6 +15,9 @@ export const hasR2Config = !!(R2_ACCOUNT_ID && R2_ACCESS_KEY_ID && R2_SECRET_ACC
 
 export const s3Client = hasR2Config ? new S3Client({
   region: 'auto',
+  forcePathStyle: true,
+  requestChecksumCalculation: "WHEN_REQUIRED",
+  responseChecksumValidation: "WHEN_REQUIRED",
   endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
   credentials: {
     accessKeyId: R2_ACCESS_KEY_ID,
