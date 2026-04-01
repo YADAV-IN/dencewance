@@ -1,11 +1,11 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID?.trim() || '';
-const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID?.trim() || '';
-const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY?.trim() || '';
-const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME?.trim() || '';
-let R2_PUBLIC_URL = process.env.R2_PUBLIC_URL?.trim() || '';
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID?.replace(/\\n/g, '')?.trim() || '';
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID?.replace(/\\n/g, '')?.trim() || '';
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY?.replace(/\\n/g, '')?.trim() || '';
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME?.replace(/\\n/g, '')?.trim() || '';
+let R2_PUBLIC_URL = process.env.R2_PUBLIC_URL?.replace(/\\n/g, '')?.trim() || '';
 
 if (R2_PUBLIC_URL && R2_PUBLIC_URL.endsWith('/')) {
   R2_PUBLIC_URL = R2_PUBLIC_URL.slice(0, -1);
