@@ -2371,22 +2371,9 @@ function App() {
       hasUnlockedVideoAudioRef.current = false;
       setReelsMuted(false);
       enableVideoImmersiveMode();
-
-      const handleInteraction = () => {
-        enableVideoImmersiveMode();
-      };
-
-      window.addEventListener('touchstart', handleInteraction, { passive: true });
-      window.addEventListener('click', handleInteraction, { passive: true });
-
-      return () => {
-        window.removeEventListener('touchstart', handleInteraction);
-        window.removeEventListener('click', handleInteraction);
-      };
+    } else {
+      disableVideoImmersiveMode();
     }
-
-    disableVideoImmersiveMode();
-    return undefined;
   }, [currentPageKey]);
 
   useEffect(() => {
