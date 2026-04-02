@@ -72,6 +72,13 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const handleReelLike = () => {};
   const handleReelFileUpload = () => {};
   const navigateTo = () => { /* Handle back navigation nicely if needed */ };
+  const openReel = () => {};
+  const shareReel = () => {};
+  const deleteReel = () => {};
+  const formatCompactNumber = (n) => {
+    if (!n) return '0';
+    return Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+  };
   const slugifyText = (t) => (typeof t === 'string' ? t : '').toLowerCase().replace(/\s+/g, '-');
   const reelsUrlInput = '';
 
