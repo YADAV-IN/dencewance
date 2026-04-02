@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './ProfileDashboard.css';
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3004' : '');
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://server-kappa-lac.vercel.app');
 
 export default function ProfileDashboard() {
   const [token, setToken] = useState(localStorage.getItem('adminToken') || '');
@@ -65,18 +65,21 @@ export default function ProfileDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: loginEmail, password: loginPassword })
       });
-      const data = await res.json();
+      const resData = await res.json();
       if (res.ok) {
-        setToken(data.token);
-        setAdminId(data.data.id || data.data._id);
-        setUser(data.data);
-        setName(data.data.name);
-        setBio(data.data.bio || '');
-        setAvatarUrl(data.data.avatar_url || '');
-        localStorage.setItem('adminToken', data.token);
-        localStorage.setItem('adminId', data.data.id || data.data._id);
+        const payloadToken = resData.data?.token || resData.token;
+        const profile = resData.data?.profile || resData.data;
+
+        setToken(payloadToken);
+        setAdminId(profile.id || profile._id);
+        setUser(profile);
+        setName(profile.name || '');
+        setBio(profile.bio || '');
+        setAvatarUrl(profile.avatar_url || '');
+        localStorage.setItem('adminToken', payloadToken);
+        localStorage.setItem('adminId', profile.id || profile._id);
       } else {
-        alert(data.error || 'Login failed');
+        alert(resData.error || 'Login failed');
       }
     } catch(err) {
       console.error(err);
