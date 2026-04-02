@@ -52,15 +52,15 @@ export default function ProfileDashboard() {
       });
       const data = await res.json();
       
-      if (data.token) {
-        let t = data.token;
-        let id = data.admin?._id;
+      if (data.data?.token) {
+        let t = data.data.token;
+        let id = data.data.profile?._id;
         localStorage.setItem('adminToken', t);
         localStorage.setItem('adminId', id);
         setToken(t);
         setAdminId(id);
       } else {
-        alert(data.message || 'Login failed');
+        alert(data.error || data.message || 'Login failed');
       }
     } catch (err) {
       console.error(err);
