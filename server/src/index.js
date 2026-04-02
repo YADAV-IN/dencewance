@@ -297,9 +297,10 @@ app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req
 
 app.get('/api/news', async (req, res) => {
   try {
-    const { limit = 12, category, q, status, featured, breaking } = req.query;
+    const { limit = 12, category, q, status, featured, breaking, author_id } = req.query;
     const query = {};
     if (category) query.category = category;
+    if (author_id) query.author_id = author_id;
     if (status) query.status = status;
     if (featured === 'true') query.is_featured = 1;
     if (breaking === 'true') query.is_breaking = 1;
@@ -456,6 +457,7 @@ function resolveCreatorIdentity({ payload = {}, currentUser = null, fallbackSeed
     return {
       creator_mode: 'official',
       is_official_creator: true,
+      creator_id: currentUser?._id?.toString() || '',
       is_demo_creator: false,
       creator_name: payload.creator_name || currentUser?.name || 'ALOK Official',
       creator_handle: payload.creator_handle || slugify((currentUser?.name || 'alokofficial').toLowerCase()),
@@ -596,9 +598,10 @@ function mixSourcesForFeed(list = []) {
 
 app.get('/api/reels', async (req, res) => {
   try {
-    const { limit = 50, active = 'true' } = req.query;
+    const { limit = 50, active = 'true', creator_id } = req.query;
     const query = {};
     if (active === 'true') query.is_active = true;
+    if (creator_id) query.creator_id = creator_id;
 
     const reels = await Reel.find(query)
       .sort({ published_at: -1 })
@@ -884,12 +887,16 @@ app.put('/api/reels/:id', requireAuth, async (req, res) => {
 app.delete('/api/reels/:id', requireAuth, async (req, res) => {
   try {
     const currentUser = await Admin.findById(req.adminId);
-    if (!currentUser || !['admin', 'editor'].includes(currentUser.role)) {
-      return res.status(403).json({ error: 'Permission denied to delete reels.' });
+    if (!currentUser) return res.status(404).json({ error: 'User not found.' });
+
+    const reel = await Reel.findById(req.params.id);
+    if (!reel) return res.status(404).json({ error: 'Reel not found.' });
+
+    if (currentUser.role !== 'admin' && reel.creator_id !== currentUser._id.toString()) {
+      return res.status(403).json({ error: 'Permission denied to delete this reel.' });
     }
 
-    const result = await Reel.findByIdAndDelete(req.params.id);
-    if (!result) return res.status(404).json({ error: 'Reel not found.' });
+    await Reel.findByIdAndDelete(req.params.id);
     return res.status(204).send();
   } catch (error) {
     console.error('Reel delete error:', error);
@@ -916,6 +923,7 @@ app.post('/api/news', requireAuth, async (req, res) => {
   }
 
   if (payload.creator_mode === 'official') {
+    payload.author_id = currentUser._id.toString();
     payload.author_name = currentUser.name;
     payload.source = currentUser.avatar_url; // Use source field as profile avatar for feed
   }
@@ -974,8 +982,19 @@ app.put('/api/news/:id', requireAuth, async (req, res) => {
 app.delete('/api/news/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await News.findByIdAndDelete(id);
-    if (!result) return res.status(404).json({ error: 'News not found.' });
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser) return res.status(404).json({ error: 'User not found.' });
+    
+    // Check ownership
+    const news = await News.findById(id);
+    if (!news) return res.status(404).json({ error: 'News not found.' });
+
+    // admin role can delete anything, others can only delete their own posts
+    if (currentUser.role !== 'admin' && news.author_id !== currentUser._id.toString()) {
+      return res.status(403).json({ error: 'Permission denied to delete this news.' });
+    }
+
+    await News.findByIdAndDelete(id);
     return res.status(204).send();
   } catch (error) {
     console.error('News delete error:', error);

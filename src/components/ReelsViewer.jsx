@@ -52,7 +52,7 @@ const syncYouTubeAudioState = (iframe, shouldMute) => {
 const enableVideoImmersiveMode = () => {};
 const disableVideoImmersiveMode = () => {};
 
-export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0, onClose }) {
+export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0, onClose, onDelete, adminData }) {
   const language = localStorage.getItem('socialAppLanguage') || 'en';
   const t = (key, lang) => {
      const translation = tAll[key];
@@ -364,29 +364,52 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     <div className="reel-gradient-overlay" />
 
                     {/* Watermark & Back Navigation */}
-                    <div className="reel-top-overlay">
-                      <button className="reel-back-btn" onClick={(e) => { e.preventDefault(); if (onClose) { onClose(); } else navigateTo('/'); }}>
-                        ←
-                      </button>
-                      <span className="reel-watermark-text" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <svg className="modebook-logo-animated" viewBox="0 0 100 100" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
-                          <defs>
-                            <linearGradient id="mbGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                              <stop offset="0%" stopColor="#f3e5ab"/>
-                              <stop offset="50%" stopColor="#c59715"/>
-                              <stop offset="100%" stopColor="#ffd700"/>
-                            </linearGradient>
-                          </defs>
-                          <g transform="translate(50, 50)">
-                            <circle cx="0" cy="0" r="42" fill="none" stroke="url(#mbGoldGrad)" strokeWidth="3" className="spin-slow" strokeDasharray="15 5" />
-                            <circle cx="0" cy="0" r="34" fill="none" stroke="url(#mbGoldGrad)" strokeWidth="2" className="spin-reverse" strokeDasharray="4 8" />
-                            <polygon points="0,-22 19,11 -19,11" fill="none" stroke="url(#mbGoldGrad)" strokeWidth="2.5" className="pulse-glow" />
-                            <polygon points="0,22 19,-11 -19,-11" fill="none" stroke="url(#mbGoldGrad)" strokeWidth="2.5" className="pulse-glow" />
-                            <circle cx="0" cy="0" r="6" fill="url(#mbGoldGrad)" className="pulse-glow" />
-                          </g>
-                        </svg>
-                        ModeBook
-                      </span>
+                    <div className="reel-top-overlay" style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button className="reel-back-btn" onClick={(e) => { e.preventDefault(); if (onClose) { onClose(); } else navigateTo('/'); }}>
+                          ←
+                        </button>
+                        <span className="reel-watermark-text" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {/* Logo SVG etc */}
+                          <svg className="modebook-logo-animated" viewBox="0 0 100 100" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                              <linearGradient id="mbGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="#f3e5ab"/>
+                                <stop offset="50%" stopColor="#c59715"/>
+                                <stop offset="100%" stopColor="#ffd700"/>
+                              </linearGradient>
+                            </defs>
+                            <g transform="translate(50, 50)">
+                              <circle cx="0" cy="0" r="42" fill="none" stroke="url(#mbGoldGrad)" strokeWidth="3" className="spin-slow" strokeDasharray="15 5" />
+                              <circle cx="0" cy="0" r="34" fill="none" stroke="url(#mbGoldGrad)" strokeWidth="2" className="spin-reverse" strokeDasharray="4 8" />
+                              <polygon points="0,-22 19,11 -19,11" fill="none" stroke="url(#mbGoldGrad)" strokeWidth="2.5" className="pulse-glow" />
+                              <polygon points="0,22 19,-11 -19,-11" fill="none" stroke="url(#mbGoldGrad)" strokeWidth="2.5" className="pulse-glow" />
+                              <circle cx="0" cy="0" r="6" fill="url(#mbGoldGrad)" className="pulse-glow" />
+                            </g>
+                          </svg>
+                          ModeBook
+                        </span>
+                      </div>
+                      
+                      {(adminData && (adminData.role === 'admin' || item.creator_id === adminData.id || item.creator_id === adminData._id || item.creator_name === adminData.name)) && onDelete && (
+                        <button 
+                          className="reel-delete-btn" 
+                          onClick={(e) => { e.preventDefault(); onDelete(item.id || item._id); }}
+                          style={{
+                            background: 'rgba(255, 0, 0, 0.7)',
+                            border: '1px solid rgba(255, 255, 255, 0.3)',
+                            color: 'white',
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            backdropFilter: 'blur(4px)',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            marginRight: '20px'
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
 
                     {/* Right action column (TikTok-style) */}

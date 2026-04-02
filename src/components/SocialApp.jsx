@@ -83,6 +83,21 @@ export default function SocialApp() {
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
   const [stories, setStories] = useState([]);
   const [feed, setFeed] = useState([]);
+  
+  const token = localStorage.getItem('adminToken');
+  const adminId = localStorage.getItem('adminId');
+  const [adminData, setAdminData] = useState(null);
+
+  useEffect(() => {
+    if (token) {
+      fetch(`${API_URL}/api/admins`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => {
+          const me = data.data?.find(a => a._id === adminId || a.id === adminId) || (Array.isArray(data) ? data : []).find(a => a._id === adminId || a.id === adminId);
+          if (me) setAdminData(me);
+        }).catch(err => console.error(err));
+    }
+  }, [token, adminId]);
 
   useEffect(() => {
     // Fetch video stories (reels) from backend Cloudflare integration
@@ -111,6 +126,48 @@ export default function SocialApp() {
       .catch(err => console.error('Failed to load feed', err));
   }, []);
 
+  const handleDeletePost = async (postId) => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    try {
+      const res = await fetch(`${API_URL}/api/news/${postId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setFeed(prev => prev.filter(p => (p.id || p._id) !== postId));
+        alert("Post deleted.");
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete post.");
+      }
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteReel = async (reelId) => {
+    if (!window.confirm("Are you sure you want to delete this reel?")) return;
+    try {
+      const res = await fetch(`${API_URL}/api/reels/${reelId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setStories(prev => {
+          const newStories = prev.filter(p => (p.id || p._id) !== reelId);
+          if (newStories.length === 0) setActiveTab('home'); // Go home if empty
+          return newStories;
+        });
+        alert("Reel deleted.");
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete reel.");
+      }
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
   return (
     <>
       {activeTab === 'stories' ? (
@@ -119,6 +176,8 @@ export default function SocialApp() {
           reels={stories} 
           initialIndex={activeStoryIndex} 
           onClose={() => setActiveTab('home')}
+          onDelete={handleDeleteReel}
+          adminData={adminData}
         />
       ) : (
         <div className="social-app-container historical-theme">
@@ -213,12 +272,22 @@ export default function SocialApp() {
             {feed.length > 0 ? (
               feed.map((post, i) => (
                 <div className="post" key={post._id || i}>
-                  <div className="post-header">
-                    <img src={post.source || `https://i.pravatar.cc/150?img=${10 + i}`} alt="Avatar" className="avatar" />
-                    <div className="post-user-info">
-                      <strong>{post.author_name || 'ModeBook User'}</strong>
-                      <small>{new Date(post.published_at || Date.now()).toLocaleDateString()} • Recorded</small>
+                  <div className="post-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                    <div style={{display: 'flex', alignItems: 'center'}}>
+                      <img src={post.source || `https://i.pravatar.cc/150?img=${10 + i}`} alt="Avatar" className="avatar" />
+                      <div className="post-user-info">
+                        <strong>{post.author_name || 'ModeBook User'}</strong>
+                        <small>{new Date(post.published_at || Date.now()).toLocaleDateString()} • Recorded</small>
+                      </div>
                     </div>
+                    {(adminData && (adminData.role === 'admin' || post.author_id === adminId || post.author_id === adminData._id || post.author_name === adminData.name)) && (
+                      <button 
+                        onClick={() => handleDeletePost(post.id || post._id)}
+                        style={{background:'none', border:'none', color:'red', fontWeight:'bold', cursor:'pointer', padding:'5px 10px'}}
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
                   <div className="post-body">
                     {post.title && !post.title.includes('Untitled') && !post.title.includes('ModeBook') && !post.content?.startsWith(post.title?.replace(/...$/, '')) && (<h4>{post.title}</h4>)}

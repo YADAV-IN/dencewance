@@ -16,12 +16,40 @@ export default function ProfileDashboard() {
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState('');
   const [newBio, setNewBio] = useState('');
+  
+  const [myPosts, setMyPosts] = useState([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
 
   useEffect(() => {
     if (token) {
       fetchAdminData();
     }
   }, [token]);
+
+  const fetchUserPosts = async (meData) => {
+    if (!meData) return;
+    setIsLoadingPosts(true);
+    try {
+      // Fetch all posts and filter locally to cover old posts without author_id
+      const res = await fetch(`${API_URL}/api/news?limit=200`);
+      if (res.ok) {
+        const data = await res.json();
+        const posts = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+        const filtered = posts.filter(p => 
+          p.author_id === meData.id || 
+          p.author_id === meData._id || 
+          p.author_name === meData.name ||
+          p.creator_id === meData.id ||
+          p.creator_id === meData._id
+        );
+        setMyPosts(filtered);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingPosts(false);
+    }
+  };
 
   const fetchAdminData = async () => {
     try {
@@ -35,6 +63,7 @@ export default function ProfileDashboard() {
           setAdminData(me);
           setNewName(me.name || '');
           setNewBio(me.bio || '');
+          fetchUserPosts(me);
         }
       }
     } catch(err) {
@@ -123,6 +152,25 @@ export default function ProfileDashboard() {
     }
   };
 
+  const handleDeletePost = async (postId) => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    try {
+      const res = await fetch(`${API_URL}/api/news/${postId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setMyPosts(prev => prev.filter(p => p.id !== postId && p._id !== postId));
+        alert("Post deleted.");
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete post.");
+      }
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
   if (!token) {
     return (
       <div className="ig-profile-container">
@@ -141,6 +189,7 @@ export default function ProfileDashboard() {
   return (
     <div className="ig-profile-container">
       {adminData && (
+        <>
         <div className="ig-profile-header">
           <div className="ig-profile-avatar-sec">
             <label>
@@ -159,7 +208,7 @@ export default function ProfileDashboard() {
             </div>
             
             <div className="ig-profile-stats">
-              <span><strong>0</strong> posts</span>
+              <span><strong>{myPosts.length}</strong> posts</span>
               <span><strong>0</strong> followers</span>
               <span><strong>0</strong> following</span>
             </div>
@@ -178,6 +227,41 @@ export default function ProfileDashboard() {
             )}
           </div>
         </div>
+
+        <div className="ig-profile-grid-tabs">
+          <div className="ig-tab active">
+            <span>POSTS</span>
+          </div>
+        </div>
+
+        <div className="ig-profile-grid">
+          {isLoadingPosts ? (
+            <div style={{padding: '20px', textAlign: 'center'}}>Loading posts...</div>
+          ) : myPosts.length > 0 ? (
+            myPosts.map(post => (
+              <div className="ig-grid-item" key={post.id || post._id}>
+                {post.cover_image_url && <img src={post.cover_image_url} alt="" />}
+                <div className="ig-grid-item-overlay">
+                  <div className="ig-grid-item-stats">
+                    <button className="ig-delete-btn-overlay" onClick={() => handleDeletePost(post.id || post._id)}>
+                       🗑️
+                    </button>
+                    {(post.title || post.content) && (
+                      <span className="ig-grid-caption" style={{marginLeft: '10px', fontSize: '12px'}}>
+                        {(post.content || post.title || '').substring(0, 20)}...
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{padding: '40px', width: '100%', textAlign: 'center', color: '#8e8e8e', gridColumn: '1 / -1'}}>
+              <h2>No posts yet</h2>
+            </div>
+          )}
+        </div>
+      </>
       )}
     </div>
   );
