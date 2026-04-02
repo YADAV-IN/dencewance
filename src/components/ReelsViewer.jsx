@@ -65,8 +65,11 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const isMobile = window.innerWidth <= 768;
   const adminToken = null; // Removed admin actions from client Reels viewer
   const videoUploadState = { state: 'idle', message: '' };
+  const [reelCreatorMode, setReelCreatorMode] = useState('auto');
+  const reelUploadInputRef = useRef(null);
+  const reelUploadProgress = 0;
+  const toggleFollowCreator = () => {};
   const handleReelLike = () => {};
-  const setReelCreatorMode = () => {};
   const handleReelFileUpload = () => {};
   const navigateTo = () => { /* Handle back navigation nicely if needed */ };
   const slugifyText = (t) => (typeof t === 'string' ? t : '').toLowerCase().replace(/\s+/g, '-');
