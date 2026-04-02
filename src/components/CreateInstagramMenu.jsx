@@ -93,7 +93,9 @@ export default function CreateInstagramMenu({ onComplete }) {
       }
     } catch (err) {
       console.error(err);
-      alert('Error creating post');
+      alert('Error: ' + (err.message || 'Failed to create post'));
+    } finally {
+      setIsUploading(false);
     }
     setIsUploading(false);
   };
@@ -144,11 +146,12 @@ export default function CreateInstagramMenu({ onComplete }) {
       } else {
         alert('Failed to publish reel.');
       }
-    } catch(err) {
+    } catch (err) {
       console.error(err);
-      alert('Error creating reel. Your video might be too large if connected without R2 bucket.');
+      alert('Error: ' + (err.message || 'Failed to upload reel'));
+    } finally {
+      setIsUploading(false);
     }
-    setIsUploading(false);
   };
 
   return (

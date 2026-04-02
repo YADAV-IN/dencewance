@@ -30,11 +30,11 @@ export default function ProfileDashboard() {
       });
       if (res.ok) {
         const data = await res.json();
-        const me = data.data?.find(a => a._id === adminId) || data.find(a => a._id === adminId);
+        const me = data.data?.find(a => a._id === adminId || a.id === adminId) || (Array.isArray(data) ? data : []).find(a => a._id === adminId || a.id === adminId);
         if (me) {
           setAdminData(me);
-          setNewName(me.username || '');
-          setNewBio(me.role || '');
+          setNewName(me.name || '');
+          setNewBio(me.bio || '');
         }
       }
     } catch(err) {
@@ -54,7 +54,7 @@ export default function ProfileDashboard() {
       
       if (data.data?.token) {
         let t = data.data.token;
-        let id = data.data.profile?._id;
+        let id = data.data.profile?.id || data.data.profile?._id;
         localStorage.setItem('adminToken', t);
         localStorage.setItem('adminId', id);
         setToken(t);
@@ -103,8 +103,8 @@ export default function ProfileDashboard() {
   const handleSaveProfile = async () => {
     try {
       const payload = {
-        username: newName,
-        role: newBio
+        name: newName,
+        bio: newBio
       };
       const res = await fetch(`${API_URL}/api/admins/${adminId}`, {
         method: 'PUT',
@@ -144,14 +144,14 @@ export default function ProfileDashboard() {
         <div className="ig-profile-header">
           <div className="ig-profile-avatar-sec">
             <label>
-              <img src={adminData.profile_pic || 'https://via.placeholder.com/150'} alt="Profile" className="ig-avatar" />
+              <img src={adminData.avatar_url || 'https://via.placeholder.com/150'} alt="Profile" className="ig-avatar" />
               <input type="file" accept="image/*" onChange={handleProfilePicChange} hidden />
             </label>
           </div>
           
           <div className="ig-profile-info">
             <div className="ig-profile-top">
-              <span className="ig-username">{adminData.username || 'username'}</span>
+              <span className="ig-username">{adminData.name || 'username'}</span>
               <button className="ig-edit-btn" onClick={() => setIsEditing(!isEditing)}>
                 {isEditing ? 'Cancel' : 'Edit profile'}
               </button>
@@ -165,8 +165,8 @@ export default function ProfileDashboard() {
             </div>
 
             <div className="ig-profile-bio">
-              <div className="ig-fullname">{adminData.username || 'Full Name'}</div>
-              <span>{adminData.role || 'Bio goes here'}</span>
+              <div className="ig-fullname">{adminData.name || 'Full Name'}</div>
+              <span>{adminData.bio || 'Bio goes here'}</span>
             </div>
             
             {isEditing && (
