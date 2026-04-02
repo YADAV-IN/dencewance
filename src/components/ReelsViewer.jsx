@@ -21,10 +21,12 @@ const getEmbedSource = (input) => {
   return { type: 'video', src: input, id: input };
 };
 
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://server-kappa-lac.vercel.app');
+
 const resolveMediaUrl = (url) => {
   if (!url || typeof url !== 'string') return '';
   if (url.startsWith('http') || url.startsWith('//') || url.startsWith('data:')) return url;
-  return url;
+  return `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
 const postYouTubeCommand = (iframe, command) => {

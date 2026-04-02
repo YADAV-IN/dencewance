@@ -68,6 +68,14 @@ export const ModeBookLogo = ({ width = 36, height = 36 }) => (
   </svg>
 );
 
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://server-kappa-lac.vercel.app');
+
+const resolveMediaUrl = (url) => {
+  if (!url || typeof url !== 'string') return '';
+  if (url.startsWith('http') || url.startsWith('//') || url.startsWith('data:')) return url;
+  return `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 export default function SocialApp() {
   const [activeTab, setActiveTab] = useState('home');
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
@@ -76,10 +84,10 @@ export default function SocialApp() {
 
   useEffect(() => {
     // Fetch video stories (reels) from backend Cloudflare integration
-    fetch('/api/reels')
+    fetch(`${API_URL}/api/reels`)
       .then(res => res.json())
       .then(data => {
-        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+        if (data && Array.isArray(data.data) && data.data.length > 0) {
           setStories(data.data.slice(0, 10)); // Top 10 stories
         } else {
           setStories(demoReels);
@@ -91,10 +99,10 @@ export default function SocialApp() {
       });
 
     // Fetch feed posts (news) from backend
-    fetch('/api/news')
+    fetch(`${API_URL}/api/news`)
       .then(res => res.json())
       .then(data => {
-        if (data.success && Array.isArray(data.data)) {
+        if (data && Array.isArray(data.data)) {
           setFeed(data.data);
         }
       })
@@ -171,7 +179,7 @@ export default function SocialApp() {
                   style={{ cursor: 'pointer' }}
                 >
                   <div className="story-ring">
-                    <img src={story.cover_image_url || `https://i.pravatar.cc/150?img=${i + 20}`} alt={story.title} />
+                    <img src={resolveMediaUrl(story.cover_image_url) || `https://i.pravatar.cc/150?img=${i + 20}`} alt={story.title} />
                   </div>
                   <span>{story.creator_name || story.title ? story.title.substring(0, 10) : 'Story'}</span>
                 </div>
@@ -203,7 +211,7 @@ export default function SocialApp() {
                   <div className="post-body">
                     <p>{post.excerpt || post.title}</p>
                     {post.cover_image_url && (
-                      <img src={post.cover_image_url} alt={post.title} className="post-image" />
+                      <img src={resolveMediaUrl(post.cover_image_url)} alt={post.title} className="post-image" />
                     )}
                   </div>
                   <div className="post-actions">
