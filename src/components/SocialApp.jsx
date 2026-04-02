@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './SocialApp.css';
 import ReelsViewer from './ReelsViewer';
+import CreateInstagramMenu from './CreateInstagramMenu';
 import ProfileDashboard from './ProfileDashboard';
 import { demoReels } from './demoData';
 
@@ -156,6 +157,9 @@ export default function SocialApp() {
               <ScrollIcon /> <span>Scrolls</span>
             </li>
             <li className={activeTab === 'profile' ? 'active' : ''} onClick={() => setActiveTab('profile')}>
+            <li className={activeTab === 'add' ? 'active' : ''} onClick={() => setActiveTab('add')}>
+              <QuillIcon /> <span>Create</span>
+            </li>
               <EyeIcon /> <span>Profile</span>
             </li>
           </ul>
@@ -167,8 +171,8 @@ export default function SocialApp() {
             <div style={{ padding: '20px', color: '#fff', textAlign: 'center' }}><h2>Atlas (Search)</h2><p>The compendium is currently hidden...</p></div>
           ) : activeTab === 'messages' ? (
             <div style={{ padding: '20px', color: '#fff', textAlign: 'center' }}><h2>Scrolls (Messages)</h2><p>No new scrolls received from the archivists...</p></div>
-          ) : activeTab === 'profile' || activeTab === 'add' ? (
-             <ProfileDashboard />
+          ) : activeTab === 'profile' ? (
+             <ProfileDashboard /> ) : activeTab === 'add' ? ( <CreateInstagramMenu />
           ) : (
             <>
               {/* Stories Section Dropdown top */}

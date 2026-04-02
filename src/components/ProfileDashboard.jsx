@@ -6,52 +6,37 @@ const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'htt
 export default function ProfileDashboard() {
   const [token, setToken] = useState(localStorage.getItem('adminToken') || '');
   const [adminId, setAdminId] = useState(localStorage.getItem('adminId') || '');
-  const [user, setUser] = useState(null);
-  
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  
-  const [activeMenu, setActiveMenu] = useState('feed'); // 'feed', 'reels', 'settings'
-  
-  // Settings State
-  const [name, setName] = useState('');
-  const [bio, setBio] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
-  
-  // Post State
-  const [postTitle, setPostTitle] = useState('');
-  const [postContent, setPostContent] = useState('');
-  const [postExcerpt, setPostExcerpt] = useState('');
-  const [postCover, setPostCover] = useState(null);
-  
-  // Reel State
-  const [reelTitle, setReelTitle] = useState('');
-  const [reelCaption, setReelCaption] = useState('');
-  const [reelVideoUrl, setReelVideoUrl] = useState('');
+  const [adminData, setAdminData] = useState(null);
+
+  // Login
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  // Edit Mode
+  const [isEditing, setIsEditing] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newBio, setNewBio] = useState('');
 
   useEffect(() => {
     if (token) {
-      fetchUser();
+      fetchAdminData();
     }
   }, [token]);
 
-  const fetchUser = async () => {
-    if (!adminId) return;
+  const fetchAdminData = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/admins/${adminId}`, {
+      const res = await fetch(`${API_URL}/api/admins`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (!res.ok) {
-        setToken('');
-        localStorage.removeItem('adminToken');
-        return;
+      if (res.ok) {
+        const data = await res.json();
+        const me = data.data?.find(a => a._id === adminId) || data.find(a => a._id === adminId);
+        if (me) {
+          setAdminData(me);
+          setNewName(me.username || '');
+          setNewBio(me.role || '');
+        }
       }
-      const data = await res.json();
-      const userData = data.data || data;
-      setUser(userData);
-      setName(userData.name || '');
-      setBio(userData.bio || '');
-      setAvatarUrl(userData.avatar_url || '');
     } catch(err) {
       console.error(err);
     }
@@ -63,103 +48,66 @@ export default function ProfileDashboard() {
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword })
+        body: JSON.stringify({ email, password })
       });
-      const resData = await res.json();
-      if (res.ok) {
-        const payloadToken = resData.data?.token || resData.token;
-        const profile = resData.data?.profile || resData.data;
-
-        setToken(payloadToken);
-        setAdminId(profile.id || profile._id);
-        setUser(profile);
-        setName(profile.name || '');
-        setBio(profile.bio || '');
-        setAvatarUrl(profile.avatar_url || '');
-        localStorage.setItem('adminToken', payloadToken);
-        localStorage.setItem('adminId', profile.id || profile._id);
+      const data = await res.json();
+      
+      if (data.token) {
+        let t = data.token;
+        let id = data.admin?._id;
+        localStorage.setItem('adminToken', t);
+        localStorage.setItem('adminId', id);
+        setToken(t);
+        setAdminId(id);
       } else {
-        alert(resData.error || 'Login failed');
+        alert(data.message || 'Login failed');
       }
-    } catch(err) {
+    } catch (err) {
       console.error(err);
-      alert('Error connecting to backend');
+      alert('Login error');
     }
   };
-  
-  const [avatarFile, setAvatarFile] = useState(null);
-  
-  const handleUpdateProfile = async (e) => {
-    e.preventDefault();
-    try {
-      let currentAvatarUrl = avatarUrl;
-      
-      if (avatarFile) {
-        const formData = new FormData();
-        formData.append('avatar', avatarFile);
-        const uploadRes = await fetch(`${API_URL}/api/profile/avatar`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData
-        });
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          currentAvatarUrl = uploadData.data.avatar_url;
-        }
-      }
 
+  const handleLogout = () => {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminId');
+    setToken('');
+    setAdminId('');
+    setAdminData(null);
+  };
+
+  const handleProfilePicChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+    formData.append('id', adminId);
+
+    try {
+      const res = await fetch(`${API_URL}/api/profile/avatar`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      if (res.ok) {
+        fetchAdminData(); // refresh
+      } else {
+        alert('Failed to update avatar');
+      }
+    } catch(e) {
+      console.error(e);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      const payload = {
+        username: newName,
+        role: newBio
+      };
       const res = await fetch(`${API_URL}/api/admins/${adminId}`, {
         method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ name, bio, avatar_url: currentAvatarUrl })
-      });
-      if (res.ok) {
-        alert("Profile Updated Successfully!");
-        const updated = await res.json();
-        setUser(updated.data);
-        setAvatarUrl(updated.data.avatar_url || '');
-        setAvatarFile(null);
-      } else {
-        alert("Failed to update profile");
-      }
-    } catch(err) {
-      console.error(err);
-    }
-  };
-
-  const handleCreatePost = async (e) => {
-    e.preventDefault();
-    try {
-      let currentCoverUrl = '';
-
-      if (postCover) {
-        const formData = new FormData();
-        formData.append('cover', postCover);
-        const uploadRes = await fetch(`${API_URL}/api/uploads/cover`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData
-        });
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          currentCoverUrl = uploadData.data.url;
-        }
-      }
-
-      const payload = {
-        title: postTitle,
-        content: postContent,
-        excerpt: postExcerpt,
-        status: 'published',
-        creator_mode: 'official',
-        cover_image_url: currentCoverUrl
-      };
-
-      const res = await fetch(`${API_URL}/api/news`, {
-        method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}` 
@@ -167,149 +115,70 @@ export default function ProfileDashboard() {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        alert('Feed post uploaded successfully!');
-        setPostTitle(''); setPostContent(''); setPostExcerpt(''); setPostCover(null);
-      } else {
-        alert('Failed to upload post');
+        setIsEditing(false);
+        fetchAdminData();
       }
-    } catch (e) {
-      console.error(e);
-      alert('Error creating post');
+    } catch(err) {
+      console.error(err);
     }
   };
 
-  const handleCreateReel = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch(`${API_URL}/api/reels`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ 
-          title: reelTitle, 
-          caption: reelCaption, 
-          video_url: reelVideoUrl,
-          creator_mode: 'official' // This ties it to the admin profile DP and name
-        })
-      });
-      if (res.ok) {
-        alert('Reel uploaded successfully!');
-        setReelTitle(''); setReelCaption(''); setReelVideoUrl('');
-      } else {
-        alert('Failed to upload Reel');
-      }
-    } catch(e) {
-      console.error(e);
-      alert('Error creating reel');
-    }
-  };
-
-  const handleLogout = () => {
-    setToken('');
-    setAdminId('');
-    setUser(null);
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('adminId');
-  };
-
-  if (!token || !user) {
+  if (!token) {
     return (
-      <div className="profile-dashboard login-mode">
-        <h2>Observer Login</h2>
-        <form onSubmit={handleLogin} className="fb-form">
-          <input 
-            type="email" 
-            placeholder="Official Email" 
-            value={loginEmail} 
-            onChange={(e)=>setLoginEmail(e.target.value)} required 
-          />
-          <input 
-            type="password" 
-            placeholder="Passcode" 
-            value={loginPassword} 
-            onChange={(e)=>setLoginPassword(e.target.value)} required 
-          />
-          <button type="submit" className="fb-btn">Enter Dashboard</button>
-        </form>
+      <div className="ig-profile-container">
+        <div className="ig-login-box">
+          <h2>ModeBook</h2>
+          <form onSubmit={handleLogin}>
+            <input type="email" placeholder="Phone number, username, or email" value={email} onChange={e=>setEmail(e.target.value)} required />
+            <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} required />
+            <button type="submit">Log In</button>
+          </form>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="profile-dashboard fb-style">
-      <div className="fb-header">
-        <div className="fb-cover">
-          <img src="https://images.unsplash.com/photo-1557683316-973673baf926?w=800" alt="Cover" />
+    <div className="ig-profile-container">
+      {adminData && (
+        <div className="ig-profile-header">
+          <div className="ig-profile-avatar-sec">
+            <label>
+              <img src={adminData.profile_pic || 'https://via.placeholder.com/150'} alt="Profile" className="ig-avatar" />
+              <input type="file" accept="image/*" onChange={handleProfilePicChange} hidden />
+            </label>
+          </div>
+          
+          <div className="ig-profile-info">
+            <div className="ig-profile-top">
+              <span className="ig-username">{adminData.username || 'username'}</span>
+              <button className="ig-edit-btn" onClick={() => setIsEditing(!isEditing)}>
+                {isEditing ? 'Cancel' : 'Edit profile'}
+              </button>
+              <button className="ig-logout-btn" onClick={handleLogout}>Log out</button>
+            </div>
+            
+            <div className="ig-profile-stats">
+              <span><strong>0</strong> posts</span>
+              <span><strong>0</strong> followers</span>
+              <span><strong>0</strong> following</span>
+            </div>
+
+            <div className="ig-profile-bio">
+              <div className="ig-fullname">{adminData.username || 'Full Name'}</div>
+              <span>{adminData.role || 'Bio goes here'}</span>
+            </div>
+            
+            {isEditing && (
+              <div style={{marginTop: '15px'}}>
+                 <input type="text" value={newName} onChange={e=>setNewName(e.target.value)} style={{marginRight: '10px'}} />
+                 <input type="text" value={newBio} onChange={e=>setNewBio(e.target.value)} style={{marginRight: '10px'}} />
+                 <button className="ig-edit-btn" onClick={handleSaveProfile}>Save</button>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="fb-profile-info">
-          <div className="fb-avatar">
-            <img src={user.avatar_url || 'https://i.pravatar.cc/150'} alt="Avatar" />
-          </div>
-          <div className="fb-user-details">
-            <h1>{user.name}</h1>
-            <p>{user.bio || 'Add a bio to let people know more about you.'}</p>
-          </div>
-          <button onClick={handleLogout} className="fb-logout-btn">Log Out</button>
-        </div>
-      </div>
-
-      <div className="fb-nav-tabs">
-        <button className={activeMenu === 'feed' ? 'active' : ''} onClick={()=>setActiveMenu('feed')}>📝 Create Post</button>
-        <button className={activeMenu === 'reels' ? 'active' : ''} onClick={()=>setActiveMenu('reels')}>🎥 Upload Reel</button>
-        <button className={activeMenu === 'settings' ? 'active' : ''} onClick={()=>setActiveMenu('settings')}>⚙️ Settings</button>
-      </div>
-
-      <div className="fb-content">
-        {activeMenu === 'settings' && (
-          <div className="fb-card">
-            <h3>Profile Settings</h3>
-            <form onSubmit={handleUpdateProfile} className="fb-form">
-              <label>Name</label>
-              <input type="text" value={name} onChange={(e)=>setName(e.target.value)} required />
-              
-              <label>Bio</label>
-              <textarea value={bio} onChange={(e)=>setBio(e.target.value)} rows="3" />
-
-              <label>Avatar / Profile Picture</label>
-              <input type="file" accept="image/*" onChange={(e)=>setAvatarFile(e.target.files[0])} />
-              
-              <label>Avatar URL (Alternate direct connection)</label>
-              <input type="url" value={avatarUrl} onChange={(e)=>setAvatarUrl(e.target.value)} placeholder="https://..." />
-              
-              <button type="submit" className="fb-btn primary">Save Changes</button>
-            </form>
-          </div>
-        )}
-
-        {activeMenu === 'feed' && (
-          <div className="fb-card">
-            <h3>Create a Feed Post</h3>
-            <form onSubmit={handleCreatePost} className="fb-form">
-              <input type="text" placeholder="Post Title" value={postTitle} onChange={e=>setPostTitle(e.target.value)} required />
-              <input type="text" placeholder="Short Excerpt" value={postExcerpt} onChange={e=>setPostExcerpt(e.target.value)} required />
-              <textarea placeholder="What's on your mind?" value={postContent} onChange={e=>setPostContent(e.target.value)} required rows="5" />
-              <label>Cover Image (Required)</label>
-              <input type="file" accept="image/*" onChange={e=>setPostCover(e.target.files[0])} required />
-              <button type="submit" className="fb-btn primary">Post to Timeline</button>
-            </form>
-          </div>
-        )}
-
-        {activeMenu === 'reels' && (
-          <div className="fb-card">
-            <h3>Upload a Reel</h3>
-            <p className="hint">Since Creator Mode is Official, your Profile DP and Name will be synced automatically!</p>
-            <form onSubmit={handleCreateReel} className="fb-form">
-              <input type="text" placeholder="Reel Title" value={reelTitle} onChange={e=>setReelTitle(e.target.value)} required />
-              <textarea placeholder="Add a caption..." value={reelCaption} onChange={e=>setReelCaption(e.target.value)} rows="3" />
-              <input type="url" placeholder="Video URL (mp4 or Youtube)" value={reelVideoUrl} onChange={e=>setReelVideoUrl(e.target.value)} required />
-              <button type="submit" className="fb-btn primary">Publish Reel</button>
-            </form>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
