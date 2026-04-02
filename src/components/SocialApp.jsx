@@ -216,12 +216,12 @@ export default function SocialApp() {
                   <div className="post-header">
                     <img src={post.source || `https://i.pravatar.cc/150?img=${10 + i}`} alt="Avatar" className="avatar" />
                     <div className="post-user-info">
-                      <strong>{post.author_name || post.title || 'Archivist'}</strong>
+                      <strong>{post.author_name || 'ModeBook User'}</strong>
                       <small>{new Date(post.published_at || Date.now()).toLocaleDateString()} • Recorded</small>
                     </div>
                   </div>
                   <div className="post-body">
-                    <h4>{post.title}</h4>
+                    {post.title && !post.title.includes('Untitled') && !post.title.includes('ModeBook') && !post.content?.startsWith(post.title?.replace(/...$/, '')) && (<h4>{post.title}</h4>)}
                     <p>{post.excerpt || post.content}</p>
                     {post.cover_image_url && (
                       <img src={resolveMediaUrl(post.cover_image_url)} alt={post.title} className="post-image" />

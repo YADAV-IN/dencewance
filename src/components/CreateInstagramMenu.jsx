@@ -8,13 +8,11 @@ export default function CreateInstagramMenu({ onComplete }) {
   const [activeTab, setActiveTab] = useState('post'); // 'post' or 'reel'
 
   // Post State
-  const [postTitle, setPostTitle] = useState('');
   const [postContent, setPostContent] = useState('');
   const [postCover, setPostCover] = useState(null);
   const [postCoverPreview, setPostCoverPreview] = useState('');
 
   // Reel State
-  const [reelTitle, setReelTitle] = useState('');
   const [reelCaption, setReelCaption] = useState('');
   const [reelVideoFile, setReelVideoFile] = useState(null);
   const [reelVideoPreview, setReelVideoPreview] = useState('');
@@ -68,7 +66,7 @@ export default function CreateInstagramMenu({ onComplete }) {
       }
 
       const payload = {
-        title: postTitle || "Untitled",
+        title: (postContent ? postContent.substring(0, 30) + "..." : "ModeBook Post"),
         content: postContent || " ", // At least space
         excerpt: postContent.substring(0, 50) || " ",
         status: 'published',
@@ -125,7 +123,7 @@ export default function CreateInstagramMenu({ onComplete }) {
       }
 
       const payload = {
-        title: reelTitle || "My Reel",
+        title: (reelCaption ? reelCaption.substring(0, 30) + "..." : "ModeBook Reel"),
         caption: reelCaption,
         video_url: videoUrl,
         creator_mode: 'official'
@@ -196,7 +194,6 @@ export default function CreateInstagramMenu({ onComplete }) {
             </div>
             
             <div className="ig-text-inputs">
-              <input type="text" placeholder="Title (optional)" value={postTitle} onChange={(e)=>setPostTitle(e.target.value)} />
               <textarea placeholder="Write a caption..." value={postContent} onChange={(e)=>setPostContent(e.target.value)} />
             </div>
 
@@ -226,7 +223,6 @@ export default function CreateInstagramMenu({ onComplete }) {
             </div>
             
             <div className="ig-text-inputs">
-              <input type="text" placeholder="Title (optional)" value={reelTitle} onChange={(e)=>setReelTitle(e.target.value)} />
               <textarea placeholder="Write a caption..." value={reelCaption} onChange={(e)=>setReelCaption(e.target.value)} />
             </div>
 
