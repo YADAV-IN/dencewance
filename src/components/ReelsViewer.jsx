@@ -89,6 +89,11 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
 
   const [activeReelIndex, setActiveReelIndex] = useState(initialIndex);
   const [reelsMuted, setReelsMuted] = useState(true);
+  const toggleReelsMute = (e) => {
+    e.stopPropagation();
+    setReelsMuted(!reelsMuted);
+  };
+
   const [reelPaused, setReelPaused] = useState(new Set());
   const [isStoryPage, setIsStoryPage] = useState(false);
   const [routeStory, setRouteStory] = useState(null);

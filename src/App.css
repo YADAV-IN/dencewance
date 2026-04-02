@@ -4550,14 +4550,15 @@ body.standalone-mode .reel-top-overlay {
 
 /* Video layer fills the frame */
 .reel-video-wrap {
-  position: absolute;
-  inset: 0;
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
   background: #000;
   cursor: pointer;
   z-index: 1;
 }
 
-.reel-video-wrap,
 .detail-video-container,
 .reel-share-video-wrap {
   position: relative;
