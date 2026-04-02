@@ -11,8 +11,8 @@ beforeEach(() => {
   );
 });
 
-test('renders ALOK brand title', () => {
+test('renders ModeBook brand title', () => {
   render(<App />);
-  const titles = screen.getAllByText(/ALOK/i);
+  const titles = screen.getAllByText(/ModeBook/i);
   expect(titles.length).toBeGreaterThan(0);
 });

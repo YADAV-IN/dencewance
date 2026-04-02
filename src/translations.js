@@ -1,8 +1,8 @@
-// Language translations for ALOK News Platform
+// Language translations for ModeBook News Platform
 export const translations = {
   en: {
     // Header
-    siteName: 'ALOK',
+    siteName: 'ModeBook',
     siteSubtitle: 'BJMC News',
     admin: 'Admin',
     login: 'Login',
@@ -112,7 +112,7 @@ export const translations = {
   },
   hi: {
     // Header
-    siteName: 'ALOK',
+    siteName: 'ModeBook',
     siteSubtitle: 'बीजेएमसी न्यूज़',
     admin: 'एडमिन',
     login: 'लॉगिन',

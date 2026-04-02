@@ -1,4 +1,4 @@
-const CACHE_NAME = 'alok-cache-v3';
+const CACHE_NAME = 'modebook-cache-v3';
 const CORE_ASSETS = ['/', '/manifest.json', '/favicon.ico', '/logo192.png', '/logo512.png'];
 
 self.addEventListener('install', (event) => {
