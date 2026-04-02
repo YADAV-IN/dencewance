@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './SocialApp.css';
 import ReelsViewer from './ReelsViewer';
+import ProfileDashboard from './ProfileDashboard';
 import { demoReels } from './demoData';
 
 // Vintage/Historical Custom SVG Icons
@@ -166,8 +167,8 @@ export default function SocialApp() {
             <div style={{ padding: '20px', color: '#fff', textAlign: 'center' }}><h2>Atlas (Search)</h2><p>The compendium is currently hidden...</p></div>
           ) : activeTab === 'messages' ? (
             <div style={{ padding: '20px', color: '#fff', textAlign: 'center' }}><h2>Scrolls (Messages)</h2><p>No new scrolls received from the archivists...</p></div>
-          ) : activeTab === 'profile' ? (
-            <div style={{ padding: '20px', color: '#fff', textAlign: 'center' }}><h2>Observer Profile</h2><p>Your history is being recorded...</p></div>
+          ) : activeTab === 'profile' || activeTab === 'add' ? (
+             <ProfileDashboard />
           ) : (
             <>
               {/* Stories Section Dropdown top */}
@@ -211,12 +212,13 @@ export default function SocialApp() {
                   <div className="post-header">
                     <img src={post.source || `https://i.pravatar.cc/150?img=${10 + i}`} alt="Avatar" className="avatar" />
                     <div className="post-user-info">
-                      <strong>{post.title || 'Archivist'}</strong>
+                      <strong>{post.author_name || post.title || 'Archivist'}</strong>
                       <small>{new Date(post.published_at || Date.now()).toLocaleDateString()} • Recorded</small>
                     </div>
                   </div>
                   <div className="post-body">
-                    <p>{post.excerpt || post.title}</p>
+                    <h4>{post.title}</h4>
+                    <p>{post.excerpt || post.content}</p>
                     {post.cover_image_url && (
                       <img src={resolveMediaUrl(post.cover_image_url)} alt={post.title} className="post-image" />
                     )}

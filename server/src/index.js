@@ -206,6 +206,7 @@ app.put('/api/admins/:id', requireAuth, async (req, res) => {
   if (role) targetUser.role = role;
   if (status) targetUser.status = status;
   if (bio !== undefined) targetUser.bio = bio;
+  if (req.body.avatar_url !== undefined) targetUser.avatar_url = req.body.avatar_url;
 
   await targetUser.save();
   return res.json({ data: targetUser.toJSON() });
@@ -229,6 +230,16 @@ app.put('/api/admins/:id/password', requireAuth, async (req, res) => {
   await targetUser.save();
 
   return res.json({ data: { id, message: 'Password updated successfully' } });
+});
+
+app.get('/api/admins/:id', requireAuth, async (req, res) => {
+  try {
+    const user = await Admin.findById(req.params.id).select('-password_hash');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ data: user.toJSON() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.delete('/api/admins/:id', requireAuth, async (req, res) => {
@@ -902,6 +913,11 @@ app.post('/api/news', requireAuth, async (req, res) => {
 
   if (!payload.title || !payload.excerpt || !payload.content) {
     return res.status(400).json({ error: 'Title, excerpt, and content required.' });
+  }
+
+  if (payload.creator_mode === 'official') {
+    payload.author_name = currentUser.name;
+    payload.source = currentUser.avatar_url; // Use source field as profile avatar for feed
   }
 
   const baseSlug = slugify(payload.title);
