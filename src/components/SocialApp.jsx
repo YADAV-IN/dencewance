@@ -110,10 +110,19 @@ export default function SocialApp() {
   }, []);
 
   return (
-    <div className="social-app-container historical-theme">
-      
-      {/* Universal Top Navigation Bar (One Line) */}
-      <header className="top-nav-bar">
+    <>
+      {activeTab === 'stories' ? (
+        <ReelsViewer 
+          key={`reels-${activeStoryIndex}`} 
+          reels={stories} 
+          initialIndex={activeStoryIndex} 
+          onClose={() => setActiveTab('home')}
+        />
+      ) : (
+        <div className="social-app-container historical-theme">
+          
+          {/* Universal Top Navigation Bar (One Line) */}
+          <header className="top-nav-bar">
         <div className="brand-container animated-brand">
           <ModeBookLogo />
           <h1 className="logo-text vintage-shimmer">ModeBook</h1>
@@ -159,8 +168,6 @@ export default function SocialApp() {
             <div style={{ padding: '20px', color: '#fff', textAlign: 'center' }}><h2>Scrolls (Messages)</h2><p>No new scrolls received from the archivists...</p></div>
           ) : activeTab === 'profile' ? (
             <div style={{ padding: '20px', color: '#fff', textAlign: 'center' }}><h2>Observer Profile</h2><p>Your history is being recorded...</p></div>
-          ) : activeTab === 'stories' ? (
-            <ReelsViewer key={`reels-${activeStoryIndex}`} reels={stories} initialIndex={activeStoryIndex} />
           ) : (
             <>
               {/* Stories Section Dropdown top */}
@@ -299,5 +306,7 @@ export default function SocialApp() {
         <button className={activeTab === 'profile' ? 'active' : ''} onClick={() => setActiveTab('profile')}><EyeIcon /></button>
       </nav>
     </div>
+      )}
+    </>
   );
 }
