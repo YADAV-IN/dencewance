@@ -148,10 +148,8 @@ export default function SocialApp() {
       });
       const data = await res.json();
       if (res.ok) {
-        setStories(prev => {
+        setStatuses(prev => {
            let updated = [...prev];
-           // Remove demo reels if they exist
-           if (updated === demoReels) updated = [];
            updated.unshift(data.data);
            return updated;
         });
@@ -175,7 +173,7 @@ export default function SocialApp() {
       body: JSON.stringify({ userId: adminId })
     }).catch(e => console.error(e));
     
-    setStories(prev => prev.map(s => {
+    setStatuses(prev => prev.map(s => {
        if ((s.id || s._id) === statusId) {
          return { ...s, viewers: [...(s.viewers || []), adminId] };
        }
@@ -584,16 +582,7 @@ export default function SocialApp() {
                  </div>
                 );
               })
-            ) : (
-              ['Loading...'].map((name, i) => (
-                <div className="story" key={i} style={{ textAlign: 'center', minWidth: '70px', opacity: 0.5 }}>
-                  <StatusRing hasSeen={true}>
-                    <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: '#333' }}></div>
-                  </StatusRing>
-                  <span style={{ fontSize: '12px', marginTop: '5px', display: 'block' }}>{name}</span>
-                </div>
-              ))
-            )}
+            ) : null}
           </section>
 
           {/* Feed Section */}
