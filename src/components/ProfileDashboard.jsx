@@ -82,8 +82,8 @@ export default function ProfileDashboard() {
       });
       const data = await res.json();
       const authToken = data?.data?.token || data?.token;
-      const authProfile = data?.data?.profile || data?.admin;
-      const resolvedAdminId = authProfile?.id || authProfile?._id;
+      const adminProfile = data?.data?.profile || data?.admin;
+      const resolvedAdminId = adminProfile?.id || adminProfile?._id;
 
       if (res.ok && authToken && resolvedAdminId) {
         localStorage.setItem('adminToken', authToken);
