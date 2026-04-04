@@ -85,13 +85,11 @@ export default function ProfileDashboard() {
       const authProfile = data?.data?.profile || data?.admin;
       const resolvedAdminId = authProfile?.id || authProfile?._id;
 
-      if (res.ok && authToken) {
+      if (res.ok && authToken && resolvedAdminId) {
         localStorage.setItem('adminToken', authToken);
-        if (resolvedAdminId) {
-          localStorage.setItem('adminId', resolvedAdminId);
-        }
+        localStorage.setItem('adminId', resolvedAdminId);
         setToken(authToken);
-        setAdminId(resolvedAdminId || '');
+        setAdminId(resolvedAdminId);
       } else {
         alert(data.error || 'Login failed');
       }
