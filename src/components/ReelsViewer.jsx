@@ -3,7 +3,7 @@ import { Heart, Share2, MoreVertical, Volume2, VolumeX } from 'lucide-react';
 import { demoReels } from './demoData';
 import { translations as tAll } from '../translations';
 
-const REEL_PRELOAD_AHEAD = 2;
+const REEL_PRELOAD_AHEAD = 1; // Kam kiya gaya hai taaki data kam consume ho
 
 const getEmbedSource = (input) => {
   if (!input || typeof input !== 'string') return { type: 'unknown', src: '', id: '' };
@@ -399,11 +399,11 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                               </linearGradient>
                             </defs>
                             <g transform="translate(50, 50)">
-                              <circle cx="0" cy="0" r="42" fill="none" stroke="url(#multiColorGradReel)" strokeWidth="4" className="spin-slow" strokeDasharray="15 5" />
-                              <circle cx="0" cy="0" r="34" fill="none" stroke="url(#multiColorGradReel)" strokeWidth="3" className="spin-reverse" strokeDasharray="4 8" />
-                              <polygon points="0,-22 19,11 -19,11" fill="none" stroke="url(#multiColorGradReel)" strokeWidth="3" className="pulse-glow" />
-                              <polygon points="0,22 19,-11 -19,-11" fill="none" stroke="url(#multiColorGradReel)" strokeWidth="3" className="pulse-glow" />
-                              <circle cx="0" cy="0" r="7" fill="url(#multiColorGradReel)" className="pulse-glow" />
+                              <circle cx="0" cy="0" r="42" fill="none" stroke="url(#multiColorGradReel)" strokeWidth="4" className={isActive ? "spin-slow" : ""} strokeDasharray="15 5" />
+                              <circle cx="0" cy="0" r="34" fill="none" stroke="url(#multiColorGradReel)" strokeWidth="3" className={isActive ? "spin-reverse" : ""} strokeDasharray="4 8" />
+                              <polygon points="0,-22 19,11 -19,11" fill="none" stroke="url(#multiColorGradReel)" strokeWidth="3" className={isActive ? "pulse-glow" : ""} />
+                              <polygon points="0,22 19,-11 -19,-11" fill="none" stroke="url(#multiColorGradReel)" strokeWidth="3" className={isActive ? "pulse-glow" : ""} />
+                              <circle cx="0" cy="0" r="7" fill="url(#multiColorGradReel)" className={isActive ? "pulse-glow" : ""} />
                             </g>
                           </svg>
                           <span style={{ fontWeight: 'bold', fontSize: '18px' }}>ModeBook</span>
@@ -436,7 +436,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       {/* Creator avatar + follow pill */}
                       <div className="reel-creator-pill">
                         {creatorAvatar ? (
-                          <img src={resolveMediaUrl(creatorAvatar)} alt="creator" className="reel-creator-avatar-sm" style={{ objectFit: 'cover' }} />
+                          <img loading="lazy" src={resolveMediaUrl(creatorAvatar)} alt="creator" className="reel-creator-avatar-sm" style={{ objectFit: 'cover' }} />
                         ) : (
                           <div className="reel-creator-avatar-sm">{creatorInitial}</div>
                         )}

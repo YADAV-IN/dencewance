@@ -414,7 +414,7 @@ export default function SocialApp() {
                           <div key={`rec-${i}`} className="search-reel-card" onClick={() => { setActiveStoryIndex(i); setStories(recommendations.reels); setActiveTab('stories'); }}>
                             <span className="search-reel-tag" style={{ background: '#00FFFF', color: '#000' }}>#{r.tags?.[0] || 'Trending'}</span>
                             {r.cover_image_url ? (
-                              <img src={resolveMediaUrl(r.cover_image_url)} alt="Cover" className="search-reel-cover" />
+                              <img loading="lazy" src={resolveMediaUrl(r.cover_image_url)} alt="Cover" className="search-reel-cover" />
                             ) : (
                               <div style={{width:'100%', height:'100%', background:'#222', display:'flex', alignItems:'center', justifyContent:'center'}}>▶</div>
                             )}
@@ -442,7 +442,7 @@ export default function SocialApp() {
                   <div className="search-users-grid">
                     {searchResults.users.map((u, i) => (
                       <div key={`u-${i}`} className="search-user-card">
-                        <img src={resolveMediaUrl(u.avatar_url) || `https://i.pravatar.cc/150?img=${i}`} alt={u.name} className="search-user-avatar" />
+                        <img loading="lazy" src={resolveMediaUrl(u.avatar_url) || `https://i.pravatar.cc/150?img=${i}`} alt={u.name} className="search-user-avatar" />
                         <div className="search-user-name">{u.name}</div>
                         <div className="search-user-id">ID: {u.id.substring(0, 8)}..</div>
                       </div>
@@ -462,7 +462,7 @@ export default function SocialApp() {
                       <div key={`r-${i}`} className="search-reel-card" onClick={() => { setActiveTab('stories'); }}>
                         <span className="search-reel-tag">Video</span>
                         {r.cover_image_url ? (
-                          <img src={resolveMediaUrl(r.cover_image_url)} alt="Cover" className="search-reel-cover" />
+                          <img loading="lazy" src={resolveMediaUrl(r.cover_image_url)} alt="Cover" className="search-reel-cover" />
                         ) : (
                           <div style={{width:'100%', height:'100%', background:'#222', display:'flex', alignItems:'center', justifyContent:'center'}}>▶</div>
                         )}
@@ -489,7 +489,7 @@ export default function SocialApp() {
                     {searchResults.posts.map((p, i) => (
                       <div key={`p-${i}`} className="search-post-row">
                         {p.cover_image_url && (
-                          <img src={resolveMediaUrl(p.cover_image_url)} alt="Post" className="search-post-image" />
+                          <img loading="lazy" src={resolveMediaUrl(p.cover_image_url)} alt="Post" className="search-post-image" />
                         )}
                         <div className="search-post-content">
                           <h4 className="search-post-title">{p.title}</h4>
@@ -555,7 +555,7 @@ export default function SocialApp() {
                   style={{ cursor: 'pointer', textAlign: 'center', minWidth: '70px' }}
                  >
                   <StatusRing hasSeen={hasSeen}>
-                    <img 
+                    <img loading="lazy" 
                       src={resolveMediaUrl(story.media_url || story.cover_image_url) || `https://i.pravatar.cc/150?img=${i + 20}`} 
                       alt={story.title || 'Status'} 
                       style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
@@ -586,7 +586,7 @@ export default function SocialApp() {
                 <div className="post" key={post._id || i}>
                   <div className="post-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                     <div style={{display: 'flex', alignItems: 'center'}}>
-                      <img src={post.source || `https://i.pravatar.cc/150?img=${10 + i}`} alt="Avatar" className="avatar" />
+                      <img loading="lazy" src={post.source || `https://i.pravatar.cc/150?img=${10 + i}`} alt="Avatar" className="avatar" />
                       <div className="post-user-info">
                         <strong>{post.author_name || 'ModeBook User'}</strong>
                         <small>{new Date(post.published_at || Date.now()).toLocaleDateString()} • Recorded</small>
@@ -605,7 +605,7 @@ export default function SocialApp() {
                     {post.title && !post.title.includes('Untitled') && !post.title.includes('ModeBook') && !post.content?.startsWith(post.title?.replace(/...$/, '')) && (<h4>{post.title}</h4>)}
                     <p>{post.excerpt || post.content}</p>
                     {post.cover_image_url && (
-                      <img src={resolveMediaUrl(post.cover_image_url)} alt={post.title} className="post-image" />
+                      <img loading="lazy" src={resolveMediaUrl(post.cover_image_url)} alt={post.title} className="post-image" />
                     )}
                   </div>
                   <div className="post-actions">
@@ -620,7 +620,7 @@ export default function SocialApp() {
                 {/* Post Example 1 */}
             <div className="post">
               <div className="post-header">
-                <img src="https://i.pravatar.cc/150?img=11" alt="Avatar" className="avatar" />
+                <img loading="lazy" src="https://i.pravatar.cc/150?img=11" alt="Avatar" className="avatar" />
                 <div className="post-user-info">
                   <strong>Preetam M.</strong>
                   <small>II hours ago • Chronicled</small>
@@ -628,7 +628,7 @@ export default function SocialApp() {
               </div>
               <div className="post-body">
                 <p>Uncovering the ancient algorithms of Rome. The past is written in the sacred nodes. We reinvent the machine not from metal, but from the lost codex. 🏛️📜 #ModeBook #HistoricalTech</p>
-                <img src="https://images.unsplash.com/photo-1461360370896-922624d12aa1?auto=format&fit=crop&w=600&q=80" alt="Historical Tech Post" className="post-image" />
+                <img loading="lazy" src="https://images.unsplash.com/photo-1461360370896-922624d12aa1?auto=format&fit=crop&w=600&q=80" alt="Historical Tech Post" className="post-image" />
               </div>
               <div className="post-actions">
                 <button><HeartIcon /> Honor</button>
@@ -640,7 +640,7 @@ export default function SocialApp() {
             {/* Post Example 2 - Video format placeholder */}
             <div className="post">
                <div className="post-header">
-                <img src="https://i.pravatar.cc/150?img=33" alt="Avatar" className="avatar" />
+                <img loading="lazy" src="https://i.pravatar.cc/150?img=33" alt="Avatar" className="avatar" />
                 <div className="post-user-info">
                   <strong>Alchemist Nexus</strong>
                   <small>V hours ago</small>
@@ -668,14 +668,14 @@ export default function SocialApp() {
         <aside className="suggestion-sidebar">
           <h3>Fellow Scholars</h3>
           <div className="message-preview">
-            <img src="https://i.pravatar.cc/150?img=52" alt="User" />
+            <img loading="lazy" src="https://i.pravatar.cc/150?img=52" alt="User" />
             <div className="msg-text">
               <strong>DaVinci_Core</strong>
               <p>The manuscript is perfectly aligning...</p>
             </div>
           </div>
           <div className="message-preview">
-            <img src="https://i.pravatar.cc/150?img=47" alt="User" />
+            <img loading="lazy" src="https://i.pravatar.cc/150?img=47" alt="User" />
             <div className="msg-text">
               <strong>Arya</strong>
               <p>Decoded the latest cipher, brother.</p>

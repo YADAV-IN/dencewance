@@ -150,8 +150,8 @@
 @keyframes spin-slow { 100% { transform: rotate(360deg); } }
 @keyframes spin-reverse { 100% { transform: rotate(-360deg); } }
 @keyframes pulse-glow {
-  0% { opacity: 0.8; filter: drop-shadow(0 2px 4px #c59715); }
-  100% { opacity: 1; filter: drop-shadow(0 4px 8px #d4af37); }
+  0% { opacity: 0.8; }
+  100% { opacity: 1; }
 }
 @keyframes text-shimmer { to { background-position: 200% center; } }
 
