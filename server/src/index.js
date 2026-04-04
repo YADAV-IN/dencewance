@@ -3,11 +3,11 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import multerS3 from 'multer-s3';
-import { s3Client, hasR2Config, generatePresignedUrl } from './r2.js';
+import { s3Client, hasR2Config, generatePresignedUrl, listAllR2Files } from './r2.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
-import { initDb, Admin, News, Reel, SiteSettings, Status } from './db.js';
+import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel } from './db.js';
 import { requireAuth, signToken } from './middleware/auth.js';
 import { slugify, ensureUniqueSlug } from './utils/slug.js';
 import { getReadingTime } from './utils/readingTime.js';
@@ -1246,16 +1246,10 @@ app.post('/api/stats/ping', async (req, res) => {
   }
 });
 
-if (!IS_VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`🚀 API Server running on port ${PORT}`);
-  });
-}
 
-export default app;
 
 // --- ADVANCED FEATURES: Profiles, Comments, Saved Reels ---
-import { UserProfile, ReelComment, SavedReel } from './db.js';
+
 
 // Get or Create generic test profile for simplified integration
 app.post('/api/profile/test-login', async (req, res) => {
@@ -1330,6 +1324,49 @@ app.post('/api/reels/:id/save', async (req, res) => {
   }
 });
 
+
+// --- SYNC MANUAL R2 UPLOADS ---
+app.get('/api/reels/sync-r2', async (req, res) => {
+  try {
+    if (!hasR2Config) {
+      return res.status(400).json({ error: 'R2 is not configured' });
+    }
+    const files = await listAllR2Files();
+    if (!files || files.length === 0) {
+      return res.json({ message: 'No files found in R2' });
+    }
+    
+    let added = 0;
+    for (const file of files) {
+      if (file.key.match(/\.(mp4|webm|mov)$/i)) {
+        const existing = await Reel.findOne({ video_url: file.publicUrl });
+        if (!existing) {
+          const title = file.key.replace(/\.(mp4|webm|mov)$/i, '').replace(/[-_]/g, ' ');
+          const slugText = title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Math.floor(Math.random()*10000);
+          
+          await Reel.create({
+            title: title || 'R2 Story',
+            slug: slugText,
+            video_url: file.publicUrl,
+            caption: 'Manual upload from R2',
+            is_active: true,
+            status: 'published',
+            creator_name: 'Admin',
+            creator_handle: 'admin',
+            published_at: file.lastModified || new Date(),
+            createdAt: file.lastModified || new Date()
+          });
+          added++;
+        }
+      }
+    }
+    
+    res.json({ success: true, message: `Synced R2 files to reels endpoint`, total_found: files.length, added_new: added });
+  } catch (error) {
+    console.error('R2 sync error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 // --- STATUS (STORIES ON MAIN PAGE) ---
 
 // ============================================================================
@@ -1381,11 +1418,6 @@ app.get('/api/global-status', async (req, res) => {
   }
 });
 
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch statuses' });
-  }
-});
-
 app.post('/api/status', requireAuth, upload.single('media'), async (req, res) => {
   try {
     const creator = await Admin.findById(req.adminId);
@@ -1429,3 +1461,34 @@ app.post('/api/status/:id/view', async (req, res) => {
     res.status(500).json({ error: 'Failed to update view' });
   }
 });
+
+
+if (!IS_VERCEL) {
+  // Background R2 sync on start
+  if (hasR2Config) {
+    listAllR2Files().then(async files => {
+      if (!files) return;
+      for (const f of files) {
+        if (f.key.match(/\.(mp4|webm|mov)$/i)) {
+          const ex = await Reel.findOne({ video_url: f.publicUrl });
+          if (!ex) {
+            await Reel.create({
+              title: f.key.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " "),
+              slug: f.key.replace(/[^a-zA-Z0-9]/g, "-") + "-" + Date.now(),
+              video_url: f.publicUrl,
+              status: "published",
+              is_active: true,
+              creator_name: "Admin"
+            });
+          }
+        }
+      }
+    }).catch(console.error);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`🚀 API Server running on port ${PORT}`);
+  });
+}
+
+export default app;
