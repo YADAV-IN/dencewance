@@ -83,6 +83,31 @@ export const ModeBookLogo = ({ width = 60, height = 60 }) => (
   </svg>
 );
 
+export const StatusRing = ({ children, hasSeen = false, isUploading = false }) => {
+  const gradientId = "statusRingGrad" + (hasSeen ? "Grey" : "");
+  return (
+    <div style={{ position: 'relative', width: '65px', height: '65px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <svg viewBox="0 0 100 100" width="75" height="75" style={{ position: 'absolute', top: '-5px', left: '-5px', pointerEvents: 'none' }} xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={hasSeen ? "#555" : "#0066ff"} />
+            <stop offset="33%" stopColor={hasSeen ? "#555" : "#ffff00"} />
+            <stop offset="66%" stopColor={hasSeen ? "#555" : "#ff007f"} />
+            <stop offset="100%" stopColor={hasSeen ? "#555" : "#00cc44"} />
+          </linearGradient>
+        </defs>
+        <g transform="translate(50, 50)">
+          <circle cx="0" cy="0" r="42" fill="none" stroke={`url(#${gradientId})`} strokeWidth="4" className={hasSeen ? "" : "spin-slow"} strokeDasharray="15 5" />
+          <circle cx="0" cy="0" r="34" fill="none" stroke={`url(#${gradientId})`} strokeWidth="3" className={hasSeen ? "" : "spin-reverse"} strokeDasharray="4 8" />
+        </g>
+      </svg>
+      <div style={{ position: 'relative', zIndex: 1, width: '56px', height: '56px', borderRadius: '50%', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        {children}
+      </div>
+    </div>
+  );
+};
+
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://server-kappa-lac.vercel.app');
 
 const resolveMediaUrl = (url) => {
@@ -504,15 +529,13 @@ export default function SocialApp() {
               {/* Stories Section Dropdown top */}
               <section className="stories-container" style={{ display: 'flex', overflowX: 'auto', gap: '15px', padding: '15px 20px', alignItems: 'center' }}>
             <div className="story status-add" style={{ cursor: 'pointer', textAlign: 'center', minWidth: '70px' }} onClick={() => statusUploadRef.current && statusUploadRef.current.click()}>
-              <div className="story-ring" style={{ width: '65px', height: '65px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3px', background: 'linear-gradient(135deg, #f5d742 0%, #c59715 50%, #997104 100%)', borderRadius: '50%' }}>
-                <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {isStatusUploading ? (
-                    <span className="spin-slow" style={{ fontSize: '24px' }}>⏳</span>
-                  ) : (
-                    <strong style={{ fontSize: '30px', color: '#f5d742' }}>+</strong>
-                  )}
-                </div>
-              </div>
+              <StatusRing isUploading={isStatusUploading}>
+                {isStatusUploading ? (
+                  <span className="spin-slow" style={{ fontSize: '24px' }}>⏳</span>
+                ) : (
+                  <strong style={{ fontSize: '30px', color: '#f5d742' }}>+</strong>
+                )}
+              </StatusRing>
               <span style={{ fontSize: '12px', marginTop: '5px', display: 'block', color: '#fff' }}>Upload Status</span>
               <input type="file" ref={statusUploadRef} style={{ display: 'none' }} accept="image/*,video/*" onChange={handleStatusUpload} />
             </div>
@@ -531,20 +554,13 @@ export default function SocialApp() {
                   }}
                   style={{ cursor: 'pointer', textAlign: 'center', minWidth: '70px' }}
                  >
-                  <div className="story-ring" style={{
-                    padding: '3px',
-                    borderRadius: '50%',
-                    width: '65px', height: '65px',
-                    margin: '0 auto',
-                    background: hasSeen ? '#555' : 'linear-gradient(45deg, #0066ff, #ffff00, #ff007f, #00cc44)',
-                    animation: hasSeen ? 'none' : 'spin 4s linear infinite'
-                  }}>
+                  <StatusRing hasSeen={hasSeen}>
                     <img 
                       src={resolveMediaUrl(story.media_url || story.cover_image_url) || `https://i.pravatar.cc/150?img=${i + 20}`} 
                       alt={story.title || 'Status'} 
-                      style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '2px solid #111' }}
+                      style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
                     />
-                  </div>
+                  </StatusRing>
                   <span style={{ fontSize: '12px', marginTop: '5px', display: 'block', color: '#ccc' }}>
                     {story.creator_name || story.title ? (story.creator_name || story.title).substring(0, 8) : 'Status'}
                   </span>
@@ -554,9 +570,9 @@ export default function SocialApp() {
             ) : (
               ['Loading...'].map((name, i) => (
                 <div className="story" key={i} style={{ textAlign: 'center', minWidth: '70px', opacity: 0.5 }}>
-                  <div className="story-ring" style={{ border: '2px solid #555', padding: '3px', borderRadius: '50%', width: '65px', height: '65px', margin: '0 auto' }}>
+                  <StatusRing hasSeen={true}>
                     <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: '#333' }}></div>
-                  </div>
+                  </StatusRing>
                   <span style={{ fontSize: '12px', marginTop: '5px', display: 'block' }}>{name}</span>
                 </div>
               ))
