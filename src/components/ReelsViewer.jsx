@@ -381,33 +381,41 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                         >
                           ←
                         </button>
-                        <span className="reel-watermark-text" style={{ 
+                        <div className="reel-watermark-logo" style={{
                           display: 'flex', 
                           alignItems: 'center', 
-                          gap: '6px', 
+                          gap: '4px', 
                           marginLeft: '-5px',
-                          textShadow: 'none',
-                          color: '#fff'
+                          background: 'rgba(0, 0, 0, 0.4)',
+                          padding: '4px 10px 4px 6px',
+                          borderRadius: '20px',
+                          backdropFilter: 'blur(5px)',
+                          border: '1px solid rgba(255,255,255,0.1)'
                         }}>
-                          <svg className="modebook-logo-animated" viewBox="0 0 100 100" width="32" height="32" xmlns="http://www.w3.org/2000/svg">
+                          <svg className="modebook-logo-animated" viewBox="0 0 100 100" width="22" height="22" xmlns="http://www.w3.org/2000/svg" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
                             <defs>
-                              <linearGradient id="multiColorGradReel" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor="#0066ff" />
-                                <stop offset="33%" stopColor="#ffff00" />
-                                <stop offset="66%" stopColor="#ff007f" />
-                                <stop offset="100%" stopColor="#00cc44" />
+                              <linearGradient id="multiGradWatermark" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="#fff" />
+                                <stop offset="50%" stopColor="#e0e0e0" />
+                                <stop offset="100%" stopColor="#aaa" />
                               </linearGradient>
                             </defs>
                             <g transform="translate(50, 50)">
-                              <circle cx="0" cy="0" r="42" fill="none" stroke="url(#multiColorGradReel)" strokeWidth="4" className={isActive ? "spin-slow" : ""} strokeDasharray="15 5" />
-                              <circle cx="0" cy="0" r="34" fill="none" stroke="url(#multiColorGradReel)" strokeWidth="3" className={isActive ? "spin-reverse" : ""} strokeDasharray="4 8" />
-                              <polygon points="0,-22 19,11 -19,11" fill="none" stroke="url(#multiColorGradReel)" strokeWidth="3" className={isActive ? "pulse-glow" : ""} />
-                              <polygon points="0,22 19,-11 -19,-11" fill="none" stroke="url(#multiColorGradReel)" strokeWidth="3" className={isActive ? "pulse-glow" : ""} />
-                              <circle cx="0" cy="0" r="7" fill="url(#multiColorGradReel)" className={isActive ? "pulse-glow" : ""} />
+                              <circle cx="0" cy="0" r="42" fill="none" stroke="url(#multiGradWatermark)" strokeWidth="6" className={isActive ? "spin-slow" : ""} />
+                              <circle cx="0" cy="0" r="30" fill="none" stroke="url(#multiGradWatermark)" strokeWidth="4" className={isActive ? "spin-reverse" : ""} strokeDasharray="10 10" />
+                              <polygon points="0,-18 16,9 -16,9" fill="url(#multiGradWatermark)" />
                             </g>
                           </svg>
-                          <span style={{ fontWeight: 'bold', fontSize: '18px' }}>ModeBook</span>
-                        </span>
+                          <span style={{ 
+                            fontFamily: "'Cinzel', serif", 
+                            fontWeight: '900', 
+                            fontSize: '15px', 
+                            color: 'rgba(255,255,255,0.95)',
+                            letterSpacing: '1px',
+                            textTransform: 'uppercase',
+                            textShadow: '0 2px 5px rgba(0,0,0,0.8)'
+                          }}>ModeBook</span>
+                        </div>
                       </div>
                       
                       {(adminData && (adminData.role === 'admin' || item.creator_id === adminData.id || item.creator_id === adminData._id || item.creator_name === adminData.name)) && onDelete && (
@@ -532,6 +540,68 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     </div>
 
                     {/* Bottom info area (TikTok-style caption zone) */}
+                    {/* FLOATING WATERMARK */}
+                    <div className="reel-floating-watermark" style={{
+                      position: 'absolute',
+                      bottom: '120px',
+                      right: '15px',
+                      opacity: 0.7,
+                      pointerEvents: 'none',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.8))',
+                      zIndex: 10
+                    }}>
+                      <svg viewBox="0 0 100 100" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
+                        <g transform="translate(50, 50)">
+                          <circle cx="0" cy="0" r="42" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="6" />
+                          <circle cx="0" cy="0" r="30" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="4" strokeDasharray="10 10" />
+                          <polygon points="0,-18 16,9 -16,9" fill="rgba(255,255,255,0.9)" />
+                        </g>
+                      </svg>
+                      <span style={{
+                        marginTop: '4px',
+                        fontFamily: "'Cinzel', serif",
+                        fontWeight: '900',
+                        fontSize: '12px',
+                        color: 'rgba(255,255,255,0.9)',
+                        letterSpacing: '1px',
+                        textTransform: 'uppercase'
+                      }}>MODEBOOK</span>
+                    </div>
+                    
+                    {/* FLOATING WATERMARK */}
+                    <div className="reel-floating-watermark" style={{
+                      position: 'absolute',
+                      bottom: '120px',
+                      right: '15px',
+                      opacity: 0.7,
+                      pointerEvents: 'none',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.8))',
+                      zIndex: 10
+                    }}>
+                      <svg viewBox="0 0 100 100" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
+                        <g transform="translate(50, 50)">
+                          <circle cx="0" cy="0" r="42" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="6" />
+                          <circle cx="0" cy="0" r="30" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="4" strokeDasharray="10 10" />
+                          <polygon points="0,-18 16,9 -16,9" fill="rgba(255,255,255,0.9)" />
+                        </g>
+                      </svg>
+                      <span style={{
+                        marginTop: '4px',
+                        fontFamily: "'Cinzel', serif",
+                        fontWeight: '900',
+                        fontSize: '12px',
+                        color: 'rgba(255,255,255,0.9)',
+                        letterSpacing: '1px',
+                        textTransform: 'uppercase'
+                      }}>MODEBOOK</span>
+                    </div>
+                    
                     <div className="reel-bottom-info">
                       <div className="reel-creator-line">
                         <strong className="reel-creator-handle">
