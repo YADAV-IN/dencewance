@@ -8,21 +8,25 @@
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
+      "src": "/(.*)",
+      "methods": ["OPTIONS"],
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Max-Age": "86400"
+      },
+      "status": 200,
+      "continue": true
+    },
+    {
+      "src": "/(.*)",
       "dest": "src/index.js",
       "headers": {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type, Authorization"
       }
-    },
-    {
-      "src": "/uploads/(.*)",
-      "dest": "src/index.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "src/index.js"
     }
   ]
 }
