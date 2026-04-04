@@ -81,11 +81,11 @@ export default function ProfileDashboard() {
         body: JSON.stringify({ email, password })
       });
       const data = await res.json();
-      if (res.ok && data.token) {
-        localStorage.setItem('adminToken', data.token);
-        localStorage.setItem('adminId', data.admin.id || data.admin._id);
-        setToken(data.token);
-        setAdminId(data.admin.id || data.admin._id);
+      if (res.ok && data.data?.token) {
+        localStorage.setItem('adminToken', data.data.token);
+        localStorage.setItem('adminId', data.data.profile.id || data.data.profile._id);
+        setToken(data.data.token);
+        setAdminId(data.data.profile.id || data.data.profile._id);
       } else {
         alert(data.error || 'Login failed');
       }
