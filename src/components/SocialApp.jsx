@@ -68,9 +68,9 @@ export const ModeBookLogo = ({ width = 60, height = 60 }) => (
     <defs>
       <linearGradient id="multiColorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stopColor="#0066ff" />   {/* Nila (Blue) */}
-        <stop offset="33%" stopColor="#ff007f" />  {/* Gulabi (Pink) */}
-        <stop offset="66%" stopColor="#00cc44" />  {/* Hara (Green) */}
-        <stop offset="100%" stopColor="#ffcc00" /> {/* Peela (Yellow) */}
+        <stop offset="33%" stopColor="#ffff00" />  {/* Peela (Yellow) */}
+        <stop offset="66%" stopColor="#ff007f" />  {/* Gulabi (Pink) */}
+        <stop offset="100%" stopColor="#00cc44" /> {/* Hara (Green) */}
       </linearGradient>
     </defs>
     <g transform="translate(50, 50)">
