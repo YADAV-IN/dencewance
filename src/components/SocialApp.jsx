@@ -11,19 +11,31 @@ export const HomeIcon = () => (
 );
 
 export const MapIcon = () => (
-  <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></svg>
+  <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8"></circle>
+    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+  </svg>
 );
 
 export const QuillIcon = () => (
-  <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>
+  <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+    <line x1="12" y1="8" x2="12" y2="16"></line>
+    <line x1="8" y1="12" x2="16" y2="12"></line>
+  </svg>
 );
 
 export const ScrollIcon = () => (
-  <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M2 15h10"></path><path d="M2 19h10"></path></svg>
+  <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+  </svg>
 );
 
 export const EyeIcon = () => (
-  <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+  <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+    <circle cx="12" cy="7" r="4"></circle>
+  </svg>
 );
 
 export const VideoStoriesIcon = () => (
@@ -51,21 +63,22 @@ export const BellIcon = () => (
 );
 
 // Animated ModeBook Logo (Scalable via props)
-export const ModeBookLogo = ({ width = 36, height = 36 }) => (
+export const ModeBookLogo = ({ width = 60, height = 60 }) => (
   <svg className="modebook-logo-animated" viewBox="0 0 100 100" width={width} height={height} xmlns="http://www.w3.org/2000/svg">
     <defs>
-      <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#f3e5ab" />
-        <stop offset="50%" stopColor="#c59715" />
-        <stop offset="100%" stopColor="#8a5a19" />
+      <linearGradient id="multiColorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#0066ff" />   {/* Nila (Blue) */}
+        <stop offset="33%" stopColor="#ff007f" />  {/* Gulabi (Pink) */}
+        <stop offset="66%" stopColor="#00cc44" />  {/* Hara (Green) */}
+        <stop offset="100%" stopColor="#ffcc00" /> {/* Peela (Yellow) */}
       </linearGradient>
     </defs>
     <g transform="translate(50, 50)">
-      <circle cx="0" cy="0" r="42" fill="none" stroke="url(#goldGrad)" strokeWidth="3" className="spin-slow" strokeDasharray="15 5" />
-      <circle cx="0" cy="0" r="34" fill="none" stroke="url(#goldGrad)" strokeWidth="2" className="spin-reverse" strokeDasharray="4 8" />
-      <polygon points="0,-22 19,11 -19,11" fill="none" stroke="url(#goldGrad)" strokeWidth="2.5" className="pulse-glow" />
-      <polygon points="0,22 19,-11 -19,-11" fill="none" stroke="url(#goldGrad)" strokeWidth="2.5" className="pulse-glow" />
-      <circle cx="0" cy="0" r="6" fill="url(#goldGrad)" className="pulse-glow" />
+      <circle cx="0" cy="0" r="42" fill="none" stroke="url(#multiColorGrad)" strokeWidth="4" className="spin-slow" strokeDasharray="15 5" />
+      <circle cx="0" cy="0" r="34" fill="none" stroke="url(#multiColorGrad)" strokeWidth="3" className="spin-reverse" strokeDasharray="4 8" />
+      <polygon points="0,-22 19,11 -19,11" fill="none" stroke="url(#multiColorGrad)" strokeWidth="3" className="pulse-glow" />
+      <polygon points="0,22 19,-11 -19,-11" fill="none" stroke="url(#multiColorGrad)" strokeWidth="3" className="pulse-glow" />
+      <circle cx="0" cy="0" r="7" fill="url(#multiColorGrad)" className="pulse-glow" />
     </g>
   </svg>
 );
@@ -83,6 +96,22 @@ export default function SocialApp() {
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
   const [stories, setStories] = useState([]);
   const [feed, setFeed] = useState([]);
+  const [isLoading, setIsLoading] = useState(true); // Loading state add kiya
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState({ users: [], posts: [], reels: [] });
+  const [isSearching, setIsSearching] = useState(false);
+  const [recommendations, setRecommendations] = useState({ tags: [], reels: [] });
+  useEffect(() => {
+    if (activeTab === 'search') {
+      fetch(`${API_URL}/api/recommendations`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            setRecommendations(data.data);
+          }
+        }).catch(err => console.error('Error fetching recommendations', err));
+    }
+  }, [activeTab]);
   
   const token = localStorage.getItem('adminToken');
   const adminId = localStorage.getItem('adminId');
@@ -100,30 +129,36 @@ export default function SocialApp() {
   }, [token, adminId]);
 
   useEffect(() => {
-    // Fetch video stories (reels) from backend Cloudflare integration
-    fetch(`${API_URL}/api/reels`)
-      .then(res => res.json())
-      .then(data => {
-        if (data && Array.isArray(data.data) && data.data.length > 0) {
-          setStories(data.data.slice(0, 10)); // Top 10 stories
-        } else {
-          setStories(demoReels);
-        }
-      })
-      .catch(err => {
-        console.error('Failed to load stories', err);
-        setStories(demoReels);
-      });
+    setIsLoading(true); // Fetching chalu
 
-    // Fetch feed posts (news) from backend
-    fetch(`${API_URL}/api/news`)
-      .then(res => res.json())
-      .then(data => {
-        if (data && Array.isArray(data.data)) {
-          setFeed(data.data);
-        }
-      })
-      .catch(err => console.error('Failed to load feed', err));
+    Promise.all([
+      // Fetch video stories (reels) from backend Cloudflare integration
+      fetch(`${API_URL}/api/reels`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && Array.isArray(data.data) && data.data.length > 0) {
+            setStories(data.data.slice(0, 10)); // Top 10 stories
+          } else {
+            setStories(demoReels);
+          }
+        })
+        .catch(err => {
+          console.error('Failed to load stories', err);
+          setStories(demoReels);
+        }),
+
+      // Fetch feed posts (news) from backend
+      fetch(`${API_URL}/api/news`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && Array.isArray(data.data)) {
+            setFeed(data.data);
+          }
+        })
+        .catch(err => console.error('Failed to load feed', err))
+    ]).finally(() => {
+      setIsLoading(false); // Fetching khatam
+    });
   }, []);
 
   const handleDeletePost = async (postId) => {
@@ -135,13 +170,32 @@ export default function SocialApp() {
       });
       if (res.ok) {
         setFeed(prev => prev.filter(p => (p.id || p._id) !== postId));
-        alert("Post deleted.");
       } else {
-        const data = await res.json();
-        alert(data.error || "Failed to delete post.");
+        alert("Failed to delete post.");
       }
     } catch(err) {
       console.error(err);
+    }
+  };
+
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+    try {
+      const res = await fetch(`${API_URL}/api/search?q=${encodeURIComponent(searchQuery)}`);
+      const data = await res.json();
+      if (data && data.success) {
+        setSearchResults({
+          users: data.data.users || [],
+          posts: data.data.posts || [],
+          reels: data.data.reels || []
+        });
+      }
+    } catch (err) {
+      console.error("Search failed:", err);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -191,6 +245,10 @@ export default function SocialApp() {
         
         {/* Opposite side Notification Bell */}
         <div className="top-nav-actions">
+          <button className="icon-btn notification-btn" onClick={() => setActiveTab('messages')}>
+            <ScrollIcon />
+            <span className="notification-badge" style={{ backgroundColor: 'blue' }}>1</span>
+          </button>
           <button className="icon-btn notification-btn">
             <BellIcon />
             <span className="notification-badge">3</span>
@@ -212,13 +270,10 @@ export default function SocialApp() {
             <li className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}>
               <MapIcon /> <span>Atlas</span>
             </li>
-            <li className={activeTab === 'messages' ? 'active' : ''} onClick={() => setActiveTab('messages')}>
-              <ScrollIcon /> <span>Scrolls</span>
-            </li>
-            <li className={activeTab === 'profile' ? 'active' : ''} onClick={() => setActiveTab('profile')}>
             <li className={activeTab === 'add' ? 'active' : ''} onClick={() => setActiveTab('add')}>
               <QuillIcon /> <span>Create</span>
             </li>
+            <li className={activeTab === 'profile' ? 'active' : ''} onClick={() => setActiveTab('profile')}>
               <EyeIcon /> <span>Profile</span>
             </li>
           </ul>
@@ -227,11 +282,168 @@ export default function SocialApp() {
         {/* Main Content Area */}
         <main className="main-content">
           {activeTab === 'search' ? (
-            <div style={{ padding: '20px', color: '#fff', textAlign: 'center' }}><h2>Atlas (Search)</h2><p>The compendium is currently hidden...</p></div>
+            <div className="search-container">
+              <form onSubmit={handleSearch} className="search-form" style={{ marginTop: '20px' }}>
+                <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+                  <span style={{ position: 'absolute', left: '18px', color: '#00FFFF', pointerEvents: 'none' }}>
+                    <MapIcon />
+                  </span>
+                  <input 
+                    type="text" 
+                    className="search-input"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search Users, Video Stories, ID, Tags..."
+                    style={{ paddingLeft: '50px' }}
+                  />
+                </div>
+                <button type="submit" disabled={isSearching} className="search-btn">
+                  {isSearching ? <span className="spin-slow" style={{display:'inline-block'}}>⏳</span> : 'Discover'}
+                </button>
+              </form>
+
+              {/* Recommendations View - Only show if not actively searching/no results */}
+              {(!searchQuery || (!isSearching && searchResults.users.length === 0 && searchResults.posts.length === 0 && searchResults.reels.length === 0)) ? (
+                <div className="search-recommendations">
+                  {/* Trendy Tags */}
+                  {recommendations.tags && recommendations.tags.length > 0 && (
+                    <div style={{ marginBottom: '40px' }}>
+                      <h3 className="search-section-title">Trending Tags</h3>
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                        {recommendations.tags.map(tag => (
+                          <button 
+                            key={tag} 
+                            onClick={(e) => { e.preventDefault(); setSearchQuery(tag); handleSearch({ preventDefault: () => {} }); }}
+                            style={{ padding: '8px 18px', background: 'rgba(0, 255, 255, 0.1)', border: '1px solid rgba(0, 255, 255, 0.3)', borderRadius: '20px', color: '#00FFFF', cursor: 'pointer', outline: 'none', transition: 'all 0.2s', fontWeight: 'bold' }}
+                            onMouseOver={(e) => { e.target.style.background = 'rgba(0, 255, 255, 0.2)'; e.target.style.borderColor = '#00FFFF'; }}
+                            onMouseOut={(e) => { e.target.style.background = 'rgba(0, 255, 255, 0.1)'; e.target.style.borderColor = 'rgba(0, 255, 255, 0.3)'; }}
+                          >
+                            #{tag.startsWith('#') ? tag.substring(1) : tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recommended Reels */}
+                  {recommendations.reels && recommendations.reels.length > 0 && (
+                    <div>
+                      <h3 className="search-section-title">Recommended Stories</h3>
+                      <div className="search-reels-grid">
+                        {recommendations.reels.map((r, i) => (
+                          <div key={`rec-${i}`} className="search-reel-card" onClick={() => { setActiveStoryIndex(i); setStories(recommendations.reels); setActiveTab('stories'); }}>
+                            <span className="search-reel-tag" style={{ background: '#00FFFF', color: '#000' }}>#{r.tags?.[0] || 'Trending'}</span>
+                            {r.cover_image_url ? (
+                              <img src={resolveMediaUrl(r.cover_image_url)} alt="Cover" className="search-reel-cover" />
+                            ) : (
+                              <div style={{width:'100%', height:'100%', background:'#222', display:'flex', alignItems:'center', justifyContent:'center'}}>▶</div>
+                            )}
+                            <div className="search-reel-overlay">
+                               <div className="search-reel-title">{r.title || 'Video Story'}</div>
+                               <div className="search-reel-meta">
+                                 <span>@{r.creator_name || 'ModeBook'}</span>
+                               </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="search-results-list">
+
+              {/* Show Users */}
+              {searchResults.users.length > 0 && (
+                <div style={{ marginBottom: '40px' }}>
+                  <h3 className="search-section-title">
+                    Users <span className="search-count">{searchResults.users.length}</span>
+                  </h3>
+                  <div className="search-users-grid">
+                    {searchResults.users.map((u, i) => (
+                      <div key={`u-${i}`} className="search-user-card">
+                        <img src={resolveMediaUrl(u.avatar_url) || `https://i.pravatar.cc/150?img=${i}`} alt={u.name} className="search-user-avatar" />
+                        <div className="search-user-name">{u.name}</div>
+                        <div className="search-user-id">ID: {u.id.substring(0, 8)}..</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Show Reels */}
+              {searchResults.reels.length > 0 && (
+                <div style={{ marginBottom: '40px' }}>
+                  <h3 className="search-section-title">
+                    Reels (Video Stories) <span className="search-count">{searchResults.reels.length}</span>
+                  </h3>
+                  <div className="search-reels-grid">
+                    {searchResults.reels.map((r, i) => (
+                      <div key={`r-${i}`} className="search-reel-card" onClick={() => { setActiveTab('stories'); }}>
+                        <span className="search-reel-tag">Video</span>
+                        {r.cover_image_url ? (
+                          <img src={resolveMediaUrl(r.cover_image_url)} alt="Cover" className="search-reel-cover" />
+                        ) : (
+                          <div style={{width:'100%', height:'100%', background:'#222', display:'flex', alignItems:'center', justifyContent:'center'}}>▶</div>
+                        )}
+                        <div className="search-reel-overlay">
+                           <div className="search-reel-title">{r.title || r.caption?.substring(0,40)}</div>
+                           <div className="search-reel-meta">
+                             <span>@{r.creator_handle || r.creator_name || 'Alok'}</span>
+                             <span className="search-reel-meta-id">ID: {r.creator_id ? r.creator_id.substring(0, 6) : 'NA'}</span>
+                           </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Show Posts */}
+              {searchResults.posts.length > 0 && (
+                <div style={{ marginBottom: '40px' }}>
+                  <h3 className="search-section-title">
+                    Chronicles (Posts) <span className="search-count">{searchResults.posts.length}</span>
+                  </h3>
+                  <div className="search-posts-list">
+                    {searchResults.posts.map((p, i) => (
+                      <div key={`p-${i}`} className="search-post-row">
+                        {p.cover_image_url && (
+                          <img src={resolveMediaUrl(p.cover_image_url)} alt="Post" className="search-post-image" />
+                        )}
+                        <div className="search-post-content">
+                          <h4 className="search-post-title">{p.title}</h4>
+                          <p className="search-post-excerpt">{p.excerpt ? p.excerpt : 'No snippet available...'}</p>
+                          <div className="search-post-meta">
+                            <span className="search-post-author">✍️ {p.author_name || 'ModeBook Scribe'}</span>
+                            <span className="search-post-id">ID: {p.author_id ? p.author_id.substring(0, 8) : '...'}</span>
+                            <span>{new Date(p.published_at || Date.now()).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {!isSearching && searchQuery && searchResults.users.length === 0 && searchResults.posts.length === 0 && searchResults.reels.length === 0 && (
+                <div style={{ textAlign: 'center', marginTop: '60px', opacity: 0.5 }}>
+                  <MapIcon />
+                  <p style={{ marginTop: '10px' }}>No users, tags or video stories found in the Database.</p>
+                </div>
+              )}
+                </div>
+              )}
+            </div>
           ) : activeTab === 'messages' ? (
             <div style={{ padding: '20px', color: '#fff', textAlign: 'center' }}><h2>Scrolls (Messages)</h2><p>No new scrolls received from the archivists...</p></div>
           ) : activeTab === 'profile' ? (
              <ProfileDashboard /> ) : activeTab === 'add' ? ( <CreateInstagramMenu />
+          ) : isLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#fff', flexDirection: 'column' }}>
+              <ModeBookLogo width={80} height={80} />
+              <h3 style={{ marginTop: '20px', letterSpacing: '1px' }}>Loading...</h3>
+            </div>
           ) : (
             <>
               {/* Stories Section Dropdown top */}

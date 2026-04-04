@@ -364,30 +364,59 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     <div className="reel-gradient-overlay" />
 
                     {/* Watermark & Back Navigation */}
-                    <div className="reel-top-overlay" style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                      <div style={{ display: 'flex', gap: '10px' }}>
-                        <button className="reel-back-btn" onClick={(e) => { e.preventDefault(); if (onClose) { onClose(); } else navigateTo('/'); }}>
+                    <div className="reel-top-overlay" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', paddingLeft: '8px' }}>
+                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                        <button 
+                          className="reel-back-btn" 
+                          onClick={(e) => { e.preventDefault(); if (onClose) { onClose(); } else navigateTo('/'); }}
+                          style={{
+                            background: 'transparent',
+                            boxShadow: 'none',
+                            backdropFilter: 'none',
+                            fontSize: '28px',
+                            textShadow: '1px 1px 3px rgba(0,0,0,0.8)',
+                            padding: 0,
+                            marginLeft: '-12px'
+                          }}
+                        >
                           ←
                         </button>
-                        <span className="reel-watermark-text" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {/* Logo SVG etc */}
-                          <svg className="modebook-logo-animated" viewBox="0 0 100 100" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+                        <span className="reel-watermark-text" style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '6px', 
+                          marginLeft: '-5px',
+                          textShadow: '1px 1px 2px rgba(0,0,0,1)'
+                        }}>
+                          <span style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            background: 'rgba(0, 0, 0, 0.6)', /* gol circle me dark shadow */
+                            boxShadow: '0 0 8px 4px rgba(0, 0, 0, 0.6)'
+                          }}>
+                            <svg className="modebook-logo-animated" viewBox="0 0 100 100" width="32" height="32" xmlns="http://www.w3.org/2000/svg">
                             <defs>
-                              <linearGradient id="mbGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor="#f3e5ab"/>
-                                <stop offset="50%" stopColor="#c59715"/>
-                                <stop offset="100%" stopColor="#ffd700"/>
+                              <linearGradient id="multiColorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="#00FFFF" />   {/* Cyan/Blue - Ekdum clear */}
+                                <stop offset="33%" stopColor="#FF00FF" />  {/* Magenta/Pink - Ekdum chamakदार */}
+                                <stop offset="66%" stopColor="#00FF00" />  {/* Lime Green - Bright */}
+                                <stop offset="100%" stopColor="#FFD700" /> {/* Gold/Yellow - Saaf peela */}
                               </linearGradient>
                             </defs>
                             <g transform="translate(50, 50)">
-                              <circle cx="0" cy="0" r="42" fill="none" stroke="url(#mbGoldGrad)" strokeWidth="3" className="spin-slow" strokeDasharray="15 5" />
-                              <circle cx="0" cy="0" r="34" fill="none" stroke="url(#mbGoldGrad)" strokeWidth="2" className="spin-reverse" strokeDasharray="4 8" />
-                              <polygon points="0,-22 19,11 -19,11" fill="none" stroke="url(#mbGoldGrad)" strokeWidth="2.5" className="pulse-glow" />
-                              <polygon points="0,22 19,-11 -19,-11" fill="none" stroke="url(#mbGoldGrad)" strokeWidth="2.5" className="pulse-glow" />
-                              <circle cx="0" cy="0" r="6" fill="url(#mbGoldGrad)" className="pulse-glow" />
+                              <circle cx="0" cy="0" r="42" fill="none" stroke="url(#multiColorGrad)" strokeWidth="4" className="spin-slow" strokeDasharray="15 5" />
+                              <circle cx="0" cy="0" r="34" fill="none" stroke="url(#multiColorGrad)" strokeWidth="3" className="spin-reverse" strokeDasharray="4 8" />
+                              <polygon points="0,-22 19,11 -19,11" fill="none" stroke="url(#multiColorGrad)" strokeWidth="3" className="pulse-glow" />
+                              <polygon points="0,22 19,-11 -19,-11" fill="none" stroke="url(#multiColorGrad)" strokeWidth="3" className="pulse-glow" />
+                              <circle cx="0" cy="0" r="7" fill="url(#multiColorGrad)" className="pulse-glow" />
                             </g>
                           </svg>
-                          ModeBook
+                          </span>
+                          <span style={{ fontWeight: 'bold', fontSize: '18px' }}>ModeBook</span>
                         </span>
                       </div>
                       

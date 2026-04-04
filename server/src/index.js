@@ -295,6 +295,73 @@ app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req
   return res.json({ data: admin.toJSON() });
 });
 
+// --- UNIFIED SEARCH ENDPOINT --- //
+app.get('/api/search', async (req, res) => {
+  try {
+    const q = req.query.q || '';
+    if (!q) {
+      return res.json({ skip: true, data: { users: [], posts: [], reels: [] } });
+    }
+    
+    // Check if q is a valid ObjectId (for unified ID search)
+    const mongoose = (await import('mongoose')).default;
+    const isId = mongoose.Types.ObjectId.isValid(q);
+    const regex = new RegExp(q, 'i');
+
+    const userCondition = isId ? { _id: q } : { $or: [{ name: regex }, { email: regex }, { bio: regex }] };
+    const postCondition = isId ? { $or: [{ _id: q }, { author_id: q }] } : { $or: [{ title: regex }, { content: regex }, { author_name: regex }, { tags: regex }] };
+    const reelCondition = isId ? { $or: [{ _id: q }, { creator_id: q }] } : { $or: [{ title: regex }, { caption: regex }, { creator_name: regex }, { creator_handle: regex }, { tags: regex }] };
+
+    const [users, posts, reels] = await Promise.all([
+      Admin.find(userCondition).select('name bio avatar_url role').limit(20).lean(),
+      News.find({ ...postCondition, status: 'published' }).select('title excerpt cover_image_url author_name author_id published_at slug tags').limit(20).lean(),
+      Reel.find({ ...reelCondition, status: 'published' }).select('title caption video_url cover_image_url creator_name creator_handle creator_id published_at slug tags').limit(20).lean()
+    ]);
+
+    const normalize = arr => arr.map(a => ({ ...a, id: a._id.toString(), _id: undefined }));
+
+    return res.json({
+      success: true,
+      data: {
+        users: normalize(users),
+        posts: normalize(posts),
+        reels: normalize(reels)
+      }
+    });
+  } catch (err) {
+    console.error('Search error:', err);
+    return res.status(500).json({ success: false, error: 'Database search failed' });
+  }
+});
+
+// --- RECOMMENDATIONS ENDPOINT --- //
+app.get('/api/recommendations', async (req, res) => {
+  try {
+    const [trendingReels, popularTags] = await Promise.all([
+      Reel.find({ status: 'published' }).sort({ published_at: -1, views: -1 }).limit(10).select('title cover_image_url creator_name creator_id views tags').lean(),
+      Reel.aggregate([
+        { $match: { status: 'published', tags: { $exists: true, $not: {$size: 0} } } },
+        { $unwind: "$tags" },
+        { $group: { _id: "$tags", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 10 }
+      ])
+    ]);
+    
+    const normalize = arr => arr.map(a => ({ ...a, id: a._id.toString(), _id: undefined }));
+    
+    return res.json({
+      success: true,
+      data: {
+        reels: normalize(trendingReels),
+        tags: popularTags.map(t => t._id)
+      }
+    });
+  } catch(err) {
+    console.error('Recommendations error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch recommendations' });
+  }
+});
 app.get('/api/news', async (req, res) => {
   try {
     const { limit = 12, category, q, status, featured, breaking, author_id } = req.query;
