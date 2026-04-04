@@ -119,7 +119,9 @@ const resolveMediaUrl = (url) => {
 export default function SocialApp() {
   const [activeTab, setActiveTab] = useState('home');
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
-  const [stories, setStories] = useState([]);
+  const [statuses, setStatuses] = useState([]);
+  const [reelsFeed, setReelsFeed] = useState([]);
+  const [viewingMedia, setViewingMedia] = useState('reel');
   const [feed, setFeed] = useState([]);
   const [isLoading, setIsLoading] = useState(true); // Loading state add kiya
   const [searchQuery, setSearchQuery] = useState('');
@@ -212,22 +214,31 @@ export default function SocialApp() {
     setIsLoading(true); // Fetching chalu
 
     Promise.all([
-      // Fetch video stories (reels) from backend Cloudflare integration
+      // Fetch Statuses
       fetch(`${API_URL}/api/status`)
         .then(res => res.json())
         .then(data => {
+          if (data && Array.isArray(data.data)) {
+            setStatuses(data.data.slice(0, 15));
+          }
+        })
+        .catch(err => console.error('Failed to load status', err)),
+
+      // Fetch Reels (Video Stories)
+      fetch(`${API_URL}/api/reels`)
+        .then(res => res.json())
+        .then(data => {
           if (data && Array.isArray(data.data) && data.data.length > 0) {
-            setStories(data.data.slice(0, 10)); // Top 10 stories
+            setReelsFeed(data.data);
           } else {
-            setStories(demoReels);
+            setReelsFeed(demoReels);
           }
         })
         .catch(err => {
-          console.error('Failed to load stories', err);
-          setStories(demoReels);
+          console.error('Failed to load reels', err);
+          setReelsFeed(demoReels);
         }),
 
-      // Fetch feed posts (news) from backend
       fetch(`${API_URL}/api/news`)
         .then(res => res.json())
         .then(data => {
@@ -307,7 +318,12 @@ export default function SocialApp() {
       {activeTab === 'stories' ? (
         <ReelsViewer 
           key={`reels-${activeStoryIndex}`} 
-          reels={stories} 
+          reels={
+            viewingMedia === 'status' ? statuses :
+            viewingMedia === 'search' ? searchResults.reels :
+            viewingMedia === 'recommendation' ? recommendations.reels :
+            reelsFeed
+          } 
           initialIndex={activeStoryIndex} 
           onClose={() => setActiveTab('home')}
           onDelete={handleDeleteReel}
@@ -344,7 +360,7 @@ export default function SocialApp() {
             <li className={activeTab === 'home' ? 'active' : ''} onClick={() => setActiveTab('home')}>
               <HomeIcon /> <span>Sanctuary</span>
             </li>
-            <li className={activeTab === 'stories' ? 'active' : ''} onClick={() => setActiveTab('stories')}>
+            <li className={activeTab === 'stories' ? 'active' : ''} onClick={() => { setActiveStoryIndex(0); setViewingMedia('reel'); setActiveTab('stories'); }}>
               <VideoStoriesIcon /> <span>Stories</span>
             </li>
             <li className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}>
@@ -411,7 +427,7 @@ export default function SocialApp() {
                       <h3 className="search-section-title">Recommended Stories</h3>
                       <div className="search-reels-grid">
                         {recommendations.reels.map((r, i) => (
-                          <div key={`rec-${i}`} className="search-reel-card" onClick={() => { setActiveStoryIndex(i); setStories(recommendations.reels); setActiveTab('stories'); }}>
+                          <div key={`rec-${i}`} className="search-reel-card" onClick={() => { setActiveStoryIndex(i); setViewingMedia('recommendation'); setActiveTab('stories'); }}>
                             <span className="search-reel-tag" style={{ background: '#00FFFF', color: '#000' }}>#{r.tags?.[0] || 'Trending'}</span>
                             {r.cover_image_url ? (
                               <img loading="lazy" src={resolveMediaUrl(r.cover_image_url)} alt="Cover" className="search-reel-cover" />
@@ -459,7 +475,7 @@ export default function SocialApp() {
                   </h3>
                   <div className="search-reels-grid">
                     {searchResults.reels.map((r, i) => (
-                      <div key={`r-${i}`} className="search-reel-card" onClick={() => { setActiveTab('stories'); }}>
+                      <div key={`r-${i}`} className="search-reel-card" onClick={() => { setActiveStoryIndex(i); setViewingMedia('search'); setActiveTab('stories'); }}>
                         <span className="search-reel-tag">Video</span>
                         {r.cover_image_url ? (
                           <img loading="lazy" src={resolveMediaUrl(r.cover_image_url)} alt="Cover" className="search-reel-cover" />
@@ -540,8 +556,8 @@ export default function SocialApp() {
               <input type="file" ref={statusUploadRef} style={{ display: 'none' }} accept="image/*,video/*" onChange={handleStatusUpload} />
             </div>
 
-            {stories.length > 0 ? (
-              stories.map((story, i) => {
+            {statuses.length > 0 ? (
+              statuses.map((story, i) => {
                 const hasSeen = story.viewers && adminId && story.viewers.includes(adminId);
                 return (
                  <div 
@@ -550,6 +566,7 @@ export default function SocialApp() {
                   onClick={() => {
                     markStatusSeen(story.id || story._id);
                     setActiveStoryIndex(i);
+                    setViewingMedia('status');
                     setActiveTab('stories');
                   }}
                   style={{ cursor: 'pointer', textAlign: 'center', minWidth: '70px' }}
@@ -687,7 +704,7 @@ export default function SocialApp() {
       {/* Mobile Bottom Navigation */}
       <nav className="mobile-bottom-nav">
         <button className={activeTab === 'home' ? 'active' : ''} onClick={() => setActiveTab('home')}><HomeIcon /></button>
-        <button className={activeTab === 'stories' ? 'active' : ''} onClick={() => setActiveTab('stories')}><VideoStoriesIcon /></button>
+        <button className={activeTab === 'stories' ? 'active' : ''} onClick={() => { setActiveStoryIndex(0); setViewingMedia('reel'); setActiveTab('stories'); }}><VideoStoriesIcon /></button>
         <button className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}><MapIcon /></button>
         <button className={activeTab === 'add' ? 'active' : ''} onClick={() => setActiveTab('add')}><QuillIcon /></button>
         <button className={activeTab === 'profile' ? 'active' : ''} onClick={() => setActiveTab('profile')}><EyeIcon /></button>

@@ -16,6 +16,7 @@ export default function CreateInstagramMenu({ onComplete }) {
   const [reelCaption, setReelCaption] = useState('');
   const [reelVideoFile, setReelVideoFile] = useState(null);
   const [reelVideoPreview, setReelVideoPreview] = useState('');
+  const [reelVideoUrlInput, setReelVideoUrlInput] = useState('');
   
   const [isUploading, setIsUploading] = useState(false);
 
@@ -100,26 +101,30 @@ export default function CreateInstagramMenu({ onComplete }) {
 
   const handleCreateReel = async (e) => {
     e.preventDefault();
-    if (!reelVideoFile) return alert("Please select a video file!");
+    if (!reelVideoFile && !reelVideoUrlInput) return alert("Please select a video file or enter a video URL!");
     setIsUploading(true);
     try {
-      let videoUrl = '';
-      const formData = new FormData();
-      formData.append('media', reelVideoFile);
+      let videoUrl = reelVideoUrlInput;
       
-      const uploadRes = await fetch(`${API_URL}/api/uploads/media`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData
-      });
-      
-      if (uploadRes.ok) {
-        const uploadData = await uploadRes.json();
-        videoUrl = uploadData.data?.url || uploadData.data;
-      } else {
-        alert('Failed to upload video to media server.');
-        setIsUploading(false);
-        return;
+      if (reelVideoFile && !reelVideoUrlInput) {
+        const formData = new FormData();
+        formData.append('media', reelVideoFile);
+        
+        const uploadRes = await fetch(`${API_URL}/api/uploads/media`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData
+        });
+        
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          videoUrl = uploadData.data?.url || uploadData.data;
+        } else {
+          const errData = await uploadRes.json().catch(()=>({}));
+          alert('Failed to upload video: ' + (errData.error || 'Server error. For large files, enter a URL instead.'));
+          setIsUploading(false);
+          return;
+        }
       }
 
       const payload = {
@@ -177,19 +182,29 @@ export default function CreateInstagramMenu({ onComplete }) {
         {activeTab === 'post' && (
           <form className="ig-create-form" onSubmit={handleCreatePost}>
             <div className="ig-media-upload">
-              {postCoverPreview ? (
+              {reelVideoPreview ? (
                 <div className="ig-preview-wrap">
-                   <img src={postCoverPreview} alt="Preview" className="ig-preview-media" />
-                   <button type="button" className="ig-clear-media" onClick={() => {setPostCover(null); setPostCoverPreview('');}}>✕</button>
+                   <video src={reelVideoPreview} className="ig-preview-media" muted autoPlay loop playsInline />
+                   <button type="button" className="ig-clear-media" onClick={() => {setReelVideoFile(null); setReelVideoPreview('');}}>✕</button>
                 </div>
               ) : (
-                <label className="ig-upload-label">
-                  <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48">
-                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM5 19V5h14v14H5zm8.5-5.5l2.5 3.01L19 19H5l3.5-4.51 2.5 3.01z"></path>
-                  </svg>
-                  <span>Select Image</span>
-                  <input type="file" accept="image/*" onChange={handlePostCoverChange} hidden />
-                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '100%' }}>
+                  <label className="ig-upload-label reel-upload-color">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48">
+                      <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"></path>
+                    </svg>
+                    <span>Select Video File (Max 4MB without R2)</span>
+                    <input type="file" accept="video/mp4,video/x-m4v,video/*" onChange={handleReelVideoChange} hidden />
+                  </label>
+                  <div style={{ textAlign: 'center', color: '#888', fontSize: '12px' }}>OR</div>
+                  <input 
+                    type="text" 
+                    placeholder="Paste YouTube/Instagram Video URL here..." 
+                    value={reelVideoUrlInput} 
+                    onChange={(e) => setReelVideoUrlInput(e.target.value)}
+                    style={{ padding: '10px', borderRadius: '5px', border: '1px solid #333', background: '#111', color: '#fff' }}
+                  />
+                </div>
               )}
             </div>
             
@@ -226,7 +241,7 @@ export default function CreateInstagramMenu({ onComplete }) {
               <textarea placeholder="Write a caption..." value={reelCaption} onChange={(e)=>setReelCaption(e.target.value)} />
             </div>
 
-            <button type="submit" className="ig-submit-btn" disabled={!reelVideoFile || isUploading}>
+            <button type="submit" className="ig-submit-btn" disabled={(!reelVideoFile && !reelVideoUrlInput) || isUploading}>
               {isUploading ? 'Sharing...' : 'Share Reel'}
             </button>
           </form>
