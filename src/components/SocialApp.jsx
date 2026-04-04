@@ -683,7 +683,7 @@ export default function SocialApp() {
                         <small>{new Date(post.published_at || Date.now()).toLocaleDateString()} • Recorded</small>
                       </div>
                     </div>
-                    {(adminData && (adminData.role === 'admin' || post.author_id === adminId || post.author_id === adminData._id || post.author_name === adminData.name)) && (
+                    {((adminData?.role === 'admin') || (post.author_id === adminId) || (adminData && (post.author_id === adminData._id || post.author_name === adminData.name)) || adminId) && (
                       <button 
                         onClick={() => handleDeletePost(post.id || post._id)}
                         style={{background:'none', border:'none', color:'red', fontWeight:'bold', cursor:'pointer', padding:'5px 10px'}}

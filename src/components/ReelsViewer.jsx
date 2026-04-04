@@ -418,7 +418,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                         </div>
                       </div>
                       
-                      {(adminData && (adminData.role === 'admin' || item.creator_id === adminData.id || item.creator_id === adminData._id || item.creator_name === adminData.name)) && onDelete && (
+                      {((adminData?.role === 'admin') || (item.creator_id === localStorage.getItem('adminId')) || (adminData && (item.creator_id === adminData.id || item.creator_id === adminData._id || item.creator_name === adminData.name)) || localStorage.getItem('adminToken')) && onDelete && (
                         <button 
                           className="reel-delete-btn" 
                           onClick={(e) => { e.preventDefault(); onDelete(item.id || item._id); }}
