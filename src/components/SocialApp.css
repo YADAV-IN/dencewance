@@ -293,8 +293,10 @@
 
 .post {
   background-color: var(--panel-bg);
-  border-radius: 16px;
-  padding: 18px;
+  border-radius: 10px;
+  padding: 0;
+  margin-bottom: 30px;
+  overflow: hidden;
   border: 1px solid var(--border);
   box-shadow: var(--glass-shadow), var(--glass-glow);
   backdrop-filter: blur(25px);
@@ -304,7 +306,8 @@
   display: flex;
   align-items: center;
   gap: 15px;
-  margin-bottom: 18px;
+  padding: 18px 18px 0 18px;
+  margin-bottom: 15px;
 }
 
 .avatar {
@@ -320,16 +323,20 @@
 .post-user-info strong { font-size: 16px; font-family: 'Cinzel', serif; color: var(--text-main); font-weight: 700; }
 .post-user-info small { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
 
-.post-body p { margin-bottom: 15px; line-height: 1.6; font-size: 15px; color: var(--text-main); }
+.post-body p { margin-bottom: 15px; padding: 0 18px; line-height: 1.6; font-size: 15px; color: var(--text-main); }
+.post-body h4 { padding: 0 18px; margin-bottom: 10px; color: var(--text-main); }
 
 .post-image {
   width: 100%;
-  border-radius: 12px;
-  margin-bottom: 15px;
-  max-height: 500px;
+  border-radius: 0;
+  margin-bottom: 0;
+  max-height: 650px;
   object-fit: cover;
-  border: 1px solid var(--border);
-  box-shadow: 0 4px 15px rgba(30, 100, 200, 0.08); /* Removed sepia filter */
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  box-shadow: none;
+  display: block;
 }
 
 /* Video Placeholder */

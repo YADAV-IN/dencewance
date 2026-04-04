@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { uploadFileWithProgress } from '../utils/xhrUpload';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://server-kappa-lac.vercel.app');
 
@@ -17,6 +18,12 @@ export default function ProfileDashboard() {
   const [myReels, setMyReels] = useState([]);
   const [myPosts, setMyPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Upload System
+  const fileInputRef = useRef(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploadingReel, setIsUploadingReel] = useState(false);
+  const [uploadStatusText, setUploadStatusText] = useState('');
 
   // Editing UI
   const [isEditing, setIsEditing] = useState(false);
@@ -124,6 +131,65 @@ export default function ProfileDashboard() {
     }
   };
 
+  const handleGridReelUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setIsUploadingReel(true);
+    setUploadProgress(0);
+    setUploadStatusText('Connecting to Cloudflare...');
+    
+    try {
+      // 1. Get Presigned URL directly to Cloudflare
+      const signRes = await fetch(`${API_URL}/api/uploads/sign`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ filename: file.name, contentType: file.type })
+      });
+      
+      const configData = await signRes.json();
+      if (!signRes.ok) throw new Error(configData.error || 'Failed to sign R2 upload');
+
+      // 2. Exact Progress tracked Upload
+      setUploadStatusText('Uploading Video...');
+      await uploadFileWithProgress(configData.uploadUrl, file, (percent) => {
+        setUploadProgress(Math.round(percent));
+      });
+
+      // 3. Create Video Story with the resolved public URL
+      setUploadStatusText('Finalizing inside ModeBook...');
+      const reelRes = await fetch(`${API_URL}/api/reels`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ video_url: configData.publicUrl, caption: 'My Latest Profile Story' })
+      });
+      
+      if (!reelRes.ok) throw new Error('Failed to create video story row');
+      const savedReel = await reelRes.json();
+      
+      setUploadStatusText('Success!');
+      setIsUploadingReel(false);
+      setUploadProgress(0);
+      
+      // Auto-Redirect to play the exact newly minted video
+      if(savedReel.data && savedReel.data.id) {
+         window.location.hash = '#viewReel=' + savedReel.data.id;
+      }
+      window.location.reload();
+      
+    } catch (err) {
+      console.error(err);
+      alert('Upload Error: ' + err.message);
+      setIsUploadingReel(false);
+      setUploadProgress(0);
+    }
+  };
+
   const startEditing = () => {
     setEditName(profile?.name || '');
     setEditBio(profile?.bio || '');
@@ -133,6 +199,19 @@ export default function ProfileDashboard() {
 
   if (!token) {
     return (
+    <>
+      {isUploadingReel && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+           <div className="w-20 h-20 mb-4 animate-bounce">
+              <svg viewBox="0 0 24 24" fill="none" className="text-pink-500 w-full h-full" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="4"></rect><path d="M10 8v8l6-4-6-4z"></path></svg>
+           </div>
+           <h2 className="text-xl font-bold text-white mb-2">{uploadStatusText}</h2>
+           <div className="w-full max-w-sm bg-gray-800 rounded-full h-4 overflow-hidden outline outline-1 outline-gray-600 mb-2">
+              <div className="bg-gradient-to-r from-purple-500 via-pink-500 to-yellow-500 h-full transition-all duration-300 ease-out" style={{width: `${uploadProgress}%`}}></div>
+           </div>
+           <p className="text-gray-400 font-semibold">{uploadProgress}%</p>
+        </div>
+      )}
       <div className="flex items-center justify-center min-h-[80vh] bg-black text-white p-4">
         <form onSubmit={handleLogin} className="w-full max-w-sm bg-gray-900 border border-gray-800 p-8 rounded-xl flex flex-col gap-4 shadow-2xl">
           <div className="flex justify-center mb-4">
@@ -145,6 +224,7 @@ export default function ProfileDashboard() {
           </button>
         </form>
       </div>
+      </>
     );
   }
 
@@ -187,7 +267,7 @@ export default function ProfileDashboard() {
           <div className="p-4 flex items-center justify-between">
             <img src={profile?.avatar_url || 'https://ui-avatars.com/api/?name='+(profile?.name||'User')+'&background=random'} className="w-20 h-20 md:w-28 md:h-28 rounded-full border border-gray-700 object-cover p-1" alt="Profile" />
             <div className="flex gap-4 md:gap-8 flex-1 justify-center">
-              <div className="flex flex-col items-center"><span className="font-bold text-lg">{myPosts.length + myReels.length}</span><span className="text-sm text-gray-400">posts</span></div>
+              <div className="flex flex-col items-center"><span className="font-bold text-lg">∞</span><span className="text-sm text-gray-400">posts</span></div>
               <div className="flex flex-col items-center"><span className="font-bold text-lg">10.2K</span><span className="text-sm text-gray-400">followers</span></div>
               <div className="flex flex-col items-center"><span className="font-bold text-lg">42</span><span className="text-sm text-gray-400">following</span></div>
             </div>
@@ -217,18 +297,28 @@ export default function ProfileDashboard() {
           <div className="flex border-t border-gray-800">
             <button onClick={()=>setActiveTab('reels')} className={`flex-1 flex justify-center items-center py-3 border-b-2 gap-2 ${activeTab==='reels'?'border-white text-white':'border-transparent text-gray-500'}`}>
                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>
-               <span className="text-xs uppercase tracking-widest font-semibold hidden md:block">Reels ({myReels.length})</span>
+               <span className="text-xs uppercase tracking-widest font-semibold hidden md:block">VIDEO STORIES</span>
             </button>
             <button onClick={()=>setActiveTab('posts')} className={`flex-1 flex justify-center items-center py-3 border-b-2 gap-2 ${activeTab==='posts'?'border-white text-white':'border-transparent text-gray-500'}`}>
                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-               <span className="text-xs uppercase tracking-widest font-semibold hidden md:block">Posts ({myPosts.length})</span>
+               <span className="text-xs uppercase tracking-widest font-semibold hidden md:block">POSTS</span>
             </button>
           </div>
 
           {/* Grids */}
           {activeTab === 'reels' && (
             <div className="grid grid-cols-3 gap-0.5 mt-0.5">
-              {myReels.length === 0 && <div className="col-span-3 text-center py-10 text-gray-500 text-sm">No video stories uploaded yet. Go to Create (+) to upload.</div>}
+              
+              {/* Naya Add Video Story button list format mein beautifully stylized */}
+              <div 
+                className="relative aspect-[9/16] bg-gradient-to-br from-gray-900 to-black hover:from-gray-800 hover:to-gray-900 transition border border-gray-700 border-dashed group cursor-pointer flex flex-col items-center justify-center overflow-hidden"
+                onClick={() => fileInputRef.current.click()}
+              >
+                  <svg className="w-12 h-12 text-pink-500 mb-3 ml-1 group-hover:scale-110 transition shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5"><rect x="2" y="2" width="20" height="20" rx="4" /><path d="M10 8v8l6-4-6-4z" /></svg>
+                  <span className="text-xs font-bold text-gray-300 uppercase tracking-widest text-center px-1 leading-tight shrink-0">Upload <br/>Story</span>
+                  <input type="file" ref={fileInputRef} className="hidden" accept="video/*" onChange={handleGridReelUpload} />
+              </div>
+              {myReels.length === 0 && <div className="col-span-2 text-center py-10 flex items-center justify-center text-gray-500 text-sm px-2">No videos yet. Tap to add!</div>}
               {myReels.map(reel => (
                 <div key={reel.id} className="relative aspect-[9/16] bg-gray-900 group cursor-pointer">
                   <video src={reel.video_url} className="w-full h-full object-cover" muted playsInline />

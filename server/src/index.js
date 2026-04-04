@@ -1128,10 +1128,10 @@ app.post('/api/uploads/sign', requireAuth, async (req, res) => {
     const signData = await generatePresignedUrl(key, contentType || 'video/mp4');
     
     return res.json({
+      uploadUrl: signData.uploadUrl,
+      publicUrl: signData.publicUrl,
       data: {
         timestamp: Math.round(timestamp / 1000),
-        uploadUrl: signData.uploadUrl,
-        publicUrl: signData.publicUrl,
         folder: 'alok/media',
         resource_type: 'video',
       },

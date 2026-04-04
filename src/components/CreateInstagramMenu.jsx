@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { uploadFileWithProgress } from '../utils/xhrUpload';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://server-kappa-lac.vercel.app');
 
@@ -17,6 +18,8 @@ export default function CreateInstagramMenu({ onComplete }) {
   const [reelVideoPreview, setReelVideoPreview] = useState('');
   const [reelVideoUrlInput, setReelVideoUrlInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatusText, setUploadStatusText] = useState('0%');
 
   const uploadToR2 = async (file) => {
     try {
@@ -28,7 +31,8 @@ export default function CreateInstagramMenu({ onComplete }) {
       const configData = await signRes.json();
       
       if (!signRes.ok) {
-        // Fallback to standard proxy
+        // Fallback to proxy
+        setUploadStatusText('Uploading proxy...');
         const formData = new FormData();
         formData.append('media', file);
         const uploadRes = await fetch(`${API_URL}/api/uploads/media`, {
@@ -38,16 +42,15 @@ export default function CreateInstagramMenu({ onComplete }) {
         });
         const uploadData = await uploadRes.json();
         if (!uploadRes.ok) throw new Error(uploadData.error || 'Proxy upload failed');
+        setUploadProgress(100);
         return uploadData.data?.url || uploadData.data;
       }
 
-      // Direct R2
-      const s3Res = await fetch(configData.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file
+      // XHR Direct R2 tracked
+      await uploadFileWithProgress(configData.uploadUrl, file, (percent) => {
+        setUploadProgress(Math.round(percent));
+        setUploadStatusText(`${Math.round(percent)}%`);
       });
-      if (!s3Res.ok) throw new Error('Cloudflare R2 Direct Upload Failed');
       return configData.publicUrl;
     } catch (err) {
       throw err;
@@ -64,10 +67,12 @@ export default function CreateInstagramMenu({ onComplete }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          title: postContent.slice(0, 30) || 'New Post',
+          title: postContent ? postContent.slice(0, 30) : 'New Photo Post',
           caption: postContent,
+          excerpt: postContent ? postContent.slice(0, 100) : 'Photo.',
+          content: postContent || 'Photo post without caption.',
           image_url: imageUrl,
-          content: postContent,
+          cover_image_url: imageUrl,
           category: 'social',
           status: 'published'
         })
@@ -75,8 +80,7 @@ export default function CreateInstagramMenu({ onComplete }) {
       if (!res.ok) throw new Error('Failed to create post');
       alert('Post Created Successfully!');
       setPostContent(''); setPostCover(null); setPostCoverPreview('');
-      if (onComplete) onComplete();
-      else window.location.reload();
+      if (onComplete) onComplete(); else window.location.reload();
     } catch (err) {
       alert('Upload Error: ' + err.message);
     } finally {
@@ -104,15 +108,24 @@ export default function CreateInstagramMenu({ onComplete }) {
         })
       });
       if (!res.ok) throw new Error('Failed to create Reel');
+      const savedReel = await res.json();
       alert('Video Story (Reel) Uploaded Successfully!');
       setReelCaption(''); setReelVideoFile(null); setReelVideoPreview(''); setReelVideoUrlInput('');
-      if (onComplete) onComplete();
-      else window.location.reload();
+      finalizeReelUpload(savedReel);
     } catch (err) {
       alert('Upload Error: ' + err.message);
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // When finished successfully navigate to new reel
+  const finalizeReelUpload = (savedReel) => {
+      if(savedReel && savedReel.data && savedReel.data.id) {
+         window.location.hash = '#viewReel=' + savedReel.data.id;
+      }
+      if (onComplete) onComplete();
+      else window.location.reload();
   };
 
   if (!token) {
@@ -153,8 +166,30 @@ export default function CreateInstagramMenu({ onComplete }) {
               )}
             </div>
             <textarea placeholder="Write a post caption..." className="bg-gray-900 p-4 border border-gray-800 rounded-lg text-white text-sm mt-2 w-full min-h-[100px] resize-none" value={postContent} onChange={e=>setPostContent(e.target.value)}></textarea>
+            {isUploading && (
+              <div className="w-full mb-4">
+                 <div className="flex justify-between text-xs text-gray-400 mb-1">
+                    <span>Uploading...</span>
+                    <span className="font-bold text-white">{uploadStatusText}</span>
+                 </div>
+                 <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden outline outline-1 outline-gray-600 relative">
+                    <div className="bg-gradient-to-r from-purple-500 via-pink-500 to-yellow-500 h-full transition-all duration-300" style={{width: `${uploadProgress}%`}}></div>
+                 </div>
+              </div>
+            )}
+            {isUploading && (
+              <div className="w-full mb-4">
+                 <div className="flex justify-between text-xs text-gray-400 mb-1">
+                    <span>Uploading...</span>
+                    <span className="font-bold text-white">{uploadStatusText}</span>
+                 </div>
+                 <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden outline outline-1 outline-gray-600 relative">
+                    <div className="bg-gradient-to-r from-purple-500 via-pink-500 to-yellow-500 h-full transition-all duration-300" style={{width: `${uploadProgress}%`}}></div>
+                 </div>
+              </div>
+            )}
             <button onClick={handleCreatePost} disabled={isUploading} className="w-full bg-blue-500 rounded-lg p-3 font-semibold disabled:opacity-50 mt-4">
-              {isUploading ? 'Sharing Post...' : 'Share Post'}
+              {isUploading ? `Uploading... ${uploadStatusText}` : 'Share Post'}
             </button>
           </div>
         ) : (
@@ -188,8 +223,20 @@ export default function CreateInstagramMenu({ onComplete }) {
             <input type="text" placeholder="Paste a Video URL directly (for huge files)" className="bg-gray-900 border border-gray-800 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-gray-500 mb-2" value={reelVideoUrlInput} onChange={e=>setReelVideoUrlInput(e.target.value)} />
             <textarea placeholder="Write a reel caption..." className="bg-gray-900 border border-gray-800 rounded-lg p-3 text-white focus:ring-0 text-sm w-full min-h-[100px] resize-none" value={reelCaption} onChange={e=>setReelCaption(e.target.value)}></textarea>
             
+            
+            {isUploading && (
+              <div className="w-full mb-4 mt-2">
+                 <div className="flex justify-between text-xs text-gray-400 mb-1">
+                    <span>Uploading Video...</span>
+                    <span className="font-bold text-white text-sm">{uploadStatusText}</span>
+                 </div>
+                 <div className="w-full bg-gray-800 rounded-full h-4 overflow-hidden outline outline-1 outline-gray-600 relative">
+                    <div className="bg-green-500 h-full transition-all duration-300" style={{width: `${uploadProgress}%`}}></div>
+                 </div>
+              </div>
+            )}
             <button onClick={handleCreateReel} disabled={isUploading} className="w-full bg-blue-500 rounded-lg p-3 font-semibold disabled:opacity-50 mt-4">
-              {isUploading ? 'Sharing Video Story...' : 'Share Video Story'}
+              {isUploading ? `Uploading... ${uploadStatusText}` : 'Share Video Story'}
             </button>
           </div>
         )}

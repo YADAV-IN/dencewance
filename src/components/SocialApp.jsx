@@ -4,6 +4,7 @@ import ReelsViewer from './ReelsViewer';
 import CreateInstagramMenu from './CreateInstagramMenu';
 import ProfileDashboard from './ProfileDashboard';
 import { demoReels } from './demoData';
+import { uploadFileWithProgress } from '../utils/xhrUpload';
 
 // Vintage/Historical Custom SVG Icons
 export const HomeIcon = () => (
@@ -130,37 +131,82 @@ export default function SocialApp() {
   const [recommendations, setRecommendations] = useState({ tags: [], reels: [] });
   const statusUploadRef = useRef(null);
   const [isStatusUploading, setIsStatusUploading] = useState(false);
+  const [statusUploadProgress, setStatusUploadProgress] = useState(0);
 
   const handleStatusUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setIsStatusUploading(true);
-    
-    // Create FormData
-    const formData = new FormData();
-    formData.append('media', file);
+    setStatusUploadProgress(0);
     
     try {
-      const res = await fetch(`${API_URL}/api/status`, {
+      // 1. Sign URL via R2
+      const signRes = await fetch(`${API_URL}/api/uploads/sign`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ filename: file.name, contentType: file.type })
       });
-      const data = await res.json();
-      if (res.ok) {
-        setStatuses(prev => {
-           let updated = [...prev];
-           updated.unshift(data.data);
-           return updated;
+      const configData = await signRes.json();
+      
+      let videoUrl = '';
+      if (!signRes.ok) {
+        // Fallback Proxy
+        const formData = new FormData();
+        formData.append('media', file);
+        const uploadRes = await fetch(`${API_URL}/api/uploads/media`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData
         });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) throw new Error(uploadData.error || 'Upload failed');
+        videoUrl = uploadData.data?.url || uploadData.data;
       } else {
-        alert(data.error || 'Upload failed');
+        // Direct R2 XHR Upload with progress
+        await uploadFileWithProgress(configData.uploadUrl, file, (percent) => {
+          setStatusUploadProgress(percent);
+        });
+        videoUrl = configData.publicUrl;
+      }
+
+      // 2. Post the Reel (Video Story)
+      const reelRes = await fetch(`${API_URL}/api/reels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          title: 'My Video Story',
+          caption: 'Uploaded from Video Stories Bar',
+          video_url: videoUrl,
+          status: 'published'
+        })
+      });
+      
+      const reelData = await reelRes.json();
+      if (!reelRes.ok) throw new Error(reelData.error || 'Failed to create Video Story');
+
+      // Refresh Global Statuses immediately & Open the reel
+      const latestRes = await fetch(`${API_URL}/api/global-status`);
+      if (latestRes.ok) {
+        const latestData = await latestRes.json();
+        setStatuses(latestData.data || []);
+        
+        // Find our newly uploaded reel
+        const newReelId = reelData.data?._id || reelData.data?.id;
+        if (newReelId && latestData.data) {
+          const newIndex = latestData.data.findIndex(s => (s._id === newReelId || s.id === newReelId));
+          if (newIndex !== -1) {
+            setActiveStoryIndex(newIndex);
+            setViewingMedia('status');
+            setActiveTab('stories');
+          }
+        }
       }
     } catch(err) {
       console.error('Status upload error', err);
-      alert('Network error');
+      alert('Upload Error: ' + err.message);
     } finally {
       setIsStatusUploading(false);
+      setStatusUploadProgress(0);
       if (statusUploadRef.current) statusUploadRef.current.value = '';
     }
   };
@@ -213,7 +259,7 @@ export default function SocialApp() {
 
     Promise.all([
       // Fetch Statuses
-      fetch(`${API_URL}/api/global-status`)
+      fetch(`${API_URL}/api/status`)
         .then(res => res.json())
         .then(data => {
           if (data && Array.isArray(data.data)) {
@@ -374,6 +420,40 @@ export default function SocialApp() {
         </nav>
 
         {/* Main Content Area */}
+        {/* GLOBAL UPLOAD STATUS BAR */}
+        {isStatusUploading && (
+          <div style={{
+            position: 'absolute', top: 0, left: 0, width: '100%',
+            background: 'rgba(20,20,20,0.95)', borderBottom: '1px solid #333',
+            zIndex: 9999, padding: '10px 20px', display: 'flex', flexDirection: 'column',
+            backdropFilter: 'blur(10px)', color: '#fff'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
+               <span style={{ fontWeight: 'bold' }}>Uploading Video Story...</span>
+               <span style={{ fontWeight: 'bold', color: '#00FF00' }}>{Math.round(statusUploadProgress)}%</span>
+            </div>
+            <div style={{ width: '100%', height: '4px', background: '#333', borderRadius: '4px', overflow: 'hidden' }}>
+               <div style={{ width: `${Math.round(statusUploadProgress)}%`, height: '100%', background: 'linear-gradient(90deg, #00FF00, #00ffcc)', transition: 'width 0.2s linear' }}></div>
+            </div>
+          </div>
+        )}
+        {/* GLOBAL UPLOAD STATUS BAR */}
+        {isStatusUploading && (
+          <div style={{
+            position: 'absolute', top: 0, left: 0, width: '100%',
+            background: 'rgba(20,20,20,0.95)', borderBottom: '1px solid #333',
+            zIndex: 9999, padding: '10px 20px', display: 'flex', flexDirection: 'column',
+            backdropFilter: 'blur(10px)', color: '#fff'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
+               <span style={{ fontWeight: 'bold' }}>Uploading Video Story...</span>
+               <span style={{ fontWeight: 'bold', color: '#00FF00' }}>{Math.round(statusUploadProgress)}%</span>
+            </div>
+            <div style={{ width: '100%', height: '4px', background: '#333', borderRadius: '4px', overflow: 'hidden' }}>
+               <div style={{ width: `${Math.round(statusUploadProgress)}%`, height: '100%', background: 'linear-gradient(90deg, #00FF00, #00ffcc)', transition: 'width 0.2s linear' }}></div>
+            </div>
+          </div>
+        )}
         <main className="main-content">
           {activeTab === 'search' ? (
             <div className="search-container">
@@ -545,12 +625,17 @@ export default function SocialApp() {
             <div className="story status-add" style={{ cursor: 'pointer', textAlign: 'center', minWidth: '70px' }} onClick={() => statusUploadRef.current && statusUploadRef.current.click()}>
               <StatusRing isUploading={isStatusUploading}>
                 {isStatusUploading ? (
-                  <span className="spin-slow" style={{ fontSize: '24px' }}>⏳</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', borderRadius: '50%' }}>
+                     <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#fff' }}>{Math.round(statusUploadProgress)}%</span>
+                     <div style={{ width: '70%', height: '3px', background: '#333', marginTop: '4px', borderRadius: '2px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', background: '#00cc44', width: `${Math.round(statusUploadProgress)}%`, transition: 'width 0.2s' }}></div>
+                     </div>
+                  </div>
                 ) : (
                   <strong style={{ fontSize: '30px', color: '#f5d742' }}>+</strong>
                 )}
               </StatusRing>
-              <span style={{ fontSize: '12px', marginTop: '5px', display: 'block', color: '#fff' }}>Upload Status</span>
+              <span style={{ fontSize: '12px', marginTop: '5px', display: 'block', color: '#fff' }}>{isStatusUploading ? 'Uploading...' : 'New Reel'}</span>
               <input type="file" ref={statusUploadRef} style={{ display: 'none' }} accept="video/*" onChange={handleStatusUpload} />
             </div>
 
@@ -610,8 +695,8 @@ export default function SocialApp() {
                   <div className="post-body">
                     {post.title && !post.title.includes('Untitled') && !post.title.includes('ModeBook') && !post.content?.startsWith(post.title?.replace(/...$/, '')) && (<h4>{post.title}</h4>)}
                     <p>{post.excerpt || post.content}</p>
-                    {post.cover_image_url && (
-                      <img loading="lazy" src={resolveMediaUrl(post.cover_image_url)} alt={post.title} className="post-image" />
+                    {(post.cover_image_url || post.image_url) && (
+                      <img loading="lazy" src={resolveMediaUrl(post.cover_image_url || post.image_url)} alt={post.title} className="post-image" />
                     )}
                   </div>
                   <div className="post-actions">
