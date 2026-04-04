@@ -7,7 +7,7 @@ import { s3Client, hasR2Config, generatePresignedUrl } from './r2.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
-import { initDb, Admin, News, Reel, SiteSettings } from './db.js';
+import { initDb, Admin, News, Reel, SiteSettings, Status } from './db.js';
 import { requireAuth, signToken } from './middleware/auth.js';
 import { slugify, ensureUniqueSlug } from './utils/slug.js';
 import { getReadingTime } from './utils/readingTime.js';
@@ -1327,5 +1327,59 @@ app.post('/api/reels/:id/save', async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// --- STATUS (STORIES ON MAIN PAGE) ---
+app.get('/api/status', async (req, res) => {
+  try {
+    const statuses = await Status.find().sort({ created_at: -1 }).lean();
+    res.json({ data: statuses.map(s => ({ ...s, id: s._id.toString(), _id: undefined })) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch statuses' });
+  }
+});
+
+app.post('/api/status', requireAuth, upload.single('media'), async (req, res) => {
+  try {
+    const creator = await Admin.findById(req.adminId);
+    if (!creator) return res.status(404).json({ error: 'User not found' });
+    
+    let mediaUrl = '';
+    let type = 'image';
+    if (req.file) {
+      if (req.file.mimetype && req.file.mimetype.startsWith('video')) type = 'video';
+      mediaUrl = hasR2Config
+        ? `${R2_PUBLIC_URL}/${req.file.key}`
+        : `data:${req.file.mimetype || 'image/jpeg'};base64,${req.file.buffer.toString('base64')}`;
+    } else {
+      return res.status(400).json({ error: 'Media file is required' });
+    }
+
+    const newStatus = await Status.create({
+      creator_id: creator._id.toString(),
+      creator_name: creator.name || 'ModeBook User',
+      creator_avatar: creator.avatar_url || '',
+      media_url: mediaUrl,
+      type,
+      caption: req.body.caption || ''
+    });
+
+    res.json({ data: newStatus.toJSON() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create status' });
+  }
+});
+
+app.post('/api/status/:id/view', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'User ID required' });
+    
+    await Status.findByIdAndUpdate(req.params.id, { $addToSet: { viewers: userId } });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update view' });
   }
 });

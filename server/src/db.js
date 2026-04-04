@@ -128,6 +128,29 @@ reelSchema.set('toJSON', {
 
 export const Reel = mongoose.model('Reel', reelSchema);
 
+const statusSchema = new mongoose.Schema({
+  creator_id: { type: String, required: true },
+  creator_name: { type: String, default: "ModeBook User" },
+  creator_avatar: { type: String, default: "" },
+  media_url: { type: String, required: true },
+  type: { type: String, default: "image" },
+  caption: { type: String, default: "" },
+  viewers: { type: [String], default: [] },
+  expires_at: { type: Date, default: () => new Date(Date.now() + 24*60*60*1000) },
+}, { timestamps: { createdAt: "created_at", updatedAt: "updated_at" } });
+
+statusSchema.index({ expires_at: 1 }, { expireAfterSeconds: 0 });
+
+statusSchema.set("toJSON", {
+  transform: (document, returnedObject) => {
+    returnedObject.id = returnedObject._id.toString();
+    delete returnedObject._id;
+    delete returnedObject.__v;
+  }
+});
+
+export const Status = mongoose.model("Status", statusSchema);
+
 const siteSettingsSchema = new mongoose.Schema({
   site_name: { type: String, default: 'ALOK' },
   site_subtitle: { type: String, default: 'बीजेएमसी न्यूज़' },

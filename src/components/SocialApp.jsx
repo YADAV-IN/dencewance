@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './SocialApp.css';
 import ReelsViewer from './ReelsViewer';
 import CreateInstagramMenu from './CreateInstagramMenu';
@@ -101,6 +101,61 @@ export default function SocialApp() {
   const [searchResults, setSearchResults] = useState({ users: [], posts: [], reels: [] });
   const [isSearching, setIsSearching] = useState(false);
   const [recommendations, setRecommendations] = useState({ tags: [], reels: [] });
+  const statusUploadRef = useRef(null);
+  const [isStatusUploading, setIsStatusUploading] = useState(false);
+
+  const handleStatusUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setIsStatusUploading(true);
+    
+    // Create FormData
+    const formData = new FormData();
+    formData.append('media', file);
+    
+    try {
+      const res = await fetch(`${API_URL}/api/status`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStories(prev => {
+           let updated = [...prev];
+           // Remove demo reels if they exist
+           if (updated === demoReels) updated = [];
+           updated.unshift(data.data);
+           return updated;
+        });
+      } else {
+        alert(data.error || 'Upload failed');
+      }
+    } catch(err) {
+      console.error('Status upload error', err);
+      alert('Network error');
+    } finally {
+      setIsStatusUploading(false);
+      if (statusUploadRef.current) statusUploadRef.current.value = '';
+    }
+  };
+
+  const markStatusSeen = (statusId) => {
+    if (!adminId) return;
+    fetch(`${API_URL}/api/status/${statusId}/view`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: adminId })
+    }).catch(e => console.error(e));
+    
+    setStories(prev => prev.map(s => {
+       if ((s.id || s._id) === statusId) {
+         return { ...s, viewers: [...(s.viewers || []), adminId] };
+       }
+       return s;
+    }));
+  };
+
   useEffect(() => {
     if (activeTab === 'search') {
       fetch(`${API_URL}/api/recommendations`)
@@ -133,7 +188,7 @@ export default function SocialApp() {
 
     Promise.all([
       // Fetch video stories (reels) from backend Cloudflare integration
-      fetch(`${API_URL}/api/reels`)
+      fetch(`${API_URL}/api/status`)
         .then(res => res.json())
         .then(data => {
           if (data && Array.isArray(data.data) && data.data.length > 0) {
@@ -447,33 +502,62 @@ export default function SocialApp() {
           ) : (
             <>
               {/* Stories Section Dropdown top */}
-              <section className="stories-container">
+              <section className="stories-container" style={{ display: 'flex', overflowX: 'auto', gap: '15px', padding: '15px 20px', alignItems: 'center' }}>
+            <div className="story status-add" style={{ cursor: 'pointer', textAlign: 'center', minWidth: '70px' }} onClick={() => statusUploadRef.current && statusUploadRef.current.click()}>
+              <div className="story-ring" style={{ width: '65px', height: '65px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3px', background: 'linear-gradient(135deg, #f5d742 0%, #c59715 50%, #997104 100%)', borderRadius: '50%' }}>
+                <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {isStatusUploading ? (
+                    <span className="spin-slow" style={{ fontSize: '24px' }}>⏳</span>
+                  ) : (
+                    <strong style={{ fontSize: '30px', color: '#f5d742' }}>+</strong>
+                  )}
+                </div>
+              </div>
+              <span style={{ fontSize: '12px', marginTop: '5px', display: 'block', color: '#fff' }}>Upload Status</span>
+              <input type="file" ref={statusUploadRef} style={{ display: 'none' }} accept="image/*,video/*" onChange={handleStatusUpload} />
+            </div>
+
             {stories.length > 0 ? (
-              stories.map((story, i) => (
-                <div 
+              stories.map((story, i) => {
+                const hasSeen = story.viewers && adminId && story.viewers.includes(adminId);
+                return (
+                 <div 
                   className="story" 
                   key={story._id || i} 
                   onClick={() => {
-                    if (story.video_url) {
-                      setActiveStoryIndex(i);
-                      setActiveTab('stories');
-                    }
+                    markStatusSeen(story.id || story._id);
+                    setActiveStoryIndex(i);
+                    setActiveTab('stories');
                   }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="story-ring">
-                    <img src={resolveMediaUrl(story.cover_image_url) || `https://i.pravatar.cc/150?img=${i + 20}`} alt={story.title} />
+                  style={{ cursor: 'pointer', textAlign: 'center', minWidth: '70px' }}
+                 >
+                  <div className="story-ring" style={{
+                    padding: '3px',
+                    borderRadius: '50%',
+                    width: '65px', height: '65px',
+                    margin: '0 auto',
+                    background: hasSeen ? '#555' : 'linear-gradient(45deg, #0066ff, #ffff00, #ff007f, #00cc44)',
+                    animation: hasSeen ? 'none' : 'spin 4s linear infinite'
+                  }}>
+                    <img 
+                      src={resolveMediaUrl(story.media_url || story.cover_image_url) || `https://i.pravatar.cc/150?img=${i + 20}`} 
+                      alt={story.title || 'Status'} 
+                      style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '2px solid #111' }}
+                    />
                   </div>
-                  <span>{story.creator_name || story.title ? story.title.substring(0, 10) : 'Story'}</span>
-                </div>
-              ))
+                  <span style={{ fontSize: '12px', marginTop: '5px', display: 'block', color: '#ccc' }}>
+                    {story.creator_name || story.title ? (story.creator_name || story.title).substring(0, 8) : 'Status'}
+                  </span>
+                 </div>
+                );
+              })
             ) : (
-              ['Preetam', 'Arya', 'Karan', 'Dev', 'Mira'].map((name, i) => (
-                <div className="story" key={i}>
-                  <div className="story-ring">
-                    <img src={`https://i.pravatar.cc/150?img=${i + 20}`} alt={name} />
+              ['Loading...'].map((name, i) => (
+                <div className="story" key={i} style={{ textAlign: 'center', minWidth: '70px', opacity: 0.5 }}>
+                  <div className="story-ring" style={{ border: '2px solid #555', padding: '3px', borderRadius: '50%', width: '65px', height: '65px', margin: '0 auto' }}>
+                    <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: '#333' }}></div>
                   </div>
-                  <span>{name}</span>
+                  <span style={{ fontSize: '12px', marginTop: '5px', display: 'block' }}>{name}</span>
                 </div>
               ))
             )}
