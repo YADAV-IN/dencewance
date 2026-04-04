@@ -81,11 +81,17 @@ export default function ProfileDashboard() {
         body: JSON.stringify({ email, password })
       });
       const data = await res.json();
-      if (res.ok && data.token) {
-        localStorage.setItem('adminToken', data.token);
-        localStorage.setItem('adminId', data.admin.id || data.admin._id);
-        setToken(data.token);
-        setAdminId(data.admin.id || data.admin._id);
+      const authToken = data?.data?.token || data?.token;
+      const authProfile = data?.data?.profile || data?.admin;
+      const resolvedAdminId = authProfile?.id || authProfile?._id || '';
+
+      if (res.ok && authToken) {
+        localStorage.setItem('adminToken', authToken);
+        if (resolvedAdminId) {
+          localStorage.setItem('adminId', resolvedAdminId);
+        }
+        setToken(authToken);
+        setAdminId(resolvedAdminId);
       } else {
         alert(data.error || 'Login failed');
       }
