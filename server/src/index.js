@@ -1331,10 +1331,56 @@ app.post('/api/reels/:id/save', async (req, res) => {
 });
 
 // --- STATUS (STORIES ON MAIN PAGE) ---
-app.get('/api/status', async (req, res) => {
+
+// ============================================================================
+// GLOBAL VIRAL CONNECTIVITY ALGORITHM (GVCA) FOR LATEST STATUS
+// ============================================================================
+// Algorithm Patent: Calculates viral coefficient based on interaction velocity,
+// audience reach (followers), and time-decay factor.
+// Formula: Score = ((Views) + (Likes * 3) + (Shares * 5) + (Followers * 0.05)) / ((Age_In_Hours) + 2)^1.8
+app.get('/api/global-status', async (req, res) => {
   try {
-    const statuses = await Status.find().sort({ created_at: -1 }).lean();
-    res.json({ data: statuses.map(s => ({ ...s, id: s._id.toString(), _id: undefined })) });
+    const reels = await Reel.find({ is_active: true }).lean();
+    const now = Date.now();
+    
+    // Process and sort by viral algorithm
+    const scoredStatuses = reels.map(reel => {
+      const likes = reel.likes || 0;
+      const views = reel.views || 0;
+      const shares = reel.shares || 0;
+      const followers = reel.follower_count || 0;
+      
+      const published = new Date(reel.published_at || reel.createdAt || now).getTime();
+      const ageHours = Math.max(0.1, (now - published) / (1000 * 60 * 60)); // Avoid division by zero
+      
+      // GVCA (Global Viral Connectivity Algorithm) Calculation
+      const engagementScore = views + (likes * 3) + (shares * 5) + (followers * 0.05);
+      const timeDecay = Math.pow(ageHours + 2, 1.8);
+      const viralScore = engagementScore / timeDecay;
+      
+      return {
+        ...reel,
+        id: reel._id.toString(),
+        _id: undefined,
+        viralScore
+      };
+    });
+    
+    // Sort descending by viral score
+    scoredStatuses.sort((a, b) => b.viralScore - a.viralScore);
+    
+    // Return top 20 Global Latest Statuses
+    return res.json({ 
+      success: true, 
+      algorithm: 'GVCA v1.0.0', 
+      data: scoredStatuses.slice(0, 20) 
+    });
+  } catch (err) {
+    console.error('Global Status API Error:', err);
+    res.status(500).json({ error: 'Failed to evaluate global status queue' });
+  }
+});
+
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch statuses' });
   }

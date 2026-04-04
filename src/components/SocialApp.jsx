@@ -213,7 +213,7 @@ export default function SocialApp() {
 
     Promise.all([
       // Fetch Statuses
-      fetch(`${API_URL}/api/status`)
+      fetch(`${API_URL}/api/global-status`)
         .then(res => res.json())
         .then(data => {
           if (data && Array.isArray(data.data)) {
@@ -551,7 +551,7 @@ export default function SocialApp() {
                 )}
               </StatusRing>
               <span style={{ fontSize: '12px', marginTop: '5px', display: 'block', color: '#fff' }}>Upload Status</span>
-              <input type="file" ref={statusUploadRef} style={{ display: 'none' }} accept="image/*,video/*" onChange={handleStatusUpload} />
+              <input type="file" ref={statusUploadRef} style={{ display: 'none' }} accept="video/*" onChange={handleStatusUpload} />
             </div>
 
             {statuses.length > 0 ? (
