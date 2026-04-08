@@ -15,7 +15,7 @@
   justify-items: center;
   gap: 10px;
   background:
-    radial-gradient(circle at 16% 24%, rgba(245, 158, 11, 0.26), transparent 34%),
+    radial-gradient(circle at 16% 24%, rgba(245, 159, 11, 0.281), transparent 34%),
     radial-gradient(circle at 84% 78%, rgba(236, 72, 153, 0.22), transparent 36%),
     #030303;
   animation: splashFadeOut 0.42s ease 1.25s forwards;

@@ -1183,7 +1183,7 @@ app.delete('/api/reels/cleanup-junk', requireAuth, async (req, res) => {
 
 app.get('/api/settings', async (req, res) => {
   try {
-    const settings = await SiteSettings.findOne().sort({ created_at: -1 }).lean();
+    const settings = await SiteSettings.findOne();
     if (!settings) return res.json({ data: null });
     return res.json({ data: { ...settings, id: settings._id.toString(), _id: undefined, __v: undefined } });
   } catch (error) {

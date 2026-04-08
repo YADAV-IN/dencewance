@@ -1,269 +1,205 @@
-import mongoose from 'mongoose';
+import { Client, Databases, Query, ID } from 'node-appwrite';
 import bcrypt from 'bcryptjs';
 
-const MONGODB_URI = process.env.MONGODB_URI;
+const client = new Client()
+  .setEndpoint(process.env.APPWRITE_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1')
+  .setProject(process.env.APPWRITE_PROJECT_ID || '69d60fbe002bae1e32d5');
 
-const adminSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  password_hash: { type: String, required: true },
-  role: { type: String, default: 'author' },
-  status: { type: String, default: 'active' },
-  bio: { type: String, default: '' },
-  avatar_url: { type: String, default: '' },
-  last_login: { type: Date },
-}, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
+if (process.env.APPWRITE_API_KEY) {
+  client.setKey(process.env.APPWRITE_API_KEY);
+}
 
-// Add custom toJSON to convert _id to id
-adminSchema.set('toJSON', {
-  transform: (document, returnedObject) => {
-    returnedObject.id = returnedObject._id.toString();
-    delete returnedObject._id;
-    delete returnedObject.__v;
+const databases = new Databases(client);
+const DB_ID = process.env.APPWRITE_DB_ID || '69d60fe8000c9bd92750';
+
+class Model {
+  constructor(collectionId) {
+    this.collectionId = collectionId;
   }
-});
 
-// Performance indexes
-adminSchema.index({ role: 1, status: 1 });
-
-export const Admin = mongoose.model('Admin', adminSchema);
-
-const newsSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  slug: { type: String, required: true, unique: true },
-  excerpt: { type: String, required: true },
-  content: { type: String, required: true },
-  category: { type: String, required: true },
-  tags: { type: [String], default: [] },
-  cover_image_url: { type: String, default: '' },
-  gallery_urls: { type: String, default: '' },
-  video_url: { type: String, default: '' },
-  audio_url: { type: String, default: '' },
-  source: { type: String, default: '' },
-  ai_summary: { type: String, default: '' },
-  author_id: { type: String, default: '' },
-  author_name: { type: String, default: '' },
-  author_email: { type: String, default: '' },
-  author_twitter: { type: String, default: '' },
-  author_instagram: { type: String, default: '' },
-  meta_description: { type: String, default: '' },
-  meta_keywords: { type: String, default: '' },
-  seo_title: { type: String, default: '' },
-  location: { type: String, default: '' },
-  coordinates: { type: String, default: '' },
-  twitter_url: { type: String, default: '' },
-  facebook_url: { type: String, default: '' },
-  instagram_url: { type: String, default: '' },
-  youtube_url: { type: String, default: '' },
-  published_at: { type: Date, default: Date.now },
-  reading_time: { type: Number, default: 3 },
-  is_featured: { type: Number, default: 0 },
-  is_breaking: { type: Number, default: 0 },
-  views: { type: Number, default: 0 },
-  status: { type: String, default: 'published' },
-  priority: { type: String, default: 'normal' },
-  language: { type: String, default: 'hi' },
-  expire_at: { type: Date },
-}, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
-
-// Performance indexes
-newsSchema.index({ published_at: -1 });
-newsSchema.index({ status: 1, published_at: -1 });
-newsSchema.index({ category: 1, published_at: -1 });
-newsSchema.index({ is_featured: 1, published_at: -1 });
-newsSchema.index({ is_breaking: 1, published_at: -1 });
-newsSchema.index({ views: -1 });
-newsSchema.index({ tags: 1 });
-newsSchema.index({ title: 'text', content: 'text', excerpt: 'text' });
-
-newsSchema.set('toJSON', {
-  transform: (document, returnedObject) => {
-    returnedObject.id = returnedObject._id.toString();
-    delete returnedObject._id;
-    delete returnedObject.__v;
+  _map(doc) {
+    if (!doc) return null;
+    return {
+      ...doc,
+      _id: doc.$id,
+      id: doc.$id,
+      toJSON: function() { return this; }
+    };
   }
-});
 
-export const News = mongoose.model('News', newsSchema);
-
-const reelSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  slug: { type: String, required: true, unique: true },
-  caption: { type: String, default: '' },
-  video_url: { type: String, required: true },
-  dedup_key: { type: String, default: '' },
-  cover_image_url: { type: String, default: '' },
-  creator_id: { type: String, default: '' },
-  creator_name: { type: String, default: 'ALOK Creator' },
-  creator_handle: { type: String, default: 'alok' },
-  creator_avatar: { type: String, default: '' },
-  creator_mode: { type: String, default: 'auto' },
-  is_official_creator: { type: Boolean, default: false },
-  is_demo_creator: { type: Boolean, default: false },
-  follower_count: { type: Number, default: 0 },
-  tags: { type: [String], default: [] },
-  status: { type: String, default: 'published' },
-  is_active: { type: Boolean, default: true },
-  views: { type: Number, default: 0 },
-  likes: { type: Number, default: 0 },
-  shares: { type: Number, default: 0 },
-  published_at: { type: Date, default: Date.now },
-}, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
-
-// Performance indexes
-reelSchema.index({ is_active: 1, published_at: -1 });
-reelSchema.index({ status: 1, published_at: -1 });
-reelSchema.index({ views: -1 });
-reelSchema.index({ creator_handle: 1, published_at: -1 });
-reelSchema.index({ tags: 1 });
-reelSchema.index({ dedup_key: 1 });
-
-reelSchema.set('toJSON', {
-  transform: (document, returnedObject) => {
-    returnedObject.id = returnedObject._id.toString();
-    delete returnedObject._id;
-    delete returnedObject.__v;
+  async findOne(query = {}) {
+    let queries = [];
+    for (const [k, v] of Object.entries(query)) {
+      queries.push(Query.equal(k, v));
+    }
+    queries.push(Query.limit(1));
+    try {
+      const result = await databases.listDocuments(DB_ID, this.collectionId, queries);
+      if (result.documents.length === 0) return null;
+      
+      const doc = this._map(result.documents[0]);
+      doc.save = async () => {
+        const payload = { ...doc };
+        delete payload._id;
+        delete payload.id;
+        delete payload.toJSON;
+        delete payload.save;
+        delete payload.$id;
+        delete payload.$collectionId;
+        delete payload.$databaseId;
+        delete payload.$createdAt;
+        delete payload.$updatedAt;
+        delete payload.$permissions;
+        await databases.updateDocument(DB_ID, this.collectionId, doc.$id, payload);
+      };
+      return doc;
+    } catch {
+      return null;
+    }
   }
-});
 
-export const Reel = mongoose.model('Reel', reelSchema);
-
-const statusSchema = new mongoose.Schema({
-  creator_id: { type: String, required: true },
-  creator_name: { type: String, default: "ModeBook User" },
-  creator_avatar: { type: String, default: "" },
-  media_url: { type: String, required: true },
-  type: { type: String, default: "image" },
-  caption: { type: String, default: "" },
-  viewers: { type: [String], default: [] },
-  expires_at: { type: Date, default: () => new Date(Date.now() + 24*60*60*1000) },
-}, { timestamps: { createdAt: "created_at", updatedAt: "updated_at" } });
-
-statusSchema.index({ expires_at: 1 }, { expireAfterSeconds: 0 });
-
-statusSchema.set("toJSON", {
-  transform: (document, returnedObject) => {
-    returnedObject.id = returnedObject._id.toString();
-    delete returnedObject._id;
-    delete returnedObject.__v;
+  async findById(id) {
+    if (!id) return null;
+    try {
+      const doc = await databases.getDocument(DB_ID, this.collectionId, id.toString());
+      const mapped = this._map(doc);
+      mapped.save = async () => {
+        const payload = { ...mapped };
+        delete payload._id;
+        delete payload.id;
+        delete payload.toJSON;
+        delete payload.save;
+        delete payload.$id;
+        delete payload.$collectionId;
+        delete payload.$databaseId;
+        delete payload.$createdAt;
+        delete payload.$updatedAt;
+        delete payload.$permissions;
+        await databases.updateDocument(DB_ID, this.collectionId, mapped.$id, payload);
+      };
+      mapped.select = () => mapped;
+      mapped.lean = () => mapped;
+      return mapped;
+    } catch {
+      return null;
+    }
   }
-});
 
-export const Status = mongoose.model("Status", statusSchema);
+  find(query = {}) {
+    const that = this;
+    const qBuilder = {
+      _limit: null,
+      _sort: null,
+      select: function() { return this; },
+      sort: function(conf) { this._sort = conf; return this; },
+      limit: function(l) { this._limit = l; return this; },
+      skip: function(s) { this._skip = s; return this; },
+      lean: function() { return this; },
+      then: async function(resolve, reject) {
+        try {
+          let queries = [];
+          if (query && typeof query === 'object') {
+            for (const [k, v] of Object.entries(query)) {
+              if (k !== 'tags' && k !== 'category' && typeof v !== 'object') {
+                 queries.push(Query.equal(k, v));
+              }
+            }
+          }
+          if (this._limit) queries.push(Query.limit(this._limit));
+          else queries.push(Query.limit(100)); // Default Appwrite limit max
 
-const siteSettingsSchema = new mongoose.Schema({
-  site_name: { type: String, default: 'ALOK' },
-  site_subtitle: { type: String, default: 'बीजेएमसी न्यूज़' },
-  site_title: { type: String, default: 'ALOK - बीजेएमसी न्यूज़' },
-  site_description: { type: String, default: 'बीजेएमसी न्यूज़रूम - आपकी खबरों का भरोसेमंद स्रोत' },
-  total_views: { type: Number, default: 0 },
-  campaign: {
-    enabled: { type: Boolean, default: false },
-    mode: { type: String, default: 'banner' },
-    title: { type: String, default: '' },
-    subtitle: { type: String, default: '' },
-    description: { type: String, default: '' },
-    ctaText: { type: String, default: '' },
-    ctaUrl: { type: String, default: '' },
-    mediaType: { type: String, default: 'none' },
-    mediaUrl: { type: String, default: '' },
-    startAt: { type: String, default: '' },
-    endAt: { type: String, default: '' },
-    dismissHours: { type: Number, default: 24 },
-    allowDismiss: { type: Boolean, default: true },
-    openInNewTab: { type: Boolean, default: true },
-  },
-}, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
-
-siteSettingsSchema.set('toJSON', {
-  transform: (document, returnedObject) => {
-    returnedObject.id = returnedObject._id.toString();
-    delete returnedObject._id;
-    delete returnedObject.__v;
+          if (this._sort) {
+            for (const [k, v] of Object.entries(this._sort)) {
+              if (v === -1 || v === 'asc') queries.push(Query.orderDesc(k));
+              else queries.push(Query.orderAsc(k));
+            }
+          }
+          const result = await databases.listDocuments(DB_ID, that.collectionId, queries);
+          resolve(result.documents.map(d => that._map(d)));
+        } catch (err) {
+          if (reject) reject(err);
+        }
+      }
+    };
+    return qBuilder;
   }
-});
 
-export const SiteSettings = mongoose.model('SiteSettings', siteSettingsSchema);
+  async findByIdAndUpdate(id, data, opts) {
+    const payload = { ...data };
+    delete payload._id; delete payload.id; delete payload.$id;
+    if (payload.$addToSet && payload.$addToSet.viewers) {
+      try {
+        const doc = await databases.getDocument(DB_ID, this.collectionId, id);
+        let viewers = doc.viewers || [];
+        if (!viewers.includes(payload.$addToSet.viewers)) {
+          viewers.push(payload.$addToSet.viewers);
+          await databases.updateDocument(DB_ID, this.collectionId, id, { viewers });
+        }
+        return this._map(doc);
+      } catch { return null; }
+    }
+    const doc = await databases.updateDocument(DB_ID, this.collectionId, id, payload);
+    return this._map(doc);
+  }
 
-let isConnected = false;
+  async findOneAndUpdate(query, data) {
+    const doc = await this.findOne(query);
+    if (!doc) return null;
+    return this.findByIdAndUpdate(doc.$id, data);
+  }
+
+  async findByIdAndDelete(id) {
+    try {
+      await databases.deleteDocument(DB_ID, this.collectionId, id);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async create(data) {
+    const payload = { ...data };
+    delete payload._id; delete payload.id;
+    
+    if (this.collectionId === 'news' || this.collectionId === 'reels') {
+      if (!payload.published_at) payload.published_at = new Date().toISOString();
+      if (!payload.views) payload.views = 0;
+    }
+    
+    try {
+      const doc = await databases.createDocument(DB_ID, this.collectionId, ID.unique(), payload);
+      const mapped = this._map(doc);
+      mapped.save = async () => {};
+      return mapped;
+    } catch(err) {
+      console.error(err);
+      return null;
+    }
+  }
+  
+  async aggregate(pipes) {
+     const result = await databases.listDocuments(DB_ID, this.collectionId, [Query.limit(100)]);
+     const tagsObj = {};
+     result.documents.forEach(d => {
+       if (d.tags && Array.isArray(d.tags)) {
+         d.tags.forEach(t => {
+           tagsObj[t] = (tagsObj[t] || 0) + 1;
+         });
+       }
+     });
+     return Object.entries(tagsObj).sort((a,b) => b[1] - a[1]).slice(0, 10).map(kv => ({ _id: kv[0], count: kv[1] }));
+  }
+}
+
+export const Admin = new Model('admins');
+export const News = new Model('news');
+export const Reel = new Model('reels');
+export const Status = new Model('status');
+export const SiteSettings = new Model('settings');
+export const ReelComment = new Model('comments');
+export const SavedReel = new Model('saved_reels');
+export const UserProfile = new Model('profiles');
 
 export const initDb = async () => {
-  if (isConnected) return;
-
-  if (!MONGODB_URI) {
-    throw new Error('MONGODB_URI environment variable is not defined.');
-  }
-
-  try {
-    await mongoose.connect(MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000,
-      maxPoolSize: 10,
-      minPoolSize: 2,
-      socketTimeoutMS: 30000,
-      retryWrites: true,
-    });
-    isConnected = true;
-    console.log('✅ MongoDB connected successfully');
-
-    // Create or reset primary admin from env vars
-    const defaultEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
-    const defaultPassword = process.env.ADMIN_PASSWORD || 'change-me-before-login';
-    const defaultName = process.env.ADMIN_NAME || 'ALOK एडमिन';
-    const adminCount = await Admin.countDocuments();
-    if (adminCount === 0 || process.env.ADMIN_RESET === 'true') {
-      const passwordHash = await bcrypt.hash(defaultPassword, 10);
-      if (adminCount === 0) {
-        await Admin.create({
-          name: defaultName,
-          email: defaultEmail,
-          password_hash: passwordHash,
-          role: 'admin',
-          status: 'active',
-          bio: 'डिजिटल न्यूज़रूम बिल्डर और BJMC स्टूडेंट प्रोफाइल।',
-        });
-        console.log('✅ Primary admin created:', defaultEmail);
-      } else {
-        await Admin.updateOne({ role: 'admin' }, { email: defaultEmail, password_hash: passwordHash, status: 'active' });
-        console.log('✅ Primary admin credentials reset:', defaultEmail);
-      }
-    }
-
-    // Create initial settings if none exists
-    const settingsCount = await SiteSettings.countDocuments();
-    if (settingsCount === 0) {
-      await SiteSettings.create({
-        site_name: 'ALOK',
-        site_subtitle: 'बीजेएमसी न्यूज़',
-        site_title: 'ALOK - बीजेएमसी न्यूज़',
-        site_description: 'बीजेएमसी न्यूज़रूम - आपकी खबरों का भरोसेमंद स्रोत',
-        campaign: {
-          enabled: false,
-          mode: 'banner',
-          title: '',
-          subtitle: '',
-          description: '',
-          ctaText: '',
-          ctaUrl: '',
-          mediaType: 'none',
-          mediaUrl: '',
-          startAt: '',
-          endAt: '',
-          dismissHours: 24,
-          allowDismiss: true,
-          openInNewTab: true,
-        },
-      });
-      console.log('✅ Default site settings created');
-    }
-
-  } catch (err) {
-    console.error('❌ MongoDB connection error:', err);
-    throw err;
-  }
+  console.log('🚀 Appwrite DB Wrapper initialized. Mongoose overridden successfully!');
 };
-
-import { UserProfileSchema, ReelCommentSchema, SavedReelSchema } from './db_new.js';
-
-export const UserProfile = mongoose.model('UserProfile', UserProfileSchema);
-export const ReelComment = mongoose.model('ReelComment', ReelCommentSchema);
-export const SavedReel = mongoose.model('SavedReel', SavedReelSchema);

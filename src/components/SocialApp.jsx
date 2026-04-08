@@ -72,44 +72,33 @@ export const BellIcon = () => (
   </svg>
 );
 
-// Animated ModeBook Logo (Scalable via props)
+// Modern Professional ModeBook Logo
 export const ModeBookLogo = ({ width = 60, height = 60 }) => (
-  <svg className="modebook-logo-animated" viewBox="0 0 100 100" width={width} height={height} xmlns="http://www.w3.org/2000/svg">
+  <svg viewBox="0 0 100 100" width={width} height={height} xmlns="http://www.w3.org/2000/svg" className="shadow-sm rounded-2xl">
     <defs>
-      <linearGradient id="multiColorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#0066ff" />   {/* Nila (Blue) */}
-        <stop offset="33%" stopColor="#ffff00" />  {/* Peela (Yellow) */}
-        <stop offset="66%" stopColor="#ff007f" />  {/* Gulabi (Pink) */}
-        <stop offset="100%" stopColor="#00cc44" /> {/* Hara (Green) */}
+      <linearGradient id="modernGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#2563EB" />
+        <stop offset="100%" stopColor="#4F46E5" />
       </linearGradient>
     </defs>
-    <g transform="translate(50, 50)">
-      <circle cx="0" cy="0" r="42" fill="none" stroke="url(#multiColorGrad)" strokeWidth="4" className="spin-slow" strokeDasharray="15 5" />
-      <circle cx="0" cy="0" r="34" fill="none" stroke="url(#multiColorGrad)" strokeWidth="3" className="spin-reverse" strokeDasharray="4 8" />
-      <polygon points="0,-22 19,11 -19,11" fill="none" stroke="url(#multiColorGrad)" strokeWidth="3" className="pulse-glow" />
-      <polygon points="0,22 19,-11 -19,-11" fill="none" stroke="url(#multiColorGrad)" strokeWidth="3" className="pulse-glow" />
-      <circle cx="0" cy="0" r="7" fill="url(#multiColorGrad)" className="pulse-glow" />
-    </g>
+    <rect x="10" y="10" width="80" height="80" rx="20" fill="url(#modernGrad)" />
+    <path d="M 30 65 L 30 35 L 50 55 L 70 35 L 70 65" fill="none" stroke="#FFFFFF" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
 export const StatusRing = ({ children, hasSeen = false, isUploading = false }) => {
-  const gradientId = "statusRingGrad" + (hasSeen ? "Grey" : "");
   return (
     <div style={{ position: 'relative', width: '65px', height: '65px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <svg viewBox="0 0 100 100" width="75" height="75" style={{ position: 'absolute', top: '-5px', left: '-5px', pointerEvents: 'none' }} xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={hasSeen ? "#555" : "#0066ff"} />
-            <stop offset="33%" stopColor={hasSeen ? "#555" : "#ffff00"} />
-            <stop offset="66%" stopColor={hasSeen ? "#555" : "#ff007f"} />
-            <stop offset="100%" stopColor={hasSeen ? "#555" : "#00cc44"} />
-          </linearGradient>
-        </defs>
-        <g transform="translate(50, 50)">
-          <circle cx="0" cy="0" r="42" fill="none" stroke={`url(#${gradientId})`} strokeWidth="4" className={hasSeen ? "" : "spin-slow"} strokeDasharray="15 5" />
-          <circle cx="0" cy="0" r="34" fill="none" stroke={`url(#${gradientId})`} strokeWidth="3" className={hasSeen ? "" : "spin-reverse"} strokeDasharray="4 8" />
-        </g>
+        <circle 
+          cx="50" cy="50" r="42" 
+          fill="none" 
+          stroke={hasSeen ? "#4B5563" : "#10B981"} 
+          strokeWidth="3" 
+          strokeLinecap="round"
+          strokeDasharray={hasSeen ? "none" : "20 5"}
+          className={hasSeen ? "" : "animate-[spin_4s_linear_infinite]"} 
+        />
       </svg>
       <div style={{ position: 'relative', zIndex: 1, width: '56px', height: '56px', borderRadius: '50%', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
         {children}
