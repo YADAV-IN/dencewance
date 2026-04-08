@@ -3,11 +3,16 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import multerS3 from 'multer-s3';
-import { s3Client, hasR2Config, generatePresignedUrl, listAllR2Files } from './r2.js';
+import { s3Client, hasR2Config as oldHasR2Config, generatePresignedUrl, listAllR2Files } from './r2.js';
+const hasR2Config = false; // Override to strictly force Appwrite storage
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
-import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel } from './db.js';
+import { client as appwriteClient, initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel } from './db.js';
+
+import { Storage, ID } from 'node-appwrite';
+import { InputFile } from 'node-appwrite/file';
+const appwriteStorage = new Storage(appwriteClient);
 import { requireAuth, signToken } from './middleware/auth.js';
 import { slugify, ensureUniqueSlug } from './utils/slug.js';
 import { getReadingTime } from './utils/readingTime.js';
@@ -284,15 +289,21 @@ app.put('/api/profile', requireAuth, async (req, res) => {
 
 app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
-  const avatarUrl = hasR2Config
-    ? `${R2_PUBLIC_URL}/${req.file.key}`
-    : `data:${req.file.mimetype || 'image/jpeg'};base64,${req.file.buffer.toString('base64')}`;
-  const admin = await Admin.findByIdAndUpdate(
-    req.adminId,
-    { avatar_url: avatarUrl },
-    { new: true }
-  );
-  return res.json({ data: admin.toJSON() });
+  try {
+    const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `avatar-${Date.now()}.png`);
+    const result = await appwriteStorage.createFile('alok_media', ID.unique(), fileObj);
+    const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/alok_media/files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
+    
+    const admin = await Admin.findByIdAndUpdate(
+      req.adminId,
+      { avatar_url: viewUrl },
+      { new: true }
+    );
+    return res.json({ data: admin.toJSON() });
+  } catch (error) {
+    console.error('Appwrite avatar upload error:', error);
+    return res.status(500).json({ error: 'Failed to upload avatar' });
+  }
 });
 
 // --- UNIFIED SEARCH ENDPOINT --- //
@@ -1072,42 +1083,36 @@ app.delete('/api/news/:id', requireAuth, async (req, res) => {
 app.post('/api/uploads/cover', requireAuth, upload.single('cover'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
-  if (hasR2Config) {
-    return res.json({ data: { url: `${R2_PUBLIC_URL}/${req.file.key}` } });
+  try {
+    const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `cover-${Date.now()}.png`);
+    const result = await appwriteStorage.createFile('alok_media', ID.unique(), fileObj);
+    const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/alok_media/files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
+    return res.json({ data: { url: viewUrl } });
+  } catch (error) {
+    console.error('Appwrite cover upload error:', error);
+    return res.status(500).json({ error: 'Failed to upload cover image' });
   }
-
-  if (!req.file.mimetype?.startsWith('image/')) {
-    return res.status(400).json({ error: 'Cover upload supports images only.' });
-  }
-
-  const dataUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-  return res.json({ data: { url: dataUrl } });
 });
 
 app.post('/api/uploads/media', requireAuth, upload.single('media'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No media file uploaded.' });
 
-  if (hasR2Config) {
-    const fileInfo = {
-      url: `${R2_PUBLIC_URL}/${req.file.key}`,
-      public_id: req.file.key,
-      resource_type: 'auto',
-      format: path.extname(req.file.originalname).substring(1) || '',
-      size: req.file.size || 0,
-      original_name: req.file.originalname || '',
-    };
-    return res.json({ data: fileInfo });
-  }
-
-  // No R2: only allow small files as base64 fallback
-  if (req.file.size > 4 * 1024 * 1024) {
-    return res.status(413).json({
-      error: 'R2 not configured. Without R2, max file size is 4MB. Large video uploads require R2.',
+  try {
+    const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `media-${Date.now()}.mp4`);
+    const result = await appwriteStorage.createFile('alok_media', ID.unique(), fileObj);
+    const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/alok_media/files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
+    
+    return res.json({
+      data: {
+        url: viewUrl,
+        original_name: req.file.originalname,
+        size: req.file.size
+      }
     });
+  } catch (error) {
+    console.error('Appwrite media upload error:', error);
+    return res.status(500).json({ error: 'Failed to upload media file' });
   }
-
-  const dataUrl = `data:${req.file.mimetype || 'application/octet-stream'};base64,${req.file.buffer.toString('base64')}`;
-  return res.json({ data: { url: dataUrl, original_name: req.file.originalname, size: req.file.size } });
 });
 
 // ── Sign a direct R2 upload (browser → R2, bypasses Vercel payload limit) ──
@@ -1427,9 +1432,10 @@ app.post('/api/status', requireAuth, upload.single('media'), async (req, res) =>
     let type = 'image';
     if (req.file) {
       if (req.file.mimetype && req.file.mimetype.startsWith('video')) type = 'video';
-      mediaUrl = hasR2Config
-        ? `${R2_PUBLIC_URL}/${req.file.key}`
-        : `data:${req.file.mimetype || 'image/jpeg'};base64,${req.file.buffer.toString('base64')}`;
+      
+      const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `status-${Date.now()}.${type === 'video' ? 'mp4' : 'png'}`);
+      const result = await appwriteStorage.createFile('alok_media', ID.unique(), fileObj);
+      mediaUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/alok_media/files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
     } else {
       return res.status(400).json({ error: 'Media file is required' });
     }
@@ -1445,7 +1451,7 @@ app.post('/api/status', requireAuth, upload.single('media'), async (req, res) =>
 
     res.json({ data: newStatus.toJSON() });
   } catch (err) {
-    console.error(err);
+    console.error('Appwrite Status upload error:', err);
     res.status(500).json({ error: 'Failed to create status' });
   }
 });

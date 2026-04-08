@@ -1,7 +1,7 @@
 import { Client, Databases, Query, ID } from 'node-appwrite';
 import bcrypt from 'bcryptjs';
 
-const client = new Client()
+export const client = new Client()
   .setEndpoint(process.env.APPWRITE_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1')
   .setProject(process.env.APPWRITE_PROJECT_ID || '69d60fbe002bae1e32d5');
 
@@ -30,8 +30,19 @@ class Model {
   async findOne(query = {}) {
     let queries = [];
     for (const [k, v] of Object.entries(query)) {
-      queries.push(Query.equal(k, v));
+      if (k === '$or' && Array.isArray(v)) {
+        // Mock $or by doing sequential lookups for simplistic Mongoose parity
+        for (const subQuery of v) {
+          const res = await this.findOne(subQuery);
+          if (res) return res;
+        }
+        return null;
+      } else if (k !== '$or') {
+        queries.push(Query.equal(k, v));
+      }
     }
+    if (queries.length === 0 && Object.keys(query).length > 0) return null;
+    
     queries.push(Query.limit(1));
     try {
       const result = await databases.listDocuments(DB_ID, this.collectionId, queries);
@@ -50,7 +61,10 @@ class Model {
         delete payload.$createdAt;
         delete payload.$updatedAt;
         delete payload.$permissions;
-        await databases.updateDocument(DB_ID, this.collectionId, doc.$id, payload);
+          
+          try {
+            await databases.updateDocument(DB_ID, this.collectionId, doc.$id, payload);
+          } catch(e) { console.error('Save error:', e); }
       };
       return doc;
     } catch {
@@ -75,7 +89,9 @@ class Model {
         delete payload.$createdAt;
         delete payload.$updatedAt;
         delete payload.$permissions;
-        await databases.updateDocument(DB_ID, this.collectionId, mapped.$id, payload);
+          try {
+            await databases.updateDocument(DB_ID, this.collectionId, mapped.$id, payload);
+          } catch(e) { console.error('Save mapped error:', e); }
       };
       mapped.select = () => mapped;
       mapped.lean = () => mapped;
@@ -125,7 +141,7 @@ class Model {
   }
 
   async findByIdAndUpdate(id, data, opts) {
-    const payload = { ...data };
+    let payload = { ...data };
     delete payload._id; delete payload.id; delete payload.$id;
     if (payload.$addToSet && payload.$addToSet.viewers) {
       try {
@@ -138,8 +154,26 @@ class Model {
         return this._map(doc);
       } catch { return null; }
     }
-    const doc = await databases.updateDocument(DB_ID, this.collectionId, id, payload);
-    return this._map(doc);
+    
+    const tryUpdate = async (currentPayload) => {
+      try {
+        const doc = await databases.updateDocument(DB_ID, this.collectionId, id, currentPayload);
+        return this._map(doc);
+      } catch(err) {
+        if (err.message && err.message.includes('Unknown attribute:')) {
+          const match = err.message.match(/Unknown attribute: "([^"]+)"/);
+          if (match && match[1]) {
+            const badAttr = match[1];
+            delete currentPayload[badAttr];
+            console.warn(`[Appwrite] Set stripping missing attribute "${badAttr}" from ${this.collectionId}`);
+            return tryUpdate(currentPayload);
+          }
+        }
+        console.error(`[Appwrite Update Error] in ${this.collectionId}:`, err);
+        return null;
+      }
+    };
+    return tryUpdate(payload);
   }
 
   async findOneAndUpdate(query, data) {
@@ -166,15 +200,27 @@ class Model {
       if (!payload.views) payload.views = 0;
     }
     
-    try {
-      const doc = await databases.createDocument(DB_ID, this.collectionId, ID.unique(), payload);
-      const mapped = this._map(doc);
-      mapped.save = async () => {};
-      return mapped;
-    } catch(err) {
-      console.error(err);
-      return null;
-    }
+    const tryInsert = async (currentPayload) => {
+      try {
+        const doc = await databases.createDocument(DB_ID, this.collectionId, ID.unique(), currentPayload);
+        const mapped = this._map(doc);
+        mapped.save = async () => {};
+        return mapped;
+      } catch(err) {
+        if (err.message && err.message.includes('Unknown attribute:')) {
+          const match = err.message.match(/Unknown attribute: "([^"]+)"/);
+          if (match && match[1]) {
+            const badAttr = match[1];
+            delete currentPayload[badAttr];
+            console.warn(`[Appwrite] Stripped unknown attribute "${badAttr}" from ${this.collectionId}`);
+            return tryInsert(currentPayload);
+          }
+        }
+        console.error(`[Appwrite] Create Error in ${this.collectionId}:`, err);
+        return null;
+      }
+    };
+    return tryInsert(payload);
   }
   
   async aggregate(pipes) {
@@ -201,5 +247,26 @@ export const SavedReel = new Model('saved_reels');
 export const UserProfile = new Model('profiles');
 
 export const initDb = async () => {
-  console.log('🚀 Appwrite DB Wrapper initialized. Mongoose overridden successfully!');
+  console.log('🚀 Appwrite DB Wrapper initialized. Overridden successfully!');
+  try {
+    const existingAdmin = await Admin.findOne();
+    if (!existingAdmin) {
+      console.log('No admin found, creating default from env...');
+      const defaultEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
+      const defaultPassword = process.env.ADMIN_PASSWORD || 'change-me-before-login';
+      const defaultName = process.env.ADMIN_NAME || 'Admin User';
+      const bcrypt = await import('bcryptjs');
+      const hashedPassword = await bcrypt.default.hash(defaultPassword, 10);
+      await Admin.create({
+        name: defaultName,
+        email: defaultEmail,
+        password_hash: hashedPassword,
+        status: 'active',
+        role: 'superadmin'
+      });
+      console.log('✅ Default superadmin configured in Appwrite');
+    }
+  } catch (error) {
+    console.error('Error in initDb:', error);
+  }
 };
