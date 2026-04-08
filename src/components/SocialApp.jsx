@@ -5,6 +5,7 @@ import CreateInstagramMenu from './CreateInstagramMenu';
 import ProfileDashboard from './ProfileDashboard';
 import { demoReels } from './demoData';
 import { uploadFileWithProgress } from '../utils/xhrUpload';
+import PYQAssistant from './PYQAssistant';
 
 // Vintage/Historical Custom SVG Icons
 export const HomeIcon = () => (
@@ -54,6 +55,14 @@ export const HeartIcon = () => (
 
 export const ShareIcon = () => (
   <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+);
+
+export const MoreVerticalIcon = () => (
+  <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="1.5"></circle>
+    <circle cx="12" cy="5" r="1.5"></circle>
+    <circle cx="12" cy="19" r="1.5"></circle>
+  </svg>
 );
 
 export const BellIcon = () => (
@@ -128,6 +137,8 @@ export default function SocialApp() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState({ users: [], posts: [], reels: [] });
   const [isSearching, setIsSearching] = useState(false);
+  const [showFeatureMenu, setShowFeatureMenu] = useState(false);
+  const [showPYQAssistant, setShowPYQAssistant] = useState(false);
   const [recommendations, setRecommendations] = useState({ tags: [], reels: [] });
   const statusUploadRef = useRef(null);
   const [isStatusUploading, setIsStatusUploading] = useState(false);
@@ -384,7 +395,7 @@ export default function SocialApp() {
         </div>
         
         {/* Opposite side Notification Bell */}
-        <div className="top-nav-actions">
+        <div className="top-nav-actions" style={{ position: 'relative' }}>
           <button className="icon-btn notification-btn" onClick={() => setActiveTab('messages')}>
             <ScrollIcon />
             <span className="notification-badge" style={{ backgroundColor: 'blue' }}>1</span>
@@ -393,6 +404,33 @@ export default function SocialApp() {
             <BellIcon />
             <span className="notification-badge">3</span>
           </button>
+          
+          <button className="icon-btn" onClick={() => setShowFeatureMenu(!showFeatureMenu)}>
+            <MoreVerticalIcon />
+          </button>
+
+          {showFeatureMenu && (
+            <div className="feature-dropdown-menu" style={{
+              position: 'absolute', top: '100%', right: '10px', marginTop: '10px',
+              backgroundColor: '#1E1E1E', border: '1px solid #333', borderRadius: '8px',
+              boxShadow: '0 5px 15px rgba(0,0,0,0.5)', zIndex: 100, minWidth: '160px',
+              padding: '8px 0', display: 'flex', flexDirection: 'column'
+            }}>
+              <button 
+                onClick={() => { setShowPYQAssistant(true); setShowFeatureMenu(false); }} 
+                style={{
+                  background: 'none', border: 'none', color: '#fff', padding: '10px 20px', 
+                  textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer',
+                  borderBottom: '1px solid #333'
+                }}
+                onMouseOver={e => e.currentTarget.style.backgroundColor = '#333'}
+                onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                🎓 DU PYQ AI <span style={{fontSize:'10px', background:'#B4A05D', padding:'2px 6px', borderRadius:'10px', color:'#111', fontWeight:'bold'}}>NEW</span>
+              </button>
+              {/* Additional dynamic feature buttons can go here in the future */}
+            </div>
+          )}
         </div>
       </header>
 
@@ -783,6 +821,11 @@ export default function SocialApp() {
         <button className={activeTab === 'add' ? 'active' : ''} onClick={() => setActiveTab('add')}><QuillIcon /></button>
         <button className={activeTab === 'profile' ? 'active' : ''} onClick={() => setActiveTab('profile')}><EyeIcon /></button>
       </nav>
+
+      {/* Render PYQ Assistant Modal conditionally */}
+      {showPYQAssistant && (
+        <PYQAssistant onClose={() => setShowPYQAssistant(false)} />
+      )}
     </div>
       )}
     </>

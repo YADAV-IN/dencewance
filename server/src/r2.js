@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID?.replace(/\\n/g, '')?.trim() || '';
@@ -35,4 +35,19 @@ export const generatePresignedUrl = async (key, contentType) => {
   const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
   const publicUrl = R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${key}` : `https://${R2_BUCKET_NAME}.${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`;
   return { uploadUrl, publicUrl };
+};
+
+export const listAllR2Files = async () => {
+  if (!s3Client) throw new Error('R2 not configured');
+  const command = new ListObjectsV2Command({
+    Bucket: R2_BUCKET_NAME,
+  });
+  const data = await s3Client.send(command);
+  if (!data.Contents) return [];
+  
+  return data.Contents.map(item => {
+    const key = item.Key;
+    const publicUrl = R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${key}` : `https://${R2_BUCKET_NAME}.${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`;
+    return { key, publicUrl, size: item.Size, lastModified: item.LastModified };
+  });
 };
