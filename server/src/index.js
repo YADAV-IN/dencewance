@@ -8,13 +8,11 @@ const hasR2Config = oldHasR2Config;
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
-import { client as appwriteClient, initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel } from './db.js';
-
-import { Storage, ID } from 'node-appwrite';
+import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel } from './db.js';
+import { storage as appwriteStorage, ID } from './appwrite.js';
 import { InputFile } from 'node-appwrite/file';
-const appwriteStorage = new Storage(appwriteClient);
 import { requireAuth, signToken } from './middleware/auth.js';
-import { slugify, ensureUniqueSlug } from './utils/slug.js';
+import { slugify } from './utils/slug.js';
 import { getReadingTime } from './utils/readingTime.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -83,7 +81,7 @@ const ensureDbInit = async () => {
 app.get('/api/health', async (req, res) => {
   const dbReady = dbInitialized;
   const config = {
-    mongodb: !!process.env.MONGODB_URI,
+    appwrite: !!process.env.APPWRITE_DB_ID,
     jwt: !!process.env.JWT_SECRET,
     r2: hasR2Config,
   };
@@ -313,30 +311,43 @@ app.get('/api/search', async (req, res) => {
     if (!q) {
       return res.json({ skip: true, data: { users: [], posts: [], reels: [] } });
     }
-    
-    // Check if q is a valid ObjectId (for unified ID search)
-    const mongoose = (await import('mongoose')).default;
-    const isId = mongoose.Types.ObjectId.isValid(q);
-    const regex = new RegExp(q, 'i');
 
-    const userCondition = isId ? { _id: q } : { $or: [{ name: regex }, { email: regex }, { bio: regex }] };
-    const postCondition = isId ? { $or: [{ _id: q }, { author_id: q }] } : { $or: [{ title: regex }, { content: regex }, { author_name: regex }, { tags: regex }] };
-    const reelCondition = isId ? { $or: [{ _id: q }, { creator_id: q }] } : { $or: [{ title: regex }, { caption: regex }, { creator_name: regex }, { creator_handle: regex }, { tags: regex }] };
-
-    const [users, posts, reels] = await Promise.all([
-      Admin.find(userCondition).select('name bio avatar_url role').limit(20).lean(),
-      News.find({ ...postCondition, status: 'published' }).select('title excerpt cover_image_url author_name author_id published_at slug tags').limit(20).lean(),
-      Reel.find({ ...reelCondition, status: 'published' }).select('title caption video_url cover_image_url creator_name creator_handle creator_id published_at slug tags').limit(20).lean()
+    const [userById, postById, reelById] = await Promise.all([
+      Admin.findById(q),
+      News.findById(q),
+      Reel.findById(q)
     ]);
 
-    const normalize = arr => arr.map(a => ({ ...a, id: a._id.toString(), _id: undefined }));
+    const searchPromises = q.length >= 3 ? Promise.all([
+      Admin.search(['name', 'email', 'bio'], q, { limit: 20 }),
+      News.search(['title', 'excerpt', 'content', 'category'], q, { limit: 20 }),
+      Reel.search(['title', 'caption', 'creator_name', 'creator_handle'], q, { limit: 20 })
+    ]) : Promise.resolve([[], [], []]);
+
+    const [users, posts, reels] = await searchPromises;
+
+    const dedupe = (items) => {
+      const seen = new Set();
+      const output = [];
+      for (const item of items.flat().filter(Boolean)) {
+        const itemId = item.id || item._id;
+        if (!itemId || seen.has(itemId)) continue;
+        seen.add(itemId);
+        output.push(item);
+      }
+      return output;
+    };
+
+    const usersResult = dedupe([userById, ...users]);
+    const postsResult = dedupe([postById, ...posts]);
+    const reelsResult = dedupe([reelById, ...reels]);
 
     return res.json({
       success: true,
       data: {
-        users: normalize(users),
-        posts: normalize(posts),
-        reels: normalize(reels)
+        users: usersResult,
+        posts: postsResult,
+        reels: reelsResult
       }
     });
   } catch (err) {
@@ -418,7 +429,7 @@ app.get('/api/news/:slug', async (req, res) => {
   }
 });
 
-async function findUniqueSlugMongoose(baseSlug) {
+async function findUniqueSlug(baseSlug) {
   let uniqueSlug = baseSlug;
   let counter = 1;
   while (await News.findOne({ slug: uniqueSlug })) {
@@ -1007,7 +1018,7 @@ app.post('/api/news', requireAuth, async (req, res) => {
   }
 
   const baseSlug = slugify(payload.title);
-  const slug = await findUniqueSlugMongoose(baseSlug);
+  const slug = await findUniqueSlug(baseSlug);
 
   const readingTime = getReadingTime(payload.content);
 
@@ -1190,7 +1201,7 @@ app.get('/api/settings', async (req, res) => {
   try {
     const settings = await SiteSettings.findOne();
     if (!settings) return res.json({ data: null });
-    return res.json({ data: { ...settings, id: settings._id.toString(), _id: undefined, __v: undefined } });
+    return res.json({ data: settings.toJSON() });
   } catch (error) {
     console.error('Settings fetch error:', error);
     return res.status(500).json({ error: 'Failed to fetch settings.' });
@@ -1199,7 +1210,8 @@ app.get('/api/settings', async (req, res) => {
 
 app.put('/api/settings', requireAuth, async (req, res) => {
   const payload = req.body || {};
-  let settings = await SiteSettings.findOne().sort({ created_at: -1 });
+  const existingSettings = await SiteSettings.find().sort({ created_at: -1 }).limit(1);
+  let settings = existingSettings[0] || null;
 
   if (!settings) {
     settings = await SiteSettings.create(payload);
@@ -1359,7 +1371,7 @@ app.get('/api/reels/sync-r2', async (req, res) => {
             creator_name: 'Admin',
             creator_handle: 'admin',
             published_at: file.lastModified || new Date(),
-            createdAt: file.lastModified || new Date()
+            created_at: file.lastModified || new Date()
           });
           added++;
         }
@@ -1392,7 +1404,7 @@ app.get('/api/global-status', async (req, res) => {
       const shares = reel.shares || 0;
       const followers = reel.follower_count || 0;
       
-      const published = new Date(reel.published_at || reel.createdAt || now).getTime();
+      const published = new Date(reel.published_at || reel.created_at || reel.createdAt || now).getTime();
       const ageHours = Math.max(0.1, (now - published) / (1000 * 60 * 60)); // Avoid division by zero
       
       // GVCA (Global Viral Connectivity Algorithm) Calculation
