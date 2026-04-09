@@ -18,7 +18,7 @@ const storage = new Storage(appwriteClient);
 // Create a Database, a Collection (with dept, course, subject, fileName, fileType, fileId as String attributes), and a Storage Bucket!
 const DATABASE_ID = '69d60fe8000c9bd92750';
 const COLLECTION_ID = '69d6126a0031232a50d0';
-const BUCKET_ID = 'YOUR_APPWRITE_BUCKET_ID';
+const BUCKET_ID = 'alok_media';
 
 const PYQAssistant = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState('assistant'); 
