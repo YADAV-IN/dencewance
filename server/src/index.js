@@ -62,6 +62,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ limit: '500mb', extended: true }));
 
 let dbInitialized = false;
 let dbInitPromise = null;
@@ -1095,12 +1096,24 @@ app.post('/api/uploads/cover', requireAuth, upload.single('cover'), async (req, 
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
   try {
+    // If using R2, file is already uploaded by multer-s3
+    if (hasR2Config && req.file.location) {
+      return res.json({ 
+        data: { 
+          url: req.file.location,
+          original_name: req.file.originalname,
+          size: req.file.size
+        } 
+      });
+    }
+
+    // Fallback to Appwrite storage for small files
     const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `cover-${Date.now()}.png`);
     const result = await appwriteStorage.createFile('alok_media', ID.unique(), fileObj);
     const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/alok_media/files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
     return res.json({ data: { url: viewUrl } });
   } catch (error) {
-    console.error('Appwrite cover upload error:', error);
+    console.error('Upload error:', error);
     return res.status(500).json({ error: 'Failed to upload cover image' });
   }
 });
@@ -1109,6 +1122,25 @@ app.post('/api/uploads/media', requireAuth, upload.single('media'), async (req, 
   if (!req.file) return res.status(400).json({ error: 'No media file uploaded.' });
 
   try {
+    // If using R2, file is already uploaded by multer-s3
+    if (hasR2Config && req.file.location) {
+      return res.json({
+        data: {
+          url: req.file.location,
+          original_name: req.file.originalname,
+          size: req.file.size
+        }
+      });
+    }
+
+    // Fallback to Appwrite storage (limited to smaller files due to payload limit)
+    const MAX_APPWRITE_SIZE = 25 * 1024 * 1024; // 25MB max for Appwrite
+    if (req.file.size > MAX_APPWRITE_SIZE) {
+      return res.status(413).json({ 
+        error: 'File too large for Appwrite storage. Please ensure R2 is configured or file is < 25MB' 
+      });
+    }
+
     const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `media-${Date.now()}.mp4`);
     const result = await appwriteStorage.createFile('alok_media', ID.unique(), fileObj);
     const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/alok_media/files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
@@ -1121,7 +1153,7 @@ app.post('/api/uploads/media', requireAuth, upload.single('media'), async (req, 
       }
     });
   } catch (error) {
-    console.error('Appwrite media upload error:', error);
+    console.error('Upload error:', error);
     return res.status(500).json({ error: 'Failed to upload media file' });
   }
 });
