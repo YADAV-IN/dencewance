@@ -232,20 +232,39 @@ export default function SocialApp() {
 
   useEffect(() => {
     setIsLoading(true); // Fetching chalu
+    
+    // Timeout safety: If loading takes more than 10 seconds, force stop
+    const loadingTimeout = setTimeout(() => {
+      console.warn('API loading timeout - using defaults');
+      setIsLoading(false);
+    }, 10000);
+
+    // Helper: Fetch with timeout (5 seconds per request)
+    const fetchWithTimeout = (url, options = {}, timeoutMs = 5000) => {
+      return Promise.race([
+        fetch(url, options),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
+        )
+      ]);
+    };
 
     Promise.all([
       // Fetch Statuses
-      fetch(`${API_URL}/api/status`)
+      fetchWithTimeout(`${API_URL}/api/status`)
         .then(res => res.json())
         .then(data => {
           if (data && Array.isArray(data.data)) {
             setStatuses(data.data.slice(0, 15));
           }
         })
-        .catch(err => console.error('Failed to load status', err)),
+        .catch(err => {
+          console.error('Failed to load status', err);
+          setStatuses([]);
+        }),
 
       // Fetch Reels (Video Stories)
-      fetch(`${API_URL}/api/reels`)
+      fetchWithTimeout(`${API_URL}/api/reels`)
         .then(res => res.json())
         .then(data => {
           if (data && Array.isArray(data.data) && data.data.length > 0) {
@@ -259,17 +278,29 @@ export default function SocialApp() {
           setReelsFeed(demoReels);
         }),
 
-      fetch(`${API_URL}/api/news`)
+      // Fetch News
+      fetchWithTimeout(`${API_URL}/api/news`)
         .then(res => res.json())
         .then(data => {
           if (data && Array.isArray(data.data)) {
             setFeed(data.data);
+          } else {
+            setFeed([]);
           }
         })
-        .catch(err => console.error('Failed to load feed', err))
-    ]).finally(() => {
+        .catch(err => {
+          console.error('Failed to load feed', err);
+          setFeed([]);
+        })
+    ]).catch(err => {
+      console.error('Error loading data:', err);
+    }).finally(() => {
+      clearTimeout(loadingTimeout);
       setIsLoading(false); // Fetching khatam
     });
+
+    // Cleanup timeout on unmount
+    return () => clearTimeout(loadingTimeout);
   }, []);
 
   const handleDeletePost = async (postId) => {
