@@ -342,7 +342,7 @@ export default function SocialApp() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
-        setStories(prev => {
+        setReelsFeed(prev => {
           const newStories = prev.filter(p => (p.id || p._id) !== reelId);
           if (newStories.length === 0) setActiveTab('home'); // Go home if empty
           return newStories;
