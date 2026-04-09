@@ -4,7 +4,7 @@ import cors from 'cors';
 import multer from 'multer';
 import multerS3 from 'multer-s3';
 import { s3Client, hasR2Config as oldHasR2Config, generatePresignedUrl, listAllR2Files } from './r2.js';
-const hasR2Config = false; // Override to strictly force Appwrite storage
+const hasR2Config = oldHasR2Config;
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
