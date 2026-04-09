@@ -4,7 +4,7 @@ import ReelsViewer from './ReelsViewer';
 import CreateInstagramMenu from './CreateInstagramMenu';
 import ProfileDashboard from './ProfileDashboard';
 import { demoReels } from './demoData';
-import { uploadFileWithProgress } from '../utils/xhrUpload';
+import { uploadMediaToAppwrite } from '../utils/appwriteClient';
 import PYQAssistant from './PYQAssistant';
 
 // Vintage/Historical Custom SVG Icons
@@ -140,34 +140,10 @@ export default function SocialApp() {
     setStatusUploadProgress(0);
     
     try {
-      // 1. Sign URL via R2
-      const signRes = await fetch(`${API_URL}/api/uploads/sign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ filename: file.name, contentType: file.type })
+      // 1. Upload Video directly via Appwrite SDK
+      let videoUrl = await uploadMediaToAppwrite(file, 'alok_media', (progressData) => {
+        setStatusUploadProgress(Math.round(progressData.progress));
       });
-      const configData = await signRes.json();
-      
-      let videoUrl = '';
-      if (!signRes.ok) {
-        // Fallback Proxy
-        const formData = new FormData();
-        formData.append('media', file);
-        const uploadRes = await fetch(`${API_URL}/api/uploads/media`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData
-        });
-        const uploadData = await uploadRes.json();
-        if (!uploadRes.ok) throw new Error(uploadData.error || 'Upload failed');
-        videoUrl = uploadData.data?.url || uploadData.data;
-      } else {
-        // Direct R2 XHR Upload with progress
-        await uploadFileWithProgress(configData.uploadUrl, file, (percent) => {
-          setStatusUploadProgress(percent);
-        });
-        videoUrl = configData.publicUrl;
-      }
 
       // 2. Post the Reel (Video Story)
       const reelRes = await fetch(`${API_URL}/api/reels`, {

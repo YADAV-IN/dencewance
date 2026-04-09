@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { uploadFileWithProgress } from '../utils/xhrUpload';
+import { uploadMediaToAppwrite } from '../utils/appwriteClient';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://server-kappa-lac.vercel.app');
 
@@ -139,23 +139,10 @@ export default function ProfileDashboard() {
     setUploadStatusText('Connecting to Cloudflare...');
     
     try {
-      // 1. Get Presigned URL directly to Cloudflare
-      const signRes = await fetch(`${API_URL}/api/uploads/sign`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}` 
-        },
-        body: JSON.stringify({ filename: file.name, contentType: file.type })
-      });
-      
-      const configData = await signRes.json();
-      if (!signRes.ok) throw new Error(configData.error || 'Failed to sign R2 upload');
-
-      // 2. Exact Progress tracked Upload
-      setUploadStatusText('Uploading Video...');
-      await uploadFileWithProgress(configData.uploadUrl, file, (percent) => {
-        setUploadProgress(Math.round(percent));
+      setUploadStatusText('Uploading Video directly via Appwrite...');
+      const fileUrl = await uploadMediaToAppwrite(file, 'alok_media', (progress) => {
+        setUploadProgress(Math.round(progress.progress));
+        setUploadStatusText(`Uploading Video ${Math.round(progress.progress)}%...`);
       });
 
       // 3. Create Video Story with the resolved public URL
@@ -166,7 +153,7 @@ export default function ProfileDashboard() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}` 
         },
-        body: JSON.stringify({ video_url: configData.publicUrl, caption: 'My Latest Profile Story' })
+        body: JSON.stringify({ video_url: fileUrl, caption: 'My Latest Profile Story' })
       });
       
       if (!reelRes.ok) throw new Error('Failed to create video story row');

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { uploadFileWithProgress } from '../utils/xhrUpload';
+import { uploadMediaToAppwrite } from '../utils/appwriteClient';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://server-kappa-lac.vercel.app');
 
@@ -21,40 +21,11 @@ export default function CreateInstagramMenu({ onComplete }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatusText, setUploadStatusText] = useState('0%');
 
-  const uploadToR2 = async (file) => {
-    try {
-      const signRes = await fetch(`${API_URL}/api/uploads/sign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ filename: file.name, contentType: file.type })
-      });
-      const configData = await signRes.json();
-      
-      if (!signRes.ok) {
-        // Fallback to proxy
-        setUploadStatusText('Uploading proxy...');
-        const formData = new FormData();
-        formData.append('media', file);
-        const uploadRes = await fetch(`${API_URL}/api/uploads/media`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData
-        });
-        const uploadData = await uploadRes.json();
-        if (!uploadRes.ok) throw new Error(uploadData.error || 'Proxy upload failed');
-        setUploadProgress(100);
-        return uploadData.data?.url || uploadData.data;
-      }
-
-      // XHR Direct R2 tracked
-      await uploadFileWithProgress(configData.uploadUrl, file, (percent) => {
-        setUploadProgress(Math.round(percent));
-        setUploadStatusText(`${Math.round(percent)}%`);
-      });
-      return configData.publicUrl;
-    } catch (err) {
-      throw err;
-    }
+  const uploadToAppwrite = async (file, bucketId) => {
+    return await uploadMediaToAppwrite(file, bucketId, (progress) => {
+        setUploadProgress(Math.round(progress.progress));
+        setUploadStatusText(`${Math.round(progress.progress)}%`);
+    });
   };
 
   const handleCreatePost = async (e) => {
@@ -62,7 +33,7 @@ export default function CreateInstagramMenu({ onComplete }) {
     if (!postCover) return alert("Please select an image");
     setIsUploading(true);
     try {
-      const imageUrl = await uploadToR2(postCover);
+      const imageUrl = await uploadToAppwrite(postCover, 'alok_media');
       const res = await fetch(`${API_URL}/api/news`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -95,7 +66,7 @@ export default function CreateInstagramMenu({ onComplete }) {
     try {
       let videoUrl = reelVideoUrlInput;
       if (reelVideoFile && !reelVideoUrlInput) {
-        videoUrl = await uploadToR2(reelVideoFile);
+        videoUrl = await uploadToAppwrite(reelVideoFile, 'alok_media');
       }
       const res = await fetch(`${API_URL}/api/reels`, {
         method: 'POST',
