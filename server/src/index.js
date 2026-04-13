@@ -36,7 +36,9 @@ const storage = hasR2Config
       metadata: function (req, file, cb) {
         cb(null, { fieldName: file.fieldname });
       },
-      contentType: multerS3.AUTO_CONTENT_TYPE,
+      contentType: function (req, file, cb) {
+        cb(null, file.mimetype || 'application/octet-stream');
+      },
       key: function (req, file, cb) {
         let folder = 'covers';
         if (file.fieldname === 'avatar') {
