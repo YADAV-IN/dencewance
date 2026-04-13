@@ -133,6 +133,36 @@ export default function SocialApp() {
   const [isStatusUploading, setIsStatusUploading] = useState(false);
   const [statusUploadProgress, setStatusUploadProgress] = useState(0);
 
+  const handleUploadPanelComplete = async (savedData) => {
+    // If it's a Reel, refresh statuses and open it
+    if (savedData && savedData.data && savedData.data.video_url) {
+      try {
+        const latestRes = await fetch(`${API_URL}/api/global-status`);
+        if (latestRes.ok) {
+          const latestData = await latestRes.json();
+          setStatuses(latestData.data || []);
+          
+          const newReelId = savedData.data._id || savedData.data.id;
+          if (newReelId && latestData.data) {
+            const newIndex = latestData.data.findIndex(s => (s._id === newReelId || s.id === newReelId));
+            if (newIndex !== -1) {
+              setActiveStoryIndex(newIndex);
+              setViewingMedia('status');
+              setActiveTab('stories');
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error refreshing statuses after upload', err);
+      }
+      setActiveTab('stories');
+      return;
+    }
+    // If it's a Post, just go to home and maybe refresh feed, but a reload is safer if feed refresh isn't robust
+    window.location.reload();
+  };
+
   const handleStatusUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -251,7 +281,7 @@ export default function SocialApp() {
 
     Promise.all([
       // Fetch Statuses
-      fetchWithTimeout(`${API_URL}/api/status`)
+      fetchWithTimeout(`${API_URL}/api/global-status`)
         .then(res => res.json())
         .then(data => {
           if (data && Array.isArray(data.data)) {
@@ -646,7 +676,7 @@ export default function SocialApp() {
           ) : activeTab === 'messages' ? (
             <div style={{ padding: '20px', color: '#fff', textAlign: 'center' }}><h2>Scrolls (Messages)</h2><p>No new scrolls received from the archivists...</p></div>
           ) : activeTab === 'profile' ? (
-             <ProfileDashboard /> ) : activeTab === 'add' ? ( <CreateInstagramMenu />
+             <ProfileDashboard /> ) : activeTab === 'add' ? ( <CreateInstagramMenu onComplete={handleUploadPanelComplete} />
           ) : isLoading ? (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#fff', flexDirection: 'column' }}>
               <ModeBookLogo width={80} height={80} />

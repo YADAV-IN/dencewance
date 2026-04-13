@@ -386,18 +386,14 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                           alignItems: 'center', 
                           gap: '4px', 
                           marginLeft: '-5px',
-                          background: 'rgba(0, 0, 0, 0.4)',
                           padding: '4px 10px 4px 6px',
-                          borderRadius: '20px',
-                          backdropFilter: 'blur(5px)',
-                          border: '1px solid rgba(255,255,255,0.1)'
+                          borderRadius: '20px'
                         }}>
-                          <svg className="modebook-logo-animated" viewBox="0 0 100 100" width="22" height="22" xmlns="http://www.w3.org/2000/svg" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
+                          <svg className="modebook-logo-animated" viewBox="0 0 100 100" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
                             <defs>
                               <linearGradient id="multiGradWatermark" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor="#fff" />
-                                <stop offset="50%" stopColor="#e0e0e0" />
-                                <stop offset="100%" stopColor="#aaa" />
+                                <stop offset="0%" stopColor="rgba(255, 255, 255, 0.7)" />
+                                <stop offset="100%" stopColor="rgba(255, 255, 255, 0.4)" />
                               </linearGradient>
                             </defs>
                             <g transform="translate(50, 50)">
@@ -410,10 +406,9 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                             fontFamily: "'Cinzel', serif", 
                             fontWeight: '900', 
                             fontSize: '15px', 
-                            color: 'rgba(255,255,255,0.95)',
+                            color: 'rgba(255, 255, 255, 0.6)',
                             letterSpacing: '1px',
-                            textTransform: 'uppercase',
-                            textShadow: '0 2px 5px rgba(0,0,0,0.8)'
+                            textTransform: 'uppercase'
                           }}>ModeBook</span>
                         </div>
                       </div>
@@ -540,67 +535,6 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     </div>
 
                     {/* Bottom info area (TikTok-style caption zone) */}
-                    {/* FLOATING WATERMARK */}
-                    <div className="reel-floating-watermark" style={{
-                      position: 'absolute',
-                      bottom: '120px',
-                      right: '15px',
-                      opacity: 0.7,
-                      pointerEvents: 'none',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.8))',
-                      zIndex: 10
-                    }}>
-                      <svg viewBox="0 0 100 100" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
-                        <g transform="translate(50, 50)">
-                          <circle cx="0" cy="0" r="42" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="6" />
-                          <circle cx="0" cy="0" r="30" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="4" strokeDasharray="10 10" />
-                          <polygon points="0,-18 16,9 -16,9" fill="rgba(255,255,255,0.9)" />
-                        </g>
-                      </svg>
-                      <span style={{
-                        marginTop: '4px',
-                        fontFamily: "'Cinzel', serif",
-                        fontWeight: '900',
-                        fontSize: '12px',
-                        color: 'rgba(255,255,255,0.9)',
-                        letterSpacing: '1px',
-                        textTransform: 'uppercase'
-                      }}>MODEBOOK</span>
-                    </div>
-                    
-                    {/* FLOATING WATERMARK */}
-                    <div className="reel-floating-watermark" style={{
-                      position: 'absolute',
-                      bottom: '120px',
-                      right: '15px',
-                      opacity: 0.7,
-                      pointerEvents: 'none',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.8))',
-                      zIndex: 10
-                    }}>
-                      <svg viewBox="0 0 100 100" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
-                        <g transform="translate(50, 50)">
-                          <circle cx="0" cy="0" r="42" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="6" />
-                          <circle cx="0" cy="0" r="30" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="4" strokeDasharray="10 10" />
-                          <polygon points="0,-18 16,9 -16,9" fill="rgba(255,255,255,0.9)" />
-                        </g>
-                      </svg>
-                      <span style={{
-                        marginTop: '4px',
-                        fontFamily: "'Cinzel', serif",
-                        fontWeight: '900',
-                        fontSize: '12px',
-                        color: 'rgba(255,255,255,0.9)',
-                        letterSpacing: '1px',
-                        textTransform: 'uppercase'
-                      }}>MODEBOOK</span>
-                    </div>
                     
                     <div className="reel-bottom-info">
                       <div className="reel-creator-line">

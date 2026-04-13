@@ -1097,10 +1097,11 @@ app.post('/api/uploads/cover', requireAuth, upload.single('cover'), async (req, 
 
   try {
     // If using R2, file is already uploaded by multer-s3
-    if (hasR2Config && req.file.location) {
+    if (hasR2Config && req.file.key) {
+      const publicUrl = R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${req.file.key}` : req.file.location;
       return res.json({ 
         data: { 
-          url: req.file.location,
+          url: publicUrl,
           original_name: req.file.originalname,
           size: req.file.size
         } 
@@ -1123,10 +1124,11 @@ app.post('/api/uploads/media', requireAuth, upload.single('media'), async (req, 
 
   try {
     // If using R2, file is already uploaded by multer-s3
-    if (hasR2Config && req.file.location) {
+    if (hasR2Config && (req.file.location || req.file.key)) {
+      const publicUrl = R2_PUBLIC_URL && req.file.key ? `${R2_PUBLIC_URL}/${req.file.key}` : req.file.location;
       return res.json({
         data: {
-          url: req.file.location,
+          url: publicUrl,
           original_name: req.file.originalname,
           size: req.file.size
         }

@@ -51,7 +51,8 @@ export default function CreateInstagramMenu({ onComplete }) {
       if (!res.ok) throw new Error('Failed to create post');
       alert('Post Created Successfully!');
       setPostContent(''); setPostCover(null); setPostCoverPreview('');
-      if (onComplete) onComplete(); else window.location.reload();
+      const savedPost = await res.json();
+      if (onComplete) onComplete(savedPost); else window.location.reload();
     } catch (err) {
       alert('Upload Error: ' + err.message);
     } finally {
@@ -95,7 +96,7 @@ export default function CreateInstagramMenu({ onComplete }) {
       if(savedReel && savedReel.data && savedReel.data.id) {
          window.location.hash = '#viewReel=' + savedReel.data.id;
       }
-      if (onComplete) onComplete();
+      if (onComplete) onComplete(savedReel);
       else window.location.reload();
   };
 
