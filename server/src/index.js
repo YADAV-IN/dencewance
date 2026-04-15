@@ -154,7 +154,7 @@ app.post('/api/auth/login', async (req, res) => {
 app.post('/api/admins', requireAuth, async (req, res) => {
   try {
     const currentUser = await Admin.findById(req.adminId);
-    if (currentUser.role !== 'admin') {
+    if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin') {
       return res.status(403).json({ error: 'Permission denied. Admin access required.' });
     }
 
@@ -197,13 +197,13 @@ app.put('/api/admins/:id', requireAuth, async (req, res) => {
 
   if (!targetUser) return res.status(404).json({ error: 'User not found.' });
 
-  if (currentUser.role !== 'admin' && req.adminId !== id) {
+  if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin' && req.adminId !== id) {
     return res.status(403).json({ error: 'Permission denied.' });
   }
 
   const { name, email, role, status, bio } = req.body || {};
 
-  if (currentUser.role !== 'admin' && (role || status)) {
+  if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin' && (role || status)) {
     return res.status(403).json({ error: 'Cannot change role or status.' });
   }
 
@@ -225,7 +225,7 @@ app.put('/api/admins/:id/password', requireAuth, async (req, res) => {
 
   const currentUser = await Admin.findById(req.adminId);
 
-  if (currentUser.role !== 'admin' && req.adminId !== id) {
+  if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin' && req.adminId !== id) {
     return res.status(403).json({ error: 'Permission denied.' });
   }
 
@@ -252,7 +252,7 @@ app.delete('/api/admins/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
   const currentUser = await Admin.findById(req.adminId);
 
-  if (currentUser.role !== 'admin') {
+  if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin') {
     return res.status(403).json({ error: 'Permission denied. Admin access required.' });
   }
 
@@ -745,7 +745,7 @@ app.post('/api/reels/bulk', requireAuth, async (req, res) => {
   try {
     const currentUser = await Admin.findById(req.adminId);
     if (!currentUser) return res.status(404).json({ error: 'User not found.' });
-    if (!['admin', 'editor', 'author'].includes(currentUser.role)) {
+    if (!['superadmin', 'superadmin', 'admin', 'editor', 'author'].includes(currentUser.role)) {
       return res.status(403).json({ error: 'Permission denied to bulk create reels.' });
     }
 
@@ -889,7 +889,7 @@ app.post('/api/reels/:id/like', async (req, res) => {
 app.post('/api/reels', requireAuth, async (req, res) => {
   const currentUser = await Admin.findById(req.adminId);
   if (!currentUser) return res.status(404).json({ error: 'User not found.' });
-  if (!['admin', 'editor', 'author'].includes(currentUser.role)) {
+  if (!['superadmin', 'superadmin', 'admin', 'editor', 'author'].includes(currentUser.role)) {
     return res.status(403).json({ error: 'Permission denied to create reels.' });
   }
 
@@ -948,7 +948,7 @@ app.post('/api/reels', requireAuth, async (req, res) => {
 app.put('/api/reels/:id', requireAuth, async (req, res) => {
   const currentUser = await Admin.findById(req.adminId);
   if (!currentUser) return res.status(404).json({ error: 'User not found.' });
-  if (!['admin', 'editor'].includes(currentUser.role)) {
+  if (!['superadmin', 'admin', 'editor'].includes(currentUser.role)) {
     return res.status(403).json({ error: 'Permission denied to update reels.' });
   }
 
@@ -984,7 +984,7 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
     const reel = await Reel.findById(req.params.id);
     if (!reel) return res.status(404).json({ error: 'Reel not found.' });
 
-    if (currentUser.role !== 'admin' && reel.creator_id !== currentUser._id.toString()) {
+    if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin' && reel.creator_id !== currentUser._id.toString()) {
       return res.status(403).json({ error: 'Permission denied to delete this reel.' });
     }
 
@@ -999,7 +999,7 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
 app.post('/api/news', requireAuth, async (req, res) => {
   const currentUser = await Admin.findById(req.adminId);
   if (!currentUser) return res.status(404).json({ error: 'User not found.' });
-  if (!['admin', 'editor', 'author'].includes(currentUser.role)) {
+  if (!['superadmin', 'superadmin', 'admin', 'editor', 'author'].includes(currentUser.role)) {
     return res.status(403).json({ error: 'Permission denied to create news.' });
   }
 
@@ -1045,7 +1045,7 @@ app.post('/api/news', requireAuth, async (req, res) => {
 app.put('/api/news/:id', requireAuth, async (req, res) => {
   const currentUser = await Admin.findById(req.adminId);
   if (!currentUser) return res.status(404).json({ error: 'User not found.' });
-  if (!['admin', 'editor', 'author'].includes(currentUser.role)) {
+  if (!['superadmin', 'superadmin', 'admin', 'editor', 'author'].includes(currentUser.role)) {
     return res.status(403).json({ error: 'Permission denied to update news.' });
   }
 
@@ -1082,7 +1082,7 @@ app.delete('/api/news/:id', requireAuth, async (req, res) => {
     if (!news) return res.status(404).json({ error: 'News not found.' });
 
     // admin role can delete anything, others can only delete their own posts
-    if (currentUser.role !== 'admin' && news.author_id !== currentUser._id.toString()) {
+    if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin' && news.author_id !== currentUser._id.toString()) {
       return res.status(403).json({ error: 'Permission denied to delete this news.' });
     }
 
@@ -1198,7 +1198,7 @@ app.post('/api/uploads/sign', requireAuth, async (req, res) => {
 app.delete('/api/reels/cleanup-junk', requireAuth, async (req, res) => {
   try {
     const currentUser = await Admin.findById(req.adminId);
-    if (!currentUser || currentUser.role !== 'admin') {
+    if (!currentUser || currentUser.role !== 'admin' && currentUser.role !== 'superadmin') {
       return res.status(403).json({ error: 'Admin access required.' });
     }
 
