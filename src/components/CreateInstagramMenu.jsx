@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://server-kappa-lac.vercel.app');
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
 
 export default function CreateInstagramMenu({ onComplete }) {
   const [token] = useState(localStorage.getItem('adminToken') || '');
