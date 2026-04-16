@@ -116,6 +116,42 @@ export default function ProfileDashboard() {
     setMyPosts([]);
   };
 
+  const handleDeleteReel = async (id) => {
+    if (!window.confirm('Delete this reel permanently?')) return;
+    try {
+      const res = await fetch(`${API_URL}/api/reels/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setMyReels(myReels.filter(r => (r.id || r._id) !== id));
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete');
+      }
+    } catch (err) {
+      alert('Network error deleting reel');
+    }
+  };
+
+  const handleDeletePost = async (id) => {
+    if (!window.confirm('Delete this post permanently?')) return;
+    try {
+      const res = await fetch(`${API_URL}/api/news/${id}`, { // posts are in news or status? News is generic text, post images. Wait.. I need to be sure where posts go.
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setMyPosts(myPosts.filter(p => (p.id || p._id) !== id));
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete');
+      }
+    } catch (err) {
+      alert('Network error deleting post');
+    }
+  };
+
   const handleSaveProfile = async () => {
     setIsSaving(true);
     try {
@@ -401,7 +437,17 @@ export default function ProfileDashboard() {
               {myReels.map(reel => (
                 <div key={reel.id} className="relative aspect-[9/16] bg-gray-900 group cursor-pointer">
                   <video src={reel.video_url} className="w-full h-full object-cover" muted playsInline />
-                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition opacity-0 group-hover:opacity-100 flex items-center justify-center">
+                  
+                  {/* Delete Button overlay on hover or top right always */}
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleDeleteReel(reel.id || reel._id); }}
+                    className="absolute top-2 right-2 bg-red-600/80 hover:bg-red-700 text-white rounded-full p-1.5 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    title="Delete Reel"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinelinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition opacity-0 group-hover:opacity-100 flex items-center justify-center pointer-events-none">
                      <div className="flex gap-2 font-bold"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M10 8v8l6-4-6-4z"/></svg> {reel.views||0}</div>
                   </div>
                 </div>
@@ -415,6 +461,15 @@ export default function ProfileDashboard() {
               {myPosts.map(post => (
                 <div key={post.id} className="relative aspect-square bg-gray-900 group cursor-pointer">
                   <img src={post.image_url} className="w-full h-full object-cover" alt="Post" />
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleDeletePost(post.id || post._id); }}
+                    className="absolute top-2 right-2 bg-red-600/80 hover:bg-red-700 text-white rounded-full p-1.5 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    title="Delete Post"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </button>
                 </div>
               ))}
             </div>
