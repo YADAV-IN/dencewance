@@ -74,17 +74,27 @@ export const BellIcon = () => (
 
 // Generic Logo Placeholder expecting a file named "logo.png" in the "public" folder
 export const DenceWanceLogo = ({ width = 60, height = 60 }) => (
-  <img 
-    src="/logo.png" 
-    alt="Dence Wance Logo" 
-    style={{ width: `${width}px`, height: `${height}px`, objectFit: 'contain', borderRadius: '12px' }} 
-    className="shadow-sm"
-    onError={(e) => {
-      // Fallback behavior if image isn't available
-      e.target.style.display = 'none';
-      e.target.nextSibling.style.display = 'flex';
-    }}
-  />
+  <svg viewBox="0 0 100 100" width={width} height={height} xmlns="http://www.w3.org/2000/svg" className="shadow-lg rounded-2xl" aria-label="Dence Wance Logo">
+    <defs>
+      <linearGradient id="dw-brand-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#00FFFF" />   {/* Cyan */}
+        <stop offset="100%" stopColor="#FF007F" /> {/* Bright Pink/Magenta */}
+      </linearGradient>
+      <filter id="dw-drop-shadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="3" dy="5" stdDeviation="4" floodColor="#000000" floodOpacity="0.4"/>
+      </filter>
+    </defs>
+    
+    {/* Dark background matching the image theme */}
+    <rect x="0" y="0" width="100" height="100" rx="22" fill="#0C0C1A" />
+    
+    {/* Stylized Music Note / "d" icon like the one in the Dence Wance image */}
+    <path 
+      d="M 50 15 L 50 65 C 50 75 42 82 32 82 C 22 82 15 75 15 65 C 15 55 22 48 32 48 C 36 48 39 49 42 51 L 42 35 L 75 35 C 75 50 82 55 90 55 L 90 35 C 80 35 75 28 75 15 Z" 
+      fill="url(#dw-brand-grad)" 
+      filter="url(#dw-drop-shadow)" 
+    />
+  </svg>
 );
 
 export const StatusRing = ({ children, hasSeen = false, isUploading = false }) => {
