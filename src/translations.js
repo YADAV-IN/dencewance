@@ -1,8 +1,8 @@
-// Language translations for ModeBook News Platform
+// Language translations for DenceWance News Platform
 export const translations = {
   en: {
     // Header
-    siteName: 'ModeBook',
+    siteName: 'DenceWance',
     siteSubtitle: 'BJMC News',
     admin: 'Admin',
     login: 'Login',
@@ -112,7 +112,7 @@ export const translations = {
   },
   hi: {
     // Header
-    siteName: 'ModeBook',
+    siteName: 'DenceWance',
     siteSubtitle: 'बीजेएमसी न्यूज़',
     admin: 'एडमिन',
     login: 'लॉगिन',

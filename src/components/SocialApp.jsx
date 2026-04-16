@@ -72,17 +72,18 @@ export const BellIcon = () => (
   </svg>
 );
 
-// Modern Professional ModeBook Logo
-export const ModeBookLogo = ({ width = 60, height = 60 }) => (
-  <svg viewBox="0 0 100 100" width={width} height={height} xmlns="http://www.w3.org/2000/svg" className="shadow-sm rounded-2xl">
+// Modern Professional DenceWance Logo
+export const DenceWanceLogo = ({ width = 60, height = 60 }) => (
+  <svg viewBox="0 0 100 100" width={width} height={height} xmlns="http://www.w3.org/2000/svg" className="shadow-sm rounded-2xl" aria-label="Dence Wance Logo">
     <defs>
-      <linearGradient id="modernGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#2563EB" />
-        <stop offset="100%" stopColor="#4F46E5" />
+      <linearGradient id="dwGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#00FFFF" />
+        <stop offset="100%" stopColor="#FF00FF" />
       </linearGradient>
     </defs>
-    <rect x="10" y="10" width="80" height="80" rx="20" fill="url(#modernGrad)" />
-    <path d="M 30 65 L 30 35 L 50 55 L 70 35 L 70 65" fill="none" stroke="#FFFFFF" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+    <rect x="10" y="10" width="80" height="80" rx="20" fill="#1b1b1b" />
+    <path d="M 40 30 Q 60 10, 80 30 T 70 60 Q 50 80, 30 60 T 40 30" fill="url(#dwGrad)" opacity="0.8"/>
+    <path d="M 60 20 L 60 60 A 10 10 0 1 1 40 60 L 40 40 L 80 40" fill="none" stroke="#FFFFFF" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -442,8 +443,8 @@ export default function SocialApp() {
           {/* Universal Top Navigation Bar (One Line) */}
           <header className="top-nav-bar">
         <div className="brand-container animated-brand">
-          <ModeBookLogo />
-          <h1 className="logo-text vintage-shimmer">ModeBook</h1>
+          <DenceWanceLogo />
+          <h1 className="logo-text vintage-shimmer">DenceWance</h1>
         </div>
         
         {/* Opposite side Notification Bell */}
@@ -605,7 +606,7 @@ export default function SocialApp() {
                             <div className="search-reel-overlay">
                                <div className="search-reel-title">{r.title || 'Video Story'}</div>
                                <div className="search-reel-meta">
-                                 <span>@{r.creator_name || 'ModeBook'}</span>
+                                 <span>@{r.creator_name || 'DenceWance'}</span>
                                </div>
                             </div>
                           </div>
@@ -679,7 +680,7 @@ export default function SocialApp() {
                           <h4 className="search-post-title">{p.title}</h4>
                           <p className="search-post-excerpt">{p.excerpt ? p.excerpt : 'No snippet available...'}</p>
                           <div className="search-post-meta">
-                            <span className="search-post-author">✍️ {p.author_name || 'ModeBook Scribe'}</span>
+                            <span className="search-post-author">✍️ {p.author_name || 'DenceWance Scribe'}</span>
                             <span className="search-post-id">ID: {p.author_id ? p.author_id.substring(0, 8) : '...'}</span>
                             <span>{new Date(p.published_at || Date.now()).toLocaleDateString()}</span>
                           </div>
@@ -705,7 +706,7 @@ export default function SocialApp() {
              <ProfileDashboard /> ) : activeTab === 'add' ? ( <CreateInstagramMenu onComplete={handleUploadPanelComplete} />
           ) : isLoading ? (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#fff', flexDirection: 'column' }}>
-              <ModeBookLogo width={80} height={80} />
+              <DenceWanceLogo width={80} height={80} />
               <h3 style={{ marginTop: '20px', letterSpacing: '1px' }}>Loading...</h3>
             </div>
           ) : (
@@ -769,7 +770,7 @@ export default function SocialApp() {
                     <div style={{display: 'flex', alignItems: 'center'}}>
                       <img loading="lazy" src={post.source || `https://i.pravatar.cc/150?img=${10 + i}`} alt="Avatar" className="avatar" />
                       <div className="post-user-info">
-                        <strong>{post.author_name || 'ModeBook User'}</strong>
+                        <strong>{post.author_name || 'DenceWance User'}</strong>
                         <small>{new Date(post.published_at || Date.now()).toLocaleDateString()} • Recorded</small>
                       </div>
                     </div>
@@ -783,7 +784,7 @@ export default function SocialApp() {
                     )}
                   </div>
                   <div className="post-body">
-                    {post.title && !post.title.includes('Untitled') && !post.title.includes('ModeBook') && !post.content?.startsWith(post.title?.replace(/...$/, '')) && (<h4>{post.title}</h4>)}
+                    {post.title && !post.title.includes('Untitled') && !post.title.includes('DenceWance') && !post.content?.startsWith(post.title?.replace(/...$/, '')) && (<h4>{post.title}</h4>)}
                     <p>{post.excerpt || post.content}</p>
                     {(post.cover_image_url || post.image_url) && (
                       <img loading="lazy" src={resolveMediaUrl(post.cover_image_url || post.image_url)} alt={post.title} className="post-image" />
@@ -808,7 +809,7 @@ export default function SocialApp() {
                 </div>
               </div>
               <div className="post-body">
-                <p>Uncovering the ancient algorithms of Rome. The past is written in the sacred nodes. We reinvent the machine not from metal, but from the lost codex. 🏛️📜 #ModeBook #HistoricalTech</p>
+                <p>Uncovering the ancient algorithms of Rome. The past is written in the sacred nodes. We reinvent the machine not from metal, but from the lost codex. 🏛️📜 #DenceWance #HistoricalTech</p>
                 <img loading="lazy" src="https://images.unsplash.com/photo-1461360370896-922624d12aa1?auto=format&fit=crop&w=600&q=80" alt="Historical Tech Post" className="post-image" />
               </div>
               <div className="post-actions">

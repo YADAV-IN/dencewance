@@ -9,7 +9,7 @@ const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 // Initialize Appwrite Connection
 const appwriteClient = new Client()
     .setEndpoint('https://nyc.cloud.appwrite.io/v1') // Default Appwrite Cloud endpoint
-    .setProject('69d60fbe002bae1e32d5');     // Set Project ID as 'modebook' (if different, let me know)
+    .setProject('69d60fbe002bae1e32d5');     // Set Project ID as 'dencewance' (if different, let me know)
 
 const databases = new Databases(appwriteClient);
 const storage = new Storage(appwriteClient);
@@ -28,7 +28,7 @@ const PYQAssistant = ({ onClose }) => {
   const [course, setCourse] = useState('');
   const [subject, setSubject] = useState('');
   const [messages, setMessages] = useState([
-    { role: 'model', text: 'Hello! I am ModeBook AI. How can I assist you with your studies or analyze your documents today?' }
+    { role: 'model', text: 'Hello! I am DenceWance AI. How can I assist you with your studies or analyze your documents today?' }
   ]);
   const [inputVal, setInputVal] = useState('');
   const [loading, setLoading] = useState(false);
@@ -76,7 +76,7 @@ const PYQAssistant = ({ onClose }) => {
     };
   };
 
-  const systemPromptIdentity = "You are 'ModeBook AI', a highly professional educational AI assistant exclusively created by Preetam. Never mention that you are an AI made by Google, Gemini, or any other company outside of Preetam. Always present yourself as the 'ModeBook AI'. Speak clearly and professionally in a mix of Hindi/English (Hinglish). Provide structured, high-quality answers.";
+  const systemPromptIdentity = "You are 'DenceWance AI', a highly professional educational AI assistant exclusively created by Preetam. Never mention that you are an AI made by Google, Gemini, or any other company outside of Preetam. Always present yourself as the 'DenceWance AI'. Speak clearly and professionally in a mix of Hindi/English (Hinglish). Provide structured, high-quality answers.";
 
   const handleAskPYQ = async () => {
     if (!department || !course || !subject) {
@@ -96,7 +96,7 @@ const PYQAssistant = ({ onClose }) => {
       const chat = model.startChat({
         history: [
             { role: "user", parts: [{ text: systemContext }] },
-            { role: "model", parts: [{ text: "Understood. I am ModeBook AI." }] }
+            { role: "model", parts: [{ text: "Understood. I am DenceWance AI." }] }
         ],
       });
 
@@ -139,7 +139,7 @@ const PYQAssistant = ({ onClose }) => {
       const chat = model.startChat({
         history: [
             { role: "user", parts: [{ text: systemPromptIdentity }] },
-            { role: "model", parts: [{ text: "I am ready. I am ModeBook AI." }] }
+            { role: "model", parts: [{ text: "I am ready. I am DenceWance AI." }] }
         ],
       });
       const result = await chat.sendMessage(parts);
@@ -214,7 +214,7 @@ const PYQAssistant = ({ onClose }) => {
             </div>
             <div>
               <h2 className="text-xl font-bold font-inter text-gray-100 tracking-tight">
-                ModeBook AI
+                DenceWance AI
               </h2>
               <p className="text-[11px] text-gray-400 font-medium tracking-wide uppercase mt-0.5">Powered by Preetam</p>
             </div>
@@ -273,7 +273,7 @@ const PYQAssistant = ({ onClose }) => {
                     ? 'bg-blue-600 text-white rounded-br-sm' 
                     : 'bg-[#151b2b] text-gray-200 rounded-bl-sm border border-gray-800/80 shadow-inner shadow-white/5'
                   }`}>
-                    {msg.role === 'model' && <div className="text-[11px] font-bold text-gray-500 mb-1.5 uppercase tracking-wide">ModeBook AI</div>}
+                    {msg.role === 'model' && <div className="text-[11px] font-bold text-gray-500 mb-1.5 uppercase tracking-wide">DenceWance AI</div>}
                     <div className="whitespace-pre-wrap font-medium">{msg.text}</div>
                   </div>
                 </div>
@@ -316,7 +316,7 @@ const PYQAssistant = ({ onClose }) => {
                     type="text" 
                     value={inputVal} 
                     onChange={e => setInputVal(e.target.value)}
-                    placeholder="Ask ModeBook AI anything..." 
+                    placeholder="Ask DenceWance AI anything..." 
                     className="w-full bg-[#151b2b] border border-gray-700 focus:border-blue-500/50 rounded-2xl pl-14 pr-4 py-3.5 text-[15px] font-medium text-gray-100 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all placeholder-gray-500 shadow-inner font-sans"
                   />
                 </div>

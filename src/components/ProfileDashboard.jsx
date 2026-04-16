@@ -146,7 +146,7 @@ export default function ProfileDashboard() {
       });
 
       // 3. Create Video Story with the resolved public URL
-      setUploadStatusText('Finalizing inside ModeBook...');
+      setUploadStatusText('Finalizing inside DenceWance...');
       const reelRes = await fetch(`${API_URL}/api/reels`, {
         method: 'POST',
         headers: { 
@@ -202,7 +202,7 @@ export default function ProfileDashboard() {
       <div className="flex items-center justify-center min-h-[80vh] bg-black text-white p-4">
         <form onSubmit={handleLogin} className="w-full max-w-sm bg-gray-900 border border-gray-800 p-8 rounded-xl flex flex-col gap-4 shadow-2xl">
           <div className="flex justify-center mb-4">
-            <h1 className="text-3xl font-serif tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">ModeBook</h1>
+            <h1 className="text-3xl font-serif tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">DenceWance</h1>
           </div>
           <input type="email" placeholder="Phone number, username, or email" required className="bg-black/50 border border-gray-700 rounded p-3 text-sm focus:outline-none focus:border-gray-500" value={email} onChange={e=>setEmail(e.target.value)} />
           <input type="password" placeholder="Password" required className="bg-black/50 border border-gray-700 rounded p-3 text-sm focus:outline-none focus:border-gray-500" value={password} onChange={e=>setPassword(e.target.value)} />
@@ -225,7 +225,7 @@ export default function ProfileDashboard() {
       {/* Top Bar */}
       <div className="flex justify-between items-center px-4 py-3 border-b border-gray-800 sticky top-0 bg-black z-10">
         <div className="font-bold text-lg flex items-center gap-1">
-          {profile?.name || 'modebook_user'} <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+          {profile?.name || 'dencewance_user'} <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
         </div>
         <div className="flex gap-4">
           <button onClick={handleLogout} className="text-red-500 text-sm font-semibold p-1">Log out</button>
