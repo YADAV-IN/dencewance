@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import multerS3 from 'multer-s3';
+import { cacheRoute, clearCache } from './utils/redis.js';
 import { s3Client, hasR2Config as oldHasR2Config, generatePresignedUrl, listAllR2Files } from './r2.js';
 const hasR2Config = oldHasR2Config;
 import path from 'path';
@@ -393,7 +394,7 @@ app.get('/api/recommendations', async (req, res) => {
     return res.status(500).json({ success: false, error: 'Failed to fetch recommendations' });
   }
 });
-app.get('/api/news', async (req, res) => {
+app.get('/api/news', cacheRoute(30, 'news'), async (req, res) => {
   try {
     const { limit = 12, category, q, status, featured, breaking, author_id } = req.query;
     const query = {};
@@ -694,7 +695,7 @@ function mixSourcesForFeed(list = []) {
   return mixed;
 }
 
-app.get('/api/reels', async (req, res) => {
+app.get('/api/reels', cacheRoute(30, 'reels'), async (req, res) => {
   try {
     const { limit = 50, active = 'true', creator_id } = req.query;
     const query = {};
@@ -713,7 +714,7 @@ app.get('/api/reels', async (req, res) => {
   }
 });
 
-app.get('/api/reels/recommendations', async (req, res) => {
+app.get('/api/reels/recommendations', cacheRoute(60, 'reels'), async (req, res) => {
   try {
     const { limit = 120, active = 'true' } = req.query;
     const query = {};
@@ -948,6 +949,7 @@ app.post('/api/reels', requireAuth, async (req, res) => {
     published_at: payload.published_at || new Date(),
   });
 
+  await clearCache('reels');
   return res.status(201).json({ data: reel.toJSON() });
 });
 
@@ -979,6 +981,8 @@ app.put('/api/reels/:id', requireAuth, async (req, res) => {
 
   const reel = await Reel.findByIdAndUpdate(id, payload, { new: true });
   if (!reel) return res.status(404).json({ error: 'Reel not found.' });
+  
+  await clearCache('reels');
   return res.json({ data: reel.toJSON() });
 });
 
@@ -995,6 +999,7 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
     }
 
     await Reel.findByIdAndDelete(req.params.id);
+    await clearCache('reels');
     return res.status(204).send();
   } catch (error) {
     console.error('Reel delete error:', error);
@@ -1041,7 +1046,7 @@ app.post('/api/news', requireAuth, async (req, res) => {
       language: payload.language || 'hi',
       priority: payload.priority || 'normal',
     });
-    return res.status(201).json({ data: news.toJSON() });
+      await clearCache("news"); return res.status(201).json({ data: news.toJSON() });
   } catch (error) {
     console.error("Error inserting news:", error);
     return res.status(500).json({ error: 'Database error: ' + error.message });
@@ -1070,6 +1075,7 @@ app.put('/api/news/:id', requireAuth, async (req, res) => {
   try {
     const existing = await News.findByIdAndUpdate(id, payload, { new: true });
     if (!existing) return res.status(404).json({ error: 'News not found.' });
+      await clearCache('news');
     return res.json({ data: existing.toJSON() });
   } catch (error) {
     console.error("Update error:", error);
@@ -1093,6 +1099,7 @@ app.delete('/api/news/:id', requireAuth, async (req, res) => {
     }
 
     await News.findByIdAndDelete(id);
+      await clearCache('news');
     return res.status(204).send();
   } catch (error) {
     console.error('News delete error:', error);
