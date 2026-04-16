@@ -416,7 +416,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       {((adminData?.role === 'admin') || (item.creator_id === localStorage.getItem('adminId')) || (adminData && (item.creator_id === adminData.id || item.creator_id === adminData._id || item.creator_name === adminData.name)) || localStorage.getItem('adminToken')) && onDelete && (
                         <button 
                           className="reel-delete-btn" 
-                          onClick={(e) => { e.preventDefault(); onDelete(item.id || item._id); }}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(item.id || item._id); }}
                           style={{
                             background: 'rgba(255, 0, 0, 0.7)',
                             border: '1px solid rgba(255, 255, 255, 0.3)',
@@ -426,7 +426,10 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                             backdropFilter: 'blur(4px)',
                             cursor: 'pointer',
                             fontSize: '12px',
-                            marginRight: '20px'
+                            marginRight: '20px',
+                            position: 'relative',
+                            zIndex: 9999,
+                            pointerEvents: 'auto'
                           }}
                         >
                           Delete
@@ -517,11 +520,11 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       </div>
 
                       {/* Admin: Delete */}
-                      {adminToken && (
+                      {adminToken && onDelete && (
                         <div className="reel-action-item">
                           <button
                             className="reel-action-btn reel-delete-btn"
-                            onClick={(e) => { e.stopPropagation(); deleteReel(item.id || item._id); }}
+                            onClick={(e) => { e.stopPropagation(); onDelete(item.id || item._id); }}
                           >
                             <span className="reel-action-icon">
                               <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">

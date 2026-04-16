@@ -185,9 +185,7 @@ class Model {
       const result = await databases.listDocuments(DB_ID, this.collectionId, queries);
       if (result.documents.length === 0) return null;
       return this._map(result.documents[0]);
-    } catch {
-      return null;
-    }
+    } catch (e) { return null; }
   }
 
   async findById(id) {
@@ -195,9 +193,7 @@ class Model {
     try {
       const doc = await databases.getDocument(DB_ID, this.collectionId, id.toString());
       return this._map(doc);
-    } catch {
-      return null;
-    }
+    } catch (e) { return null; }
   }
 
   find(query = {}) {
@@ -381,9 +377,7 @@ class Model {
     try {
       await databases.deleteDocument(DB_ID, this.collectionId, id);
       return true;
-    } catch {
-      return false;
-    }
+    } catch (e) { console.error("Delete error in Appwrite:", e); return false; }
   }
 
   async create(data) {

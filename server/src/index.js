@@ -19,6 +19,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.get('/', (req, res) => res.json({ message: 'API is working! Open the frontend on Port 3000 to see the website.' }));
+app.get('/', (req, res) => res.json({ message: 'API is working! Open the frontend on Port 3000 to see the website.' }));
+app.get('/', (req, res) => res.json({ message: 'API is working! Open the frontend on Port 3000 to see the website.' }));
 const PORT = process.env.PORT || 4000;
 const IS_VERCEL = process.env.VERCEL === '1';
 const readEnv = (name) => process.env[name]?.trim() || '';
@@ -57,6 +60,8 @@ const upload = multer({
   limits: { fileSize: 200 * 1024 * 1024 }, // 200MB max
 });
 
+app.get('/', (req, res) => res.json({status: 'OK', message: 'Backend is running! Open Frontend on Port 3000'}));
+
 app.use(cors({
   origin: true,
   credentials: true,
@@ -65,6 +70,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
+app.use((req,res,next)=>{console.log(req.method, req.url); next();});
 
 let dbInitialized = false;
 let dbInitPromise = null;
@@ -1545,4 +1551,3 @@ if (!IS_VERCEL) {
   });
 }
 
-export default app;

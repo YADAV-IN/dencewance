@@ -373,18 +373,39 @@ export default function SocialApp() {
 
   const handleDeleteReel = async (reelId) => {
     if (!window.confirm("Are you sure you want to delete this reel?")) return;
+
+    if (String(reelId).startsWith('demo-reel')) {
+      setStories(prev => {
+        const newStories = prev.filter(p => (p.id || p._id) !== reelId);
+        if (viewingMedia === 'story' && newStories.length === 0) setActiveTab('home');
+        return newStories;
+      });
+      setReelsFeed(prev => {
+        const newFeed = prev.filter(p => (p.id || p._id) !== reelId);
+        if (viewingMedia !== 'story' && viewingMedia !== 'recommendation' && newFeed.length === 0) setActiveTab('home');
+        return newFeed;
+      });
+      alert("Demo Reel removed locally.");
+      return;
+    }
+
     try {
       const res = await fetch(`${API_URL}/api/reels/${reelId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) {
+      if (res.ok || res.status === 404) {
         setStories(prev => {
           const newStories = prev.filter(p => (p.id || p._id) !== reelId);
-          if (newStories.length === 0) setActiveTab('home'); // Go home if empty
+          if (viewingMedia === 'story' && newStories.length === 0) setActiveTab('home');
           return newStories;
         });
-        alert("Reel deleted.");
+        setReelsFeed(prev => {
+          const newFeed = prev.filter(p => (p.id || p._id) !== reelId);
+          if (viewingMedia !== 'story' && viewingMedia !== 'recommendation' && newFeed.length === 0) setActiveTab('home');
+          return newFeed;
+        });
+        if (res.ok) alert("Reel deleted.");
       } else {
         const data = await res.json();
         alert(data.error || "Failed to delete reel.");
@@ -749,8 +770,8 @@ export default function SocialApp() {
                     </div>
                     {((adminData?.role === 'admin') || (post.author_id === adminId) || (adminData && (post.author_id === adminData._id || post.author_name === adminData.name)) || adminId) && (
                       <button 
-                        onClick={() => handleDeletePost(post.id || post._id)}
-                        style={{background:'none', border:'none', color:'red', fontWeight:'bold', cursor:'pointer', padding:'5px 10px'}}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeletePost(post.id || post._id); }}
+                        style={{background:'none', border:'none', color:'red', fontWeight:'bold', cursor:'pointer', padding:'5px 10px', zIndex: 99, position: 'relative'}}
                       >
                         Delete
                       </button>
