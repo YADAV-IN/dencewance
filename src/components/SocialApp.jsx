@@ -374,17 +374,31 @@ export default function SocialApp() {
   const handleDeleteReel = async (reelId) => {
     if (!window.confirm("Are you sure you want to delete this reel?")) return;
 
-    if (String(reelId).startsWith('demo-reel')) {
-      setStories(prev => {
-        const newStories = prev.filter(p => (p.id || p._id) !== reelId);
-        if (viewingMedia === 'story' && newStories.length === 0) setActiveTab('home');
-        return newStories;
+    const removeLocally = () => {
+      setStatuses(prev => {
+        const newStatuses = prev.filter(p => (p.id || p._id) !== reelId);
+        if (viewingMedia === 'status' && newStatuses.length === 0) setActiveTab('home');
+        return newStatuses;
       });
       setReelsFeed(prev => {
         const newFeed = prev.filter(p => (p.id || p._id) !== reelId);
-        if (viewingMedia !== 'story' && viewingMedia !== 'recommendation' && newFeed.length === 0) setActiveTab('home');
+        if (viewingMedia === 'reel' && newFeed.length === 0) setActiveTab('home');
         return newFeed;
       });
+      setRecommendations(prev => {
+        const newReels = prev.reels.filter(p => (p.id || p._id) !== reelId);
+        if (viewingMedia === 'recommendation' && newReels.length === 0) setActiveTab('home');
+        return { ...prev, reels: newReels };
+      });
+      setSearchResults(prev => {
+        const newReels = prev.reels.filter(p => (p.id || p._id) !== reelId);
+        if (viewingMedia === 'search' && newReels.length === 0) setActiveTab('home');
+        return { ...prev, reels: newReels };
+      });
+    };
+
+    if (String(reelId).startsWith('demo-reel')) {
+      removeLocally();
       alert("Demo Reel removed locally.");
       return;
     }
@@ -395,16 +409,7 @@ export default function SocialApp() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok || res.status === 404) {
-        setStories(prev => {
-          const newStories = prev.filter(p => (p.id || p._id) !== reelId);
-          if (viewingMedia === 'story' && newStories.length === 0) setActiveTab('home');
-          return newStories;
-        });
-        setReelsFeed(prev => {
-          const newFeed = prev.filter(p => (p.id || p._id) !== reelId);
-          if (viewingMedia !== 'story' && viewingMedia !== 'recommendation' && newFeed.length === 0) setActiveTab('home');
-          return newFeed;
-        });
+        removeLocally();
         if (res.ok) alert("Reel deleted.");
       } else {
         const data = await res.json();
