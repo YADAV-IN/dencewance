@@ -73,14 +73,50 @@ export const BellIcon = () => (
 );
 
 // Generic Logo Placeholder expecting a file named "logo.png" in the "public" folder
-export const DenceWanceLogo = ({ width = 60, height = 60 }) => (
-  <img 
-    src="PATH_YAHAN_PASTE_KREIN" 
-    alt="Dence Wance Logo" 
-    style={{ width: `${width}px`, height: `${height}px`, objectFit: 'contain', borderRadius: '12px' }} 
-    className="shadow-sm logo-image"
-  />
-);
+export const DenceWanceLogo = ({ width = 120, height = 48, style = {} }) => {
+  const [logoUrl, setLogoUrl] = useState('');
+  useEffect(() => {
+    // Check locally first for instant load
+    try {
+      const raw = localStorage.getItem('dencewance_site_settings_cache');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.site_logo_url) setLogoUrl(parsed.site_logo_url);
+      }
+    } catch(e) {}
+    
+    // Fetch latest
+    fetch(`${API_URL}/api/settings`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.data?.site_logo_url) {
+          setLogoUrl(data.data.site_logo_url);
+          localStorage.setItem('dencewance_site_settings_cache', JSON.stringify(data.data));
+          
+          try {
+             const icon1 = document.getElementById('dynamic-favicon');
+             const icon2 = document.getElementById('dynamic-apple-icon');
+             if(icon1) icon1.href = data.data.site_logo_url;
+             if(icon2) icon2.href = data.data.site_logo_url;
+          } catch(e) {}
+        }
+      }).catch(() => {});
+  }, []);
+
+  return (
+    <img 
+      src={logoUrl || '/logo192.png'} 
+      alt="Dence Wance Logo" 
+      style={{ width: width === 'auto' ? 'auto' : `${width}px`, height: `${height}px`, objectFit: 'contain', ...style }} 
+      className="shadow-sm logo-image"
+      onError={(e) => {
+         // Fallback if image is broken
+         e.target.onerror = null;
+         e.target.src = '/logo192.png';
+      }}
+    />
+  );
+};
 
 export const StatusRing = ({ children, hasSeen = false, isUploading = false }) => {
   return (
@@ -106,13 +142,23 @@ export const StatusRing = ({ children, hasSeen = false, isUploading = false }) =
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
 
 const resolveMediaUrl = (url) => {
-  if (!url || typeof url !== 'string') return '';
+  if (!url || typeof url !== 'string' || url === 'null' || url === 'undefined') return '';
   if (url.startsWith('http') || url.startsWith('//') || url.startsWith('data:')) return url;
   return `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
 export default function SocialApp() {
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState(() => new URLSearchParams(window.location.search).get('tab') || 'home');
+  
+  useEffect(() => {
+    const url = new URL(window.location);
+    if (activeTab === 'home') {
+      url.searchParams.delete('tab');
+    } else {
+      url.searchParams.set('tab', activeTab);
+    }
+    window.history.pushState({}, '', url);
+  }, [activeTab]);
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
   const [statuses, setStatuses] = useState([]);
   const [reelsFeed, setReelsFeed] = useState([]);
@@ -437,9 +483,8 @@ export default function SocialApp() {
           
           {/* Universal Top Navigation Bar (One Line) */}
           <header className="top-nav-bar">
-        <div className="brand-container animated-brand">
-          <DenceWanceLogo />
-          <h1 className="logo-text vintage-shimmer">DenceWance</h1>
+        <div className="brand-container animated-brand" style={{ paddingLeft: '8px' }}>
+          <DenceWanceLogo width="auto" height={48} style={{ maxWidth: '200px' }} />
         </div>
         
         {/* Opposite side Notification Bell */}
@@ -453,32 +498,8 @@ export default function SocialApp() {
             <span className="notification-badge">3</span>
           </button>
           
-          <button className="icon-btn" onClick={() => setShowFeatureMenu(!showFeatureMenu)}>
-            <MoreVerticalIcon />
-          </button>
+          <button onClick={() => setActiveTab('pyq')} style={{ background: 'linear-gradient(45deg, #B4A05D, #D4AF37)', color: 'black', fontWeight: 'bold', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 10px rgba(180, 160, 93, 0.3)' }}>🎓 PYQ</button>
 
-          {showFeatureMenu && (
-            <div className="feature-dropdown-menu" style={{
-              position: 'absolute', top: '100%', right: '10px', marginTop: '10px',
-              backgroundColor: '#1E1E1E', border: '1px solid #333', borderRadius: '8px',
-              boxShadow: '0 5px 15px rgba(0,0,0,0.5)', zIndex: 100, minWidth: '160px',
-              padding: '8px 0', display: 'flex', flexDirection: 'column'
-            }}>
-              <button 
-                onClick={() => { setShowPYQAssistant(true); setShowFeatureMenu(false); }} 
-                style={{
-                  background: 'none', border: 'none', color: '#fff', padding: '10px 20px', 
-                  textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer',
-                  borderBottom: '1px solid #333'
-                }}
-                onMouseOver={e => e.currentTarget.style.backgroundColor = '#333'}
-                onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
-              >
-                🎓 DU PYQ AI <span style={{fontSize:'10px', background:'#B4A05D', padding:'2px 6px', borderRadius:'10px', color:'#111', fontWeight:'bold'}}>NEW</span>
-              </button>
-              {/* Additional dynamic feature buttons can go here in the future */}
-            </div>
-          )}
         </div>
       </header>
 
@@ -541,7 +562,9 @@ export default function SocialApp() {
           </div>
         )}
         <main className="main-content">
-          {activeTab === 'search' ? (
+          {activeTab === 'pyq' ? (
+            <PYQAssistant isPage={true} adminData={adminData} />
+          ) : activeTab === 'search' ? (
             <div className="search-container">
               <form onSubmit={handleSearch} className="search-form" style={{ marginTop: '20px' }}>
                 <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
@@ -765,11 +788,18 @@ export default function SocialApp() {
                     <div style={{display: 'flex', alignItems: 'center'}}>
                       <img loading="lazy" src={post.source || `https://i.pravatar.cc/150?img=${10 + i}`} alt="Avatar" className="avatar" />
                       <div className="post-user-info">
-                        <strong>{post.author_name || 'DenceWance User'}</strong>
+                        <strong style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {post.author_name || 'DenceWance User'}
+                          {(post.author_id && post.author_id.includes('69d6')) && (
+                            <svg viewBox="0 0 24 24" fill="#00FFFF" width="16" height="16" style={{ filter: 'drop-shadow(0 0 2px rgba(0, 255, 255, 0.4))' }}>
+                              <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1.8 14.8L6.4 13l1.4-1.4 2.4 2.4 6-6L17.6 9l-7.4 7.8z"/>
+                            </svg>
+                          )}
+                        </strong>
                         <small>{new Date(post.published_at || Date.now()).toLocaleDateString()} • Recorded</small>
                       </div>
                     </div>
-                    {((adminData?.role === 'admin') || (post.author_id === adminId) || (adminData && (post.author_id === adminData._id || post.author_name === adminData.name)) || adminId) && (
+                    {((adminData?.role === 'admin') || (adminData?.role === 'superadmin') || (post.author_id === adminId) || (adminData && (post.author_id === adminData._id || post.author_name === adminData.name)) || adminId) && (
                       <button 
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeletePost(post.id || post._id); }}
                         style={{background:'none', border:'none', color:'red', fontWeight:'bold', cursor:'pointer', padding:'5px 10px', zIndex: 99, position: 'relative'}}
@@ -781,7 +811,7 @@ export default function SocialApp() {
                   <div className="post-body">
                     {post.title && !post.title.includes('Untitled') && !post.title.includes('DenceWance') && !post.content?.startsWith(post.title?.replace(/...$/, '')) && (<h4>{post.title}</h4>)}
                     <p>{post.excerpt || post.content}</p>
-                    {(post.cover_image_url || post.image_url) && (
+                    {((post.cover_image_url && post.cover_image_url.trim() !== "") || (post.image_url && post.image_url.trim() !== "")) && (
                       <img loading="lazy" src={resolveMediaUrl(post.cover_image_url || post.image_url)} alt={post.title} className="post-image" />
                     )}
                   </div>
@@ -870,10 +900,7 @@ export default function SocialApp() {
         <button className={activeTab === 'profile' ? 'active' : ''} onClick={() => setActiveTab('profile')}><EyeIcon /></button>
       </nav>
 
-      {/* Render PYQ Assistant Modal conditionally */}
-      {showPYQAssistant && (
-        <PYQAssistant onClose={() => setShowPYQAssistant(false)} />
-      )}
+      
     </div>
       )}
     </>

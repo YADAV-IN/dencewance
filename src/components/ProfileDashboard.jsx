@@ -18,9 +18,12 @@ export default function ProfileDashboard() {
   const [myReels, setMyReels] = useState([]);
   const [myPosts, setMyPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [siteSettings, setSiteSettings] = useState(null);
 
   // Upload System
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef(null); // for videos
+  const avatarInputRef = useRef(null); // for admin logo/avatar
+  const logoInputRef = useRef(null); // for site logo
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploadingReel, setIsUploadingReel] = useState(false);
   const [uploadStatusText, setUploadStatusText] = useState('');
@@ -62,6 +65,13 @@ export default function ProfileDashboard() {
         if(nRes.ok) {
           const nData = await nRes.json();
           setMyPosts(rData?.data && Array.isArray(nData.data) ? nData.data : []);
+        }
+
+        // Fetch Site Settings
+        const sRes = await fetch(`${API_URL}/api/settings`);
+        if(sRes.ok) {
+          const sData = await sRes.json();
+          setSiteSettings(sData?.data || {});
         }
       }
     } catch (e) {
@@ -128,6 +138,70 @@ export default function ProfileDashboard() {
       console.error(e);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setIsUploadingReel(true);
+    setUploadStatusText('Uploading Site Logo...');
+    try {
+      const fileUrl = await uploadMediaToAppwrite(file, 'alok_media', (progress) => {
+        setUploadProgress(Math.round(progress));
+      });
+      // Save logo to SiteSettings
+      const res = await fetch(`${API_URL}/api/settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ site_logo_url: fileUrl })
+      });
+      if (res.ok) {
+        setUploadStatusText('Logo saved!');
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        throw new Error('Failed to save settings');
+      }
+    } catch (err) {
+      alert('Upload Error: ' + err.message);
+    } finally {
+      setIsUploadingReel(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const handleAdminAvatarUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setIsUploadingReel(true);
+    setUploadStatusText('Uploading Admin Avatar (also used as Logo)...');
+    try {
+      const fileUrl = await uploadMediaToAppwrite(file, 'alok_media', (progress) => {
+        setUploadProgress(Math.round(progress));
+      });
+      // Update Admin avatar_url
+      const res = await fetch(`${API_URL}/api/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ avatar_url: fileUrl })
+      });
+      if (res.ok) {
+        setUploadStatusText('Avatar saved!');
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        throw new Error('Failed to save profile');
+      }
+    } catch (err) {
+      alert('Upload Error: ' + err.message);
+    } finally {
+      setIsUploadingReel(false);
+      setUploadProgress(0);
     }
   };
 
@@ -239,12 +313,24 @@ export default function ProfileDashboard() {
              <button onClick={()=>setIsEditing(false)} className="text-gray-400">Cancel</button>
           </div>
           <div className="flex flex-col items-center gap-2 mb-4">
-            <img src={editAvatar || 'https://ui-avatars.com/api/?name='+(editName||'User')+'&background=random'} className="w-24 h-24 rounded-full border-2 border-gray-700 object-cover" />
-            <input type="text" placeholder="Avatar URL (Optional)" className="bg-gray-900 border border-gray-800 w-full rounded p-2 text-sm text-center" value={editAvatar} onChange={e=>setEditAvatar(e.target.value)} />
+            <img src={editAvatar || 'https://ui-avatars.com/api/?name='+(editName||'User')+'&background=random'} className="w-24 h-24 rounded-full border-2 border-gray-700 object-cover cursor-pointer hover:opacity-80" onClick={() => avatarInputRef.current && avatarInputRef.current.click()} />
+            <input type="hidden" placeholder="Avatar URL (Optional)" className="bg-gray-900 border border-gray-800 w-full rounded p-2 text-sm text-center" value={editAvatar} onChange={e=>setEditAvatar(e.target.value)} />
+            <button className="text-blue-500 text-sm font-semibold" onClick={() => avatarInputRef.current && avatarInputRef.current.click()}>Change Admin Logo</button>
           </div>
           <input type="text" placeholder="Name" className="bg-gray-900 border border-gray-800 rounded p-3 text-sm focus:border-gray-500" value={editName} onChange={e=>setEditName(e.target.value)} />
           <textarea placeholder="Bio" className="bg-gray-900 border border-gray-800 rounded p-3 text-sm focus:border-gray-500 min-h-[100px]" value={editBio} onChange={e=>setEditBio(e.target.value)} />
-          <button onClick={handleSaveProfile} disabled={isSaving} className="bg-blue-500 text-white rounded p-3 font-semibold mt-2">
+          
+          {/* Website Settings Logo */}
+          <div className="border-t border-gray-800 mt-4 pt-4 flex flex-col gap-2">
+            <h3 className="text-sm font-bold text-gray-300">Website Global Logo</h3>
+            <div className="flex items-center gap-4">
+              <img src={siteSettings?.site_logo_url || editAvatar || 'https://ui-avatars.com/api/?name=Website'} className="w-16 h-16 rounded shadow object-cover" />
+              <button className="bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg py-2 px-4 transition" onClick={() => logoInputRef.current.click()}>Upload Website Logo</button>
+            </div>
+            <p className="text-xs text-gray-500">This logo will appear everywhere on the site.</p>
+          </div>
+
+          <button onClick={handleSaveProfile} disabled={isSaving} className="bg-blue-500 text-white rounded p-3 font-semibold mt-4">
              {isSaving ? 'Saving...' : 'Save Profile'}
           </button>
         </div>
@@ -265,9 +351,15 @@ export default function ProfileDashboard() {
             <p className="text-sm border-gray-700 pt-1 text-gray-200" dangerouslySetInnerHTML={{ __html: profile?.bio ? profile.bio.replace(/\n/g, '<br/>') : 'Add a bio from Edit Profile' }} />
           </div>
 
-          <div className="px-4 pb-4 flex gap-2">
-            <button onClick={startEditing} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg py-1.5 transition">Edit profile</button>
-            <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg py-1.5 transition">Share profile</button>
+          <div className="px-4 pb-4 flex flex-col gap-3">
+            <div className="flex gap-2">
+              <button onClick={startEditing} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg py-1.5 transition">Edit profile</button>
+              <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg py-1.5 transition">Share profile</button>
+            </div>
+            <button onClick={() => logoInputRef.current && logoInputRef.current.click()} className="w-full bg-gray-900 border border-gray-800 hover:bg-gray-800 text-blue-400 text-sm font-semibold rounded-lg py-2 transition flex items-center justify-center gap-2">
+               <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+               Update Main Website Logo
+            </button>
           </div>
 
           {/* Highlights/Status Archieves Simulation */}
@@ -329,6 +421,10 @@ export default function ProfileDashboard() {
           )}
         </>
       )}
+      
+      {/* Hidden file inputs for uploads */}
+      <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
+      <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={handleAdminAvatarUpload} />
     </div>
   );
 }

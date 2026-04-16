@@ -21,6 +21,10 @@ export default function CreateInstagramMenu({ onComplete }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatusText, setUploadStatusText] = useState('0%');
 
+  // Uploader Identity
+  const [uploaderType, setUploaderType] = useState('official');
+  const [uploaderName, setUploaderName] = useState('');
+
   const uploadToAppwrite = async (file, bucketId) => {
     return await uploadMediaToAppwrite(file, bucketId, (progress) => {
         setUploadProgress(Math.round(progress.progress));
@@ -45,7 +49,9 @@ export default function CreateInstagramMenu({ onComplete }) {
           image_url: imageUrl,
           cover_image_url: imageUrl,
           category: 'social',
-          status: 'published'
+          status: 'published',
+          creator_mode: uploaderType,
+          custom_author_name: uploaderName
         })
       });
       if (!res.ok) throw new Error('Failed to create post');
@@ -76,7 +82,9 @@ export default function CreateInstagramMenu({ onComplete }) {
           title: reelCaption.slice(0, 20) || 'Viral Reel',
           caption: reelCaption,
           video_url: videoUrl,
-          status: 'published'
+          status: 'published',
+          creator_mode: uploaderType,
+          custom_author_name: uploaderName
         })
       });
       if (!res.ok) throw new Error('Failed to create Reel');
@@ -115,7 +123,33 @@ export default function CreateInstagramMenu({ onComplete }) {
         <button onClick={()=>setActiveTab('reel')} className={`px-6 py-2 rounded-full font-semibold text-sm transition ${activeTab==='reel'?'bg-white text-black':'bg-gray-900 text-gray-300'}`}>Video Story</button>
       </div>
 
-      <div className="p-4 flex-1 overflow-y-auto">
+      {/* Upload Identity Option */}
+      <div className="flex flex-col gap-2 p-4 pt-1 mb-4 border-b border-gray-800">
+        <label className="text-gray-400 text-xs font-bold tracking-wider uppercase">Posting As Profile</label>
+        <div className="flex bg-gray-900 rounded-lg overflow-hidden border border-gray-800">
+          <button className={`flex-1 py-3 text-sm font-semibold transition ${uploaderType === 'official' ? 'bg-cyan-600 text-black' : 'text-gray-400 hover:text-white'}`} onClick={() => setUploaderType('official')}>
+             Official
+          </button>
+          <button className={`flex-1 py-3 text-sm font-semibold transition ${uploaderType === 'male' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`} onClick={() => setUploaderType('male')}>
+             Male
+          </button>
+          <button className={`flex-1 py-3 text-sm font-semibold transition ${uploaderType === 'female' ? 'bg-pink-600 text-white' : 'text-gray-400 hover:text-white'}`} onClick={() => setUploaderType('female')}>
+             Female
+          </button>
+        </div>
+        
+        {uploaderType !== 'official' && (
+          <input 
+            type="text" 
+            placeholder="Custom Author Name (Optional)" 
+            value={uploaderName} 
+            onChange={(e) => setUploaderName(e.target.value)}
+            className="w-full bg-gray-900 text-gray-200 border border-gray-800 rounded-lg p-3 text-sm focus:outline-none focus:border-cyan-500 transition-colors mt-2" 
+          />
+        )}
+      </div>
+
+      <div className="p-4 pt-0 flex-1 overflow-y-auto">
         {activeTab === 'post' ? (
           <div className="flex flex-col gap-4 animate-fade-in">
             <div className="w-full aspect-square bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center relative border border-gray-800">

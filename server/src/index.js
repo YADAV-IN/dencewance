@@ -550,20 +550,44 @@ function pickAutoCreatorProfile(seedInput = '') {
 }
 
 function resolveCreatorIdentity({ payload = {}, currentUser = null, fallbackSeed = '' } = {}) {
-  const mode = payload.creator_mode === 'official' ? 'official' : 'auto';
+  const mode = payload.creator_mode || 'auto';
 
-  if (mode === 'official') {
+  if (mode === 'official' || !payload.creator_mode) {
     return {
       creator_mode: 'official',
       is_official_creator: true,
       creator_id: currentUser?._id?.toString() || '',
       is_demo_creator: false,
-      creator_name: payload.creator_name || currentUser?.name || 'ALOK Official',
-      creator_handle: payload.creator_handle || slugify((currentUser?.name || 'alokofficial').toLowerCase()),
+      creator_name: payload.custom_author_name || payload.creator_name || currentUser?.name || 'ALOK Official',
+      creator_handle: payload.creator_handle || slugify((payload.custom_author_name || currentUser?.name || 'alokofficial').toLowerCase()),
       creator_avatar: payload.creator_avatar || currentUser?.avatar_url || '',
       follower_count: Number(payload.follower_count) > 0
         ? Number(payload.follower_count)
         : (Number(currentUser?.followers) > 0 ? Number(currentUser.followers) : 12500),
+    };
+  }
+  
+  if (mode === 'male') {
+    return {
+      creator_mode: 'auto',
+      is_official_creator: false,
+      is_demo_creator: false,
+      creator_name: payload.custom_author_name || 'Dencewance Boy',
+      creator_handle: slugify((payload.custom_author_name || 'denceboy').toLowerCase()),
+      creator_avatar: 'https://i.pravatar.cc/150?img=11',
+      follower_count: Math.floor(Math.random() * 5000) + 100,
+    };
+  }
+
+  if (mode === 'female') {
+    return {
+      creator_mode: 'auto',
+      is_official_creator: false,
+      is_demo_creator: false,
+      creator_name: payload.custom_author_name || 'Dencewance Girl',
+      creator_handle: slugify((payload.custom_author_name || 'dencegirl').toLowerCase()),
+      creator_avatar: 'https://i.pravatar.cc/150?img=5',
+      follower_count: Math.floor(Math.random() * 15000) + 1000,
     };
   }
 
@@ -651,48 +675,34 @@ async function isLikelyPlayableVideoUrl(url = '') {
 
 function scoreReelForGlobalFeed(item) {
   const now = Date.now();
-  const publishedAt = item.published_at ? new Date(item.published_at).getTime() : now;
-  const ageHours = Math.max(1, (now - publishedAt) / 3600000);
-  const freshness = 48 / Math.sqrt(ageHours);
+  const publishedAt = item.published_at ? new Date(item.published_at).getTime() : (item.created_at ? new Date(item.created_at).getTime() : now);
+  const ageHours = Math.max(0.1, (now - publishedAt) / 3600000);
+  
+  // Advanced Freshness Curve: Logarithmic decay to keep new content highly visible but fade gracefully
+  const freshnessScore = Math.max(0, 150 / Math.log10(ageHours + 1.5));
+  
   const views = Number(item.views) || 0;
   const likes = Number(item.likes) || 0;
   const shares = Number(item.shares) || 0;
-  const engagement = likes * 2.8 + shares * 4 + views * 0.22;
-  const domainQuality = getDomainQualityScore(item.video_url);
-  return engagement + freshness + domainQuality;
+  
+  // Mature Virality Multiplier: high weight on shares & likes
+  const engagementScore = (likes * 3.5) + (shares * 5.0) + (views * 0.15);
+  
+  // Time-decayed Virality: if something gets lots of views very quickly, it's viral
+  const viralityCoefficient = (views > 100) ? (engagementScore / ageHours) * 0.5 : 0;
+  
+  // Official creator trust bonus
+  const officialBonus = item.is_official_creator ? 40 : (item.creator_mode === 'official' ? 30 : 0);
+  
+  // Alive Feed Jitter: Adds slight dynamic randomness so the feed isn't 100% static
+  const randomJitter = Math.random() * 20;
+
+  return engagementScore + freshnessScore + viralityCoefficient + officialBonus + randomJitter;
 }
 
 function mixSourcesForFeed(list = []) {
-  const buckets = {
-    youtube: [],
-    instagram: [],
-    upload: [],
-  };
-
-  list.forEach((item) => {
-    const source = item.source_type || 'upload';
-    if (buckets[source]) buckets[source].push(item);
-    else buckets.upload.push(item);
-  });
-
-  Object.values(buckets).forEach((arr) => arr.sort((a, b) => b.feed_score - a.feed_score));
-
-  const order = ['upload', 'youtube', 'instagram'];
-  const mixed = [];
-
-  while (mixed.length < list.length) {
-    let pushedInCycle = false;
-    order.forEach((source) => {
-      const next = buckets[source].shift();
-      if (next) {
-        mixed.push(next);
-        pushedInCycle = true;
-      }
-    });
-    if (!pushedInCycle) break;
-  }
-
-  return mixed;
+  // The new Intelligent Algorithm relies purely on the advanced computed score
+  return list.sort((a, b) => b.feed_score - a.feed_score);
 }
 
 app.get('/api/reels', cacheRoute(30, 'reels'), async (req, res) => {
@@ -1025,10 +1035,18 @@ app.post('/api/news', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Title, excerpt, and content required.' });
   }
 
-  if (payload.creator_mode === 'official') {
+  if (payload.creator_mode === 'official' || !payload.creator_mode) {
     payload.author_id = currentUser._id.toString();
-    payload.author_name = currentUser.name;
-    payload.source = currentUser.avatar_url; // Use source field as profile avatar for feed
+    payload.author_name = payload.custom_author_name || currentUser.name;
+    payload.source = currentUser.avatar_url || 'https://i.pravatar.cc/150?img=11'; // official icon/avatar
+  } else if (payload.creator_mode === 'male') {
+    payload.author_id = `male_${Date.now()}`;
+    payload.author_name = payload.custom_author_name || 'Dencewance User';
+    payload.source = 'https://i.pravatar.cc/150?img=11';
+  } else if (payload.creator_mode === 'female') {
+    payload.author_id = `female_${Date.now()}`;
+    payload.author_name = payload.custom_author_name || 'Dencewance User';
+    payload.source = 'https://i.pravatar.cc/150?img=5';
   }
 
   const baseSlug = slugify(payload.title);

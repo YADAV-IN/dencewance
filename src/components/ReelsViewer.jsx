@@ -69,7 +69,33 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const reelUploadInputRef = useRef(null);
   const reelUploadProgress = 0;
   const toggleFollowCreator = () => {};
-  const handleReelLike = () => {};
+  const handleReelLike = async (item) => {
+    if (likedTracking[item._id]?.liked) return; // User already liked locally
+    
+    // Optistic UI update
+    setLikedTracking(prev => ({
+      ...prev,
+      [item._id]: {
+        liked: true,
+        count: (item.likes || 0) + 1
+      }
+    }));
+
+    try {
+      const res = await fetch(`${API_URL}/api/reels/${item._id}/like`, { method: 'POST' });
+      if (!res.ok) throw new Error('Like failed');
+    } catch (e) {
+      console.error(e);
+      // Revert optimism if failed
+      setLikedTracking(prev => ({
+        ...prev,
+        [item._id]: {
+          liked: false,
+          count: item.likes || 0
+        }
+      }));
+    }
+  };
   const handleReelFileUpload = () => {};
   const navigateTo = () => { /* Handle back navigation nicely if needed */ };
   const openReel = () => {};
@@ -88,7 +114,8 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   console.log("Rendering ReelsViewer, total reels:", reels.length);
 
   const [activeReelIndex, setActiveReelIndex] = useState(initialIndex);
-  const [reelsMuted, setReelsMuted] = useState(true);
+  const [reelsMuted, setReelsMuted] = useState(false); // Changed to false by default as requested
+  const [likedTracking, setLikedTracking] = useState({}); // Track local likes
   const toggleReelsMute = (e) => {
     e.stopPropagation();
     setReelsMuted(!reelsMuted);
@@ -231,10 +258,22 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   return (
 <div className="reels-container" ref={reelsContainerRef}>
               {reelItems.length === 0 && (
-                <div style={{ color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100dvh', width: '100%', background: '#000', zIndex: 999 }}>
-                  <div className="pulse-dot" style={{ width: '20px', height: '20px', marginBottom: '16px' }}></div>
-                  <h3>Loading Video Stories...</h3>
-                  <p style={{ opacity: 0.6, fontSize: '14px', marginTop: '8px' }}>Please wait while content is loading or check your connection.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100dvh', background: '#000', padding: '20px', zIndex: 999 }}>
+                  <div style={{ width: '100%', height: '80%', background: '#222', borderRadius: '12px', animation: 'skeleton-pulse 1.5s infinite ease-in-out' }}></div>
+                  <div style={{ display: 'flex', marginTop: '16px', gap: '12px', alignItems: 'center' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#222', animation: 'skeleton-pulse 1.5s infinite ease-in-out' }}></div>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ width: '60%', height: '14px', background: '#222', borderRadius: '4px', animation: 'skeleton-pulse 1.5s infinite ease-in-out' }}></div>
+                      <div style={{ width: '40%', height: '14px', background: '#222', borderRadius: '4px', animation: 'skeleton-pulse 1.5s infinite ease-in-out' }}></div>
+                    </div>
+                  </div>
+                  <style>{`
+                    @keyframes skeleton-pulse {
+                      0% { opacity: 1; }
+                      50% { opacity: 0.4; }
+                      100% { opacity: 1; }
+                    }
+                  `}</style>
                 </div>
               )}
               {reelItems.map((item, idx) => {
@@ -456,13 +495,15 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       {/* Like */}
                       <div className="reel-action-item">
                         <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); handleReelLike(item); }}>
-                          <span className="reel-action-icon">
+                          <span className="reel-action-icon" style={{ color: likedTracking[item._id]?.liked ? '#f91880' : 'currentColor' }}>
                             <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
                               <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                             </svg>
                           </span>
                         </button>
-                        <span className="reel-action-count">{formatCompactNumber(item.likes || 0)}</span>
+                        <span className="reel-action-count">
+                          {formatCompactNumber(likedTracking[item._id]?.count ?? (item.likes || 0))}
+                        </span>
                       </div>
 
                       {/* Comment / Open reel page */}
@@ -541,8 +582,13 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     
                     <div className="reel-bottom-info">
                       <div className="reel-creator-line">
-                        <strong className="reel-creator-handle">
+                        <strong className="reel-creator-handle" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           @{item.creator_handle || slugifyText(item.creator_name || 'creator').replace(/-/g, '')}
+                          {item.is_official_creator && (
+                            <svg viewBox="0 0 24 24" fill="#00FFFF" width="16" height="16" style={{ filter: 'drop-shadow(0 0 2px rgba(0, 255, 255, 0.4))' }}>
+                              <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1.8 14.8L6.4 13l1.4-1.4 2.4 2.4 6-6L17.6 9l-7.4 7.8z"/>
+                            </svg>
+                          )}
                         </strong>
                         {item.is_demo_creator && <span className="reel-category-badge">Demo</span>}
                         {item.category && <span className="reel-category-badge">{item.category}</span>}

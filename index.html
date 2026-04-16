@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="/favicon.ico" />
+    <link rel="icon" id="dynamic-favicon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#000000" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -13,7 +13,7 @@
       name="description"
       content="Web site created using @vitejs/plugin-react"
     />
-    <link rel="apple-touch-icon" href="/logo192.png" />
+    <link rel="apple-touch-icon" id="dynamic-apple-icon" href="/logo192.png" />
     <!--
       manifest.json provides metadata used when your web app is installed on a
       user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
@@ -25,17 +25,20 @@
           var raw = localStorage.getItem('dencewance_site_settings_cache');
           if (raw) {
             var parsed = JSON.parse(raw);
-            if (parsed && parsed.site_title) {
-              document.title = parsed.site_title;
-              return;
-            }
-            if (parsed && parsed.site_name) {
-              document.title = parsed.site_name;
-              return;
+            if (parsed) {
+              if (parsed.site_title || parsed.site_name) {
+                document.title = parsed.site_title || parsed.site_name;
+              }
+              if (parsed.site_logo_url) {
+                var icon1 = document.getElementById('dynamic-favicon');
+                var icon2 = document.getElementById('dynamic-apple-icon');
+                if(icon1) icon1.href = parsed.site_logo_url;
+                if(icon2) icon2.href = parsed.site_logo_url;
+              }
             }
           }
         } catch (e) {}
-        document.title = 'Loading...';
+        if (!document.title || document.title === '') document.title = 'Loading...';
       })();
     </script>
     <title>Loading...</title>

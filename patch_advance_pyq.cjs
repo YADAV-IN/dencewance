@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+const fs = require('fs');
+
+const code = `import React, { useState, useEffect } from 'react';
 import { Client, Databases, Storage, ID, Query } from 'appwrite';
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
 
 // --- Appwrite Config ---
 const client = new Client();
 client
-  .setEndpoint('https://nyc.cloud.appwrite.io/v1')
-  .setProject('69d60fbe002bae1e32d5');
+  .setEndpoint('https://cloud.appwrite.io/v1')
+  .setProject('67420cff00078b5e40c4');
 
 const databases = new Databases(client);
 const storage = new Storage(client);
@@ -24,7 +26,6 @@ const PYQAssistant = ({ adminData }) => {
   const [libDept, setLibDept] = useState('');
   const [libCourse, setLibCourse] = useState('');
   const [libSubject, setLibSubject] = useState('');
-  const [libKeywords, setLibKeywords] = useState('');
   const [libFile, setLibFile] = useState(null);
   const [libLoading, setLibLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -48,28 +49,7 @@ const PYQAssistant = ({ adminData }) => {
       setLoading(false);
     }
   };
-  const handleDeleteDocument = async (docId, fileId) => {
-    if (!window.confirm("Are you sure you want to completely delete this PYQ document?")) return;
-    try {
-      // Trying to delete from Storage first
-      if (fileId) {
-        try {
-          await storage.deleteFile(BUCKET_ID, fileId);
-        } catch (e) {
-          console.warn("Storage deletion error (maybe already deleted):", e);
-        }
-      }
-      
-      // Delete database record
-      await databases.deleteDocument(DATABASE_ID, COLLECTION_ID, docId);
-      
-      setLibraryItems(prev => prev.filter(item => item.$id !== docId));
-      alert("PYQ Document Delted Successfully!");
-    } catch (error) {
-      console.error('Error deleting document:', error);
-      alert("Failed to delete PYQ document. Permission denied or network issue.");
-    }
-  };
+
   const handleLibraryUpload = async (e) => {
     e.preventDefault();
     if (!libDept || !libCourse || !libSubject || !libFile) {
@@ -93,14 +73,14 @@ const PYQAssistant = ({ adminData }) => {
       await databases.createDocument(DATABASE_ID, COLLECTION_ID, ID.unique(), {
         dept: libDept.toUpperCase(),
         course: libCourse.toUpperCase(),
-        subject: libKeywords ? `${libSubject} //SEO// ${libKeywords}` : libSubject,
+        subject: libSubject,
         fileName: libFile.name,
         fileType: libFile.type,
         fileId: fileUrl
       });
       
       alert("PYQ Uploaded successfully!");
-      setLibDept(''); setLibCourse(''); setLibSubject(''); setLibKeywords(''); setLibFile(null);
+      setLibDept(''); setLibCourse(''); setLibSubject(''); setLibFile(null);
       fetchLibrary();
     } catch (err) {
       console.error("Upload error:", err);
@@ -111,38 +91,28 @@ const PYQAssistant = ({ adminData }) => {
     }
   };
 
-  const handleViewDocument = async (fileId, fileName) => {
-    let downloadUrl = fileId;
-    if (!fileId.startsWith('http://') && !fileId.startsWith('https://')) {
-      try {
-        const result = storage.getFileDownload(BUCKET_ID, fileId);
-        downloadUrl = result.href || result;
-      } catch (error) {
-        console.error('Failed to get download url:', error);
-      }
+  const handleViewDocument = async (fileId) => {
+    if (fileId.startsWith('http://') || fileId.startsWith('https://')) {
+      window.open(fileId, '_blank');
+      return;
     }
-    
-    // Creating an invisible anchor to force true download behavior
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = fileName || 'pyq-document';
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    try {
+      const result = await storage.getFileView(BUCKET_ID, fileId);
+      window.open(result.href, '_blank');
+    } catch (error) {
+      console.error('Failed to load document:', error);
+      alert("Couldn't open the document.");
+    }
   };
 
   const filteredItems = libraryItems.filter(item => {
-    if (!searchQuery.trim()) return true;
-    
-    // Split search query into multiple words for "kahi se bhi" flexible search
-    const searchTerms = searchQuery.toLowerCase().trim().split(/\s+/);
-    
-    // Create one massive searchable string for each document
-    const itemString = `${item.course || ''} ${item.dept || ''} ${item.subject || ''} ${item.fileName || ''}`.toLowerCase();
-    
-    // Check if EVERY typed word exists SOMEWHERE in this massive string (order independent)
-    return searchTerms.every(term => itemString.includes(term));
+    const q = searchQuery.toLowerCase();
+    return (
+      item.course?.toLowerCase().includes(q) || 
+      item.dept?.toLowerCase().includes(q) || 
+      item.subject?.toLowerCase().includes(q) || 
+      item.fileName?.toLowerCase().includes(q)
+    );
   });
 
   return (
@@ -203,8 +173,7 @@ const PYQAssistant = ({ adminData }) => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
               <input type="text" required placeholder="Dept (e.g. CS)" value={libDept} onChange={e=>setLibDept(e.target.value)} style={inputStyle} />
               <input type="text" required placeholder="Course (e.g. BCA)" value={libCourse} onChange={e=>setLibCourse(e.target.value)} style={inputStyle} />
-              <input type="text" required placeholder="Subject (e.g. Java)" value={libSubject} onChange={e=>setLibSubject(e.target.value)} style={inputStyle} />
-              <input type="text" placeholder="SEO / Rel Keywords (Comma separated)" value={libKeywords} onChange={e=>setLibKeywords(e.target.value)} style={inputStyle} />
+              <input type="text" required placeholder="Subject Name (e.g. Java)" value={libSubject} onChange={e=>setLibSubject(e.target.value)} style={inputStyle} />
             </div>
             
             <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', background: '#0a0a0a', padding: '8px 8px 8px 16px', borderRadius: '12px', border: '1px solid #333' }}>
@@ -223,7 +192,7 @@ const PYQAssistant = ({ adminData }) => {
                   <span>{uploadProgress}%</span>
                 </div>
                 <div style={{ width: '100%', height: '8px', backgroundColor: '#111', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${uploadProgress}%`, backgroundColor: '#4ade80', transition: 'width 0.2s ease' }}></div>
+                  <div style={{ height: '100%', width: \`\${uploadProgress}%\`, backgroundColor: '#4ade80', transition: 'width 0.2s ease' }}></div>
                 </div>
               </div>
             )}
@@ -263,20 +232,13 @@ const PYQAssistant = ({ adminData }) => {
             onMouseOut={(e) => { e.currentTarget.style.borderColor = '#2a2a2a'; e.currentTarget.style.transform = 'none'; }}
             >
               {/* Card Meta Tags */}
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
                 <span style={{ fontSize: '12px', padding: '4px 10px', backgroundColor: '#B4A05D', color: '#000', borderRadius: '8px', fontWeight: '900', letterSpacing: '0.5px' }}>{item.dept}</span>
                 <span style={{ fontSize: '12px', padding: '4px 10px', backgroundColor: '#333', color: '#fff', borderRadius: '8px', fontWeight: '800', letterSpacing: '0.5px' }}>{item.course}</span>
-                
-                {/* Dynamically show SEO Tags if user uploaded them */}
-                {item.subject?.includes('//SEO//') && item.subject.split('//SEO//')[1]?.split(',').slice(0, 2).map((tag, idx) => (
-                  <span key={idx} style={{ fontSize: '11px', padding: '4px 8px', backgroundColor: '#1a2e1a', color: '#4ade80', borderRadius: '8px', fontWeight: '700' }}>
-                    #{tag.trim()}
-                  </span>
-                ))}
               </div>
               
               {/* Paper Title (Huge & visible) */}
-              <h4 style={{ fontSize: '20px', fontWeight: '900', margin: '0 0 10px 0', lineHeight: '1.3', color: '#FFFFFF' }}>{item.subject?.split('//SEO//')[0].trim()}</h4>
+              <h4 style={{ fontSize: '20px', fontWeight: '900', margin: '0 0 10px 0', lineHeight: '1.3', color: '#FFFFFF' }}>{item.subject}</h4>
               
               {/* File Name */}
               <p style={{ fontSize: '14px', color: '#A0A0A0', margin: '0 0 24px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: '500' }} title={item.fileName}>
@@ -289,20 +251,11 @@ const PYQAssistant = ({ adminData }) => {
                   {new Date(item.$createdAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </span>
                 
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {((adminData?.role === 'admin') || (adminData?.role === 'superadmin')) && (
-                    <button onClick={() => handleDeleteDocument(item.$id, item.fileId)} style={{
-                      padding: '10px 15px', backgroundColor: '#441111', color: '#ff6666', border: '1px solid #661111', borderRadius: '8px', fontWeight: '900', fontSize: '14px', cursor: 'pointer'
-                    }}>
-                      DELETE
-                    </button>
-                  )}
-                  <button onClick={() => handleViewDocument(item.fileId, item.fileName)} style={{
-                    padding: '10px 20px', backgroundColor: '#ffffff', color: '#000000', border: 'none', borderRadius: '8px', fontWeight: '900', fontSize: '14px', cursor: 'pointer', boxShadow: '0 2px 10px rgba(255,255,255,0.2)'
-                  }}>
-                    DOWNLOAD
-                  </button>
-                </div>
+                <button onClick={() => handleViewDocument(item.fileId)} style={{
+                  padding: '10px 20px', backgroundColor: '#ffffff', color: '#000000', border: 'none', borderRadius: '8px', fontWeight: '900', fontSize: '14px', cursor: 'pointer', boxShadow: '0 2px 10px rgba(255,255,255,0.2)'
+                }}>
+                  DOWNLOAD
+                </button>
               </div>
             </div>
           ))}
@@ -317,3 +270,7 @@ const inputStyle = {
 };
 
 export default PYQAssistant;
+`;
+
+fs.writeFileSync('src/components/PYQAssistant.jsx', code);
+console.log('Advance UI generated.');
