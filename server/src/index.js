@@ -10,7 +10,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel } from './db.js';
-import { storage as appwriteStorage, ID } from './appwrite.js';
+import { storage as appwriteStorage, databases as appwriteDatabases, ID } from './appwrite.js';
 import { InputFile } from 'node-appwrite/file';
 import { requireAuth, signToken } from './middleware/auth.js';
 import { slugify } from './utils/slug.js';
@@ -1226,6 +1226,34 @@ app.post('/api/uploads/sign', requireAuth, async (req, res) => {
 });
 
 // ── Cleanup: delete all reels with base64/blob video_urls (junk data before Cloudinary) ──
+
+// --- PYQ Admin API ---
+app.delete('/api/pyq/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fileId } = req.query;
+    const currentUser = await Admin.findById(req.adminId);
+    
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'superadmin')) {
+      return res.status(403).json({ error: 'Only admins can delete PYQ documents.' });
+    }
+
+    if (fileId) {
+      try {
+        await appwriteStorage.deleteFile('alok_media', fileId);
+      } catch(e) {
+        console.warn("Could not delete from storage:", e.message);
+      }
+    }
+    
+    await appwriteDatabases.deleteDocument('69d60fe8000c9bd92750', '69d6126a0031232a50d0', id);
+    res.json({ success: true, message: 'PYQ document deleted.' });
+  } catch(err) {
+    console.error("PYQ Delete Error:", err);
+    res.status(500).json({ error: 'Failed to delete PYQ document from Appwrite.' });
+  }
+});
+
 app.delete('/api/reels/cleanup-junk', requireAuth, async (req, res) => {
   try {
     const currentUser = await Admin.findById(req.adminId);
