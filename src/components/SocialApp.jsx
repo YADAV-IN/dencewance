@@ -72,19 +72,19 @@ export const BellIcon = () => (
   </svg>
 );
 
-// Modern Professional DenceWance Logo
+// Generic Logo Placeholder expecting a file named "logo.png" in the "public" folder
 export const DenceWanceLogo = ({ width = 60, height = 60 }) => (
-  <svg viewBox="0 0 100 100" width={width} height={height} xmlns="http://www.w3.org/2000/svg" className="shadow-sm rounded-2xl" aria-label="Dence Wance Logo">
-    <defs>
-      <linearGradient id="dwGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#00FFFF" />
-        <stop offset="100%" stopColor="#FF00FF" />
-      </linearGradient>
-    </defs>
-    <rect x="10" y="10" width="80" height="80" rx="20" fill="#1b1b1b" />
-    <path d="M 40 30 Q 60 10, 80 30 T 70 60 Q 50 80, 30 60 T 40 30" fill="url(#dwGrad)" opacity="0.8"/>
-    <path d="M 60 20 L 60 60 A 10 10 0 1 1 40 60 L 40 40 L 80 40" fill="none" stroke="#FFFFFF" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
+  <img 
+    src="/logo.png" 
+    alt="Dence Wance Logo" 
+    style={{ width: `${width}px`, height: `${height}px`, objectFit: 'contain', borderRadius: '12px' }} 
+    className="shadow-sm"
+    onError={(e) => {
+      // Fallback behavior if image isn't available
+      e.target.style.display = 'none';
+      e.target.nextSibling.style.display = 'flex';
+    }}
+  />
 );
 
 export const StatusRing = ({ children, hasSeen = false, isUploading = false }) => {
