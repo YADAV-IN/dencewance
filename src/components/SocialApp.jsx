@@ -342,12 +342,12 @@ export default function SocialApp() {
           if (data && Array.isArray(data.data) && data.data.length > 0) {
             setReelsFeed(data.data);
           } else {
-            setReelsFeed(demoReels);
+            setReelsFeed([]); // No fallback to demoReels
           }
         })
         .catch(err => {
           console.error('Failed to load reels', err);
-          setReelsFeed(demoReels);
+          setReelsFeed([]); // No fallback to demoReels
         }),
 
       // Fetch News

@@ -109,7 +109,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const slugifyText = (t) => (typeof t === 'string' ? t : '').toLowerCase().replace(/\s+/g, '-');
   const reelsUrlInput = '';
 
-  const reels = fallbackData && fallbackData.length > 0 ? fallbackData : demoReels;
+  const reels = fallbackData && fallbackData.length > 0 ? fallbackData : [];
   const reelItems = reels;
   const currentPageKey = 'videos';
   console.log("Rendering ReelsViewer, total reels:", reels.length);
