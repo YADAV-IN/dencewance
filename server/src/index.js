@@ -1008,12 +1008,16 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Permission denied to delete this reel.' });
     }
 
-    await Reel.findByIdAndDelete(req.params.id);
+    const deleted = await Reel.findByIdAndDelete(req.params.id);
+    if (!deleted) {
+      console.error('Appwrite delete failed for reel:', req.params.id);
+      return res.status(500).json({ error: 'Failed to delete reel from Appwrite DB.' });
+    }
     await clearCache('reels');
-    return res.status(204).send();
+    return res.json({ success: true, message: 'Reel deleted.' });
   } catch (error) {
     console.error('Reel delete error:', error);
-    return res.status(500).json({ error: 'Failed to delete reel.' });
+    return res.status(500).json({ error: 'Failed to delete reel.', detail: error?.message || error });
   }
 });
 

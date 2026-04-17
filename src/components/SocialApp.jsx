@@ -450,15 +450,17 @@ export default function SocialApp() {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok || res.status === 404) {
+      if (res.ok) {
         removeLocally();
-        if (res.ok) alert("Reel deleted.");
+        alert("Reel deleted.");
       } else {
-        const data = await res.json();
-        alert(data.error || "Failed to delete reel.");
+        let data = {};
+        try { data = await res.json(); } catch(e) {}
+        alert((data.error ? `Delete failed: ${data.error}` : "Failed to delete reel.") + (data.detail ? `\nDetail: ${data.detail}` : ''));
       }
     } catch(err) {
       console.error(err);
+      alert("Delete request failed: " + (err?.message || err));
     }
   };
 
