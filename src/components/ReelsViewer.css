@@ -1,0 +1,23 @@
+.reel-gradient-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 30%;
+  pointer-events: none;
+  /* Remove dark shadow, use subtle fade */
+  background: linear-gradient(to top, rgba(0,0,0,0.10) 60%, rgba(0,0,0,0.00) 100%);
+  z-index: 2;
+}
+
+.reel-bottom-info {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  padding: 24px 20px 18px 20px;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.10);
+  background: none !important;
+}

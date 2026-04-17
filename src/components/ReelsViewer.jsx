@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Heart, Share2, MoreVertical, Volume2, VolumeX } from 'lucide-react';
 import { demoReels } from './demoData';
+import './ReelsViewer.css';
 import { translations as tAll } from '../translations';
 
 const REEL_PRELOAD_AHEAD = 1; // Kam kiya gaya hai taaki data kam consume ho
