@@ -74,6 +74,9 @@ export const BellIcon = () => (
 // Generic Logo Placeholder expecting a file named "logo.png" in the "public" folder
 export const DenceWanceLogo = ({ width = 120, height = 48, style = {} }) => {
   const [logoUrl, setLogoUrl] = useState('');
+  // Global error state for DB down
+  const [globalError, setGlobalError] = useState('');
+
   useEffect(() => {
     // Check locally first for instant load
     try {
@@ -377,8 +380,6 @@ export default function SocialApp() {
       setGlobalError('Database unavailable: ' + (err.message || 'Unknown error'));
       console.error('Error loading data:', err);
     }).finally(() => {
-        // Global error state for DB down
-        const [globalError, setGlobalError] = useState('');
       clearTimeout(loadingTimeout);
       setIsLoading(false); // Fetching khatam
     });
