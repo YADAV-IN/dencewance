@@ -3,7 +3,6 @@ import './SocialApp.css';
 import ReelsViewer from './ReelsViewer';
 import CreateInstagramMenu from './CreateInstagramMenu';
 import ProfileDashboard from './ProfileDashboard';
-import { demoReels } from './demoData';
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
 import PYQAssistant from './PYQAssistant';
 
@@ -337,36 +336,49 @@ export default function SocialApp() {
 
       // Fetch Reels (Video Stories)
       fetchWithTimeout(`${API_URL}/api/reels`)
-        .then(res => res.json())
+        .then(res => {
+          if (res.status === 503) throw new Error('Database unavailable');
+          return res.json();
+        })
         .then(data => {
           if (data && Array.isArray(data.data) && data.data.length > 0) {
             setReelsFeed(data.data);
           } else {
-            setReelsFeed(demoReels);
+            setReelsFeed([]);
+            setGlobalError('No reels found.');
           }
         })
         .catch(err => {
           console.error('Failed to load reels', err);
-          setReelsFeed(demoReels);
+          setReelsFeed([]);
+          setGlobalError('Reels unavailable: ' + (err.message || 'Unknown error'));
         }),
 
       // Fetch News
       fetchWithTimeout(`${API_URL}/api/news`)
-        .then(res => res.json())
+        .then(res => {
+          if (res.status === 503) throw new Error('Database unavailable');
+          return res.json();
+        })
         .then(data => {
           if (data && Array.isArray(data.data)) {
             setFeed(data.data);
           } else {
             setFeed([]);
+            setGlobalError('No news found.');
           }
         })
         .catch(err => {
           console.error('Failed to load feed', err);
           setFeed([]);
+          setGlobalError('News unavailable: ' + (err.message || 'Unknown error'));
         })
     ]).catch(err => {
+      setGlobalError('Database unavailable: ' + (err.message || 'Unknown error'));
       console.error('Error loading data:', err);
     }).finally(() => {
+        // Global error state for DB down
+        const [globalError, setGlobalError] = useState('');
       clearTimeout(loadingTimeout);
       setIsLoading(false); // Fetching khatam
     });
@@ -464,6 +476,11 @@ export default function SocialApp() {
 
   return (
     <>
+      {globalError && (
+        <div style={{background:'#ffdddd',color:'#a00',padding:'12px',textAlign:'center',fontWeight:'bold',borderBottom:'2px solid #a00',zIndex:1000}}>
+          {globalError}
+        </div>
+      )}
       {activeTab === 'stories' ? (
         <ReelsViewer 
           key={`reels-${activeStoryIndex}`} 
