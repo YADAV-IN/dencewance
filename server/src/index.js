@@ -1228,6 +1228,37 @@ app.post('/api/uploads/sign', requireAuth, async (req, res) => {
 // ── Cleanup: delete all reels with base64/blob video_urls (junk data before Cloudinary) ──
 
 // --- PYQ Admin API ---
+
+// --- PYQ Data API ---
+app.get('/api/pyq', async (req, res) => {
+  try {
+    const { Query } = require('node-appwrite');
+    const result = await appwriteDatabases.listDocuments('69d60fe8000c9bd92750', '69d6126a0031232a50d0', [
+      Query.orderDesc('$createdAt'),
+      Query.limit(100)
+    ]);
+    res.json({ success: true, data: result.documents });
+  } catch (err) {
+    console.error("PYQ List Error:", err);
+    res.status(500).json({ error: 'Failed to fetch PYQ documents.' });
+  }
+});
+
+app.post('/api/pyq', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'superadmin')) {
+      return res.status(403).json({ error: 'Only admins can insert PYQ documents.' });
+    }
+    const { ID } = require('node-appwrite');
+    const result = await appwriteDatabases.createDocument('69d60fe8000c9bd92750', '69d6126a0031232a50d0', ID.unique(), req.body);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error("PYQ Insert Error:", err);
+    res.status(500).json({ error: 'Failed to insert PYQ document.' });
+  }
+});
+
 app.delete('/api/pyq/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
