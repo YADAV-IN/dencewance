@@ -1233,7 +1233,7 @@ app.post('/api/uploads/sign', requireAuth, async (req, res) => {
 app.get('/api/pyq', async (req, res) => {
   try {
     const { Query } = require('node-appwrite');
-    const result = await appwriteDatabases.listDocuments('69d60fe8000c9bd92750', '69d6126a0031232a50d0', [
+    const result = await appwriteDatabases.listDocuments('69d60fe8000c9bd92750', 'pyq', [
       Query.orderDesc('$createdAt'),
       Query.limit(100)
     ]);
@@ -1251,7 +1251,7 @@ app.post('/api/pyq', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Only admins can insert PYQ documents.' });
     }
     const { ID } = require('node-appwrite');
-    const result = await appwriteDatabases.createDocument('69d60fe8000c9bd92750', '69d6126a0031232a50d0', ID.unique(), req.body);
+    const result = await appwriteDatabases.createDocument('69d60fe8000c9bd92750', 'pyq', ID.unique(), req.body);
     res.json({ success: true, data: result });
   } catch (err) {
     console.error("PYQ Insert Error:", err);
@@ -1277,7 +1277,7 @@ app.delete('/api/pyq/:id', requireAuth, async (req, res) => {
       }
     }
     
-    await appwriteDatabases.deleteDocument('69d60fe8000c9bd92750', '69d6126a0031232a50d0', id);
+    await appwriteDatabases.deleteDocument('69d60fe8000c9bd92750', 'pyq', id);
     res.json({ success: true, message: 'PYQ document deleted.' });
   } catch(err) {
     console.error("PYQ Delete Error:", err);
