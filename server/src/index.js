@@ -705,7 +705,7 @@ function mixSourcesForFeed(list = []) {
   return list.sort((a, b) => b.feed_score - a.feed_score);
 }
 
-app.get('/api/reels', cacheRoute(30, 'reels'), async (req, res) => {
+app.get('/api/reels', async (req, res) => {
   try {
     const { limit = 50, active = 'true', creator_id } = req.query;
     const query = {};
@@ -724,7 +724,7 @@ app.get('/api/reels', cacheRoute(30, 'reels'), async (req, res) => {
   }
 });
 
-app.get('/api/reels/recommendations', cacheRoute(60, 'reels'), async (req, res) => {
+app.get('/api/reels/recommendations', async (req, res) => {
   try {
     const { limit = 120, active = 'true' } = req.query;
     const query = {};
