@@ -697,17 +697,10 @@ body.standalone-mode .reel-top-overlay {
 }
 
 .story-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 64px 48px 48px;
-  background: linear-gradient(
-    to top,
-    rgba(9, 9, 11, 0.95),
-    rgba(9, 9, 11, 0.4),
-    transparent
-  );
+  /* Overlay removed as per user request */
+  position: static;
+  padding: 0;
+  background: none;
 }
 
 .story-badge {
