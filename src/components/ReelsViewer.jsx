@@ -401,7 +401,6 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     </div>
 
                     {/* Gradient overlay (non-interactive) */}
-                    <div className="reel-gradient-overlay" />
 
                     {/* Watermark & Back Navigation */}
                     <div className="reel-top-overlay" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', paddingLeft: '8px' }}>
