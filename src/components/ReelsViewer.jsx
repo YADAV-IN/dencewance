@@ -393,7 +393,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       )}
                       {isPaused && (
                         <div className="reel-pause-indicator">
-                          <svg viewBox="0 0 24 24" fill="white" width="64" height="64" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))' }}>
+                          <svg viewBox="0 0 24 24" fill="white" width="64" height="64">
                             <path d="M8 5v14l11-7z" />
                           </svg>
                         </div>
