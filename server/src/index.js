@@ -1,3 +1,28 @@
+// --- BULK DELETE ALL REELS (ADMIN ONLY) ---
+app.delete('/api/reels/bulk-delete', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'superadmin')) {
+      return res.status(403).json({ error: 'Only admins can bulk delete reels.' });
+    }
+    // Fetch all reels
+    const allReels = await Reel.find().limit(1000).lean();
+    let deleted = 0;
+    for (const reel of allReels) {
+      try {
+        await Reel.findByIdAndDelete(reel._id);
+        deleted++;
+      } catch (e) {
+        console.error('Failed to delete reel:', reel._id, e);
+      }
+    }
+    await clearCache('reels');
+    res.json({ success: true, deletedCount: deleted });
+  } catch (err) {
+    console.error('Bulk delete reels error:', err);
+    res.status(500).json({ error: 'Failed to bulk delete reels.' });
+  }
+});
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
