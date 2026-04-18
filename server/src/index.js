@@ -1254,12 +1254,29 @@ app.post('/api/pyq', requireAuth, async (req, res) => {
     if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'superadmin')) {
       return res.status(403).json({ error: 'Only admins can insert PYQ documents.' });
     }
+    // Validate required fields for PYQ
+    const requiredFields = ['dept', 'course', 'subject', 'fileName', 'fileType', 'fileId'];
+    const missingFields = requiredFields.filter(f => !req.body[f]);
+    if (missingFields.length > 0) {
+      return res.status(400).json({ error: 'Missing required fields: ' + missingFields.join(', ') });
+    }
     const { ID } = require('node-appwrite');
-    const result = await appwriteDatabases.createDocument('69d60fe8000c9bd92750', 'pyq', ID.unique(), req.body);
-    res.json({ success: true, data: result });
+    try {
+      const result = await appwriteDatabases.createDocument('69d60fe8000c9bd92750', 'pyq', ID.unique(), req.body);
+      res.json({ success: true, data: result });
+    } catch (err) {
+      // Log full error details for debugging
+      console.error("PYQ Insert Error (Appwrite):", err);
+      let errorMsg = 'Failed to insert PYQ document.';
+      if (err && err.message) errorMsg += ' ' + err.message;
+      if (err && err.code) errorMsg += ' (code: ' + err.code + ')';
+      if (err && err.response) errorMsg += ' ' + JSON.stringify(err.response);
+      res.status(500).json({ error: errorMsg });
+    }
   } catch (err) {
-    console.error("PYQ Insert Error:", err);
-    res.status(500).json({ error: 'Failed to insert PYQ document.' });
+    // Log unexpected errors
+    console.error("PYQ Insert Error (Unexpected):", err);
+    res.status(500).json({ error: 'Unexpected error: ' + (err && err.message ? err.message : err) });
   }
 });
 
