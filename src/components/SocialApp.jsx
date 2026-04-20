@@ -3,7 +3,7 @@ import './SocialApp.css';
 import ReelsViewer from './ReelsViewer';
 import CreateInstagramMenu from './CreateInstagramMenu';
 import ProfileDashboard from './ProfileDashboard';
-import { demoReels } from './demoData';
+
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
 import PYQAssistant from './PYQAssistant';
 
@@ -336,18 +336,18 @@ export default function SocialApp() {
         }),
 
       // Fetch Reels (Video Stories)
-      fetchWithTimeout(`${API_URL}/api/reels`)
+      fetchWithTimeout(`${API_URL}/api/reels?t="${Date.now()}"`)
         .then(res => res.json())
         .then(data => {
           if (data && Array.isArray(data.data) && data.data.length > 0) {
             setReelsFeed(data.data);
           } else {
-            setReelsFeed([]); // No fallback to demoReels
+            setReelsFeed([]);
           }
         })
         .catch(err => {
           console.error('Failed to load reels', err);
-          setReelsFeed([]); // No fallback to demoReels
+          setReelsFeed([]);
         }),
 
       // Fetch News

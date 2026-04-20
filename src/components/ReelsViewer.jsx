@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Heart, Share2, MoreVertical, Volume2, VolumeX } from 'lucide-react';
-import { demoReels } from './demoData';
+
 import './ReelsViewer.css';
 import { translations as tAll } from '../translations';
 
@@ -109,7 +109,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const slugifyText = (t) => (typeof t === 'string' ? t : '').toLowerCase().replace(/\s+/g, '-');
   const reelsUrlInput = '';
 
-  const reels = fallbackData && fallbackData.length > 0 ? fallbackData : [];
+  const reels = Array.isArray(fallbackData) ? fallbackData : [];
   const reelItems = reels;
   const currentPageKey = 'videos';
   console.log("Rendering ReelsViewer, total reels:", reels.length);
