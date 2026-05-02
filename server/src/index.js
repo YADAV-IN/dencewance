@@ -1,30 +1,7 @@
-// --- BULK DELETE ALL REELS (ADMIN ONLY) ---
-app.delete('/api/reels/bulk-delete', requireAuth, async (req, res) => {
-  try {
-    const currentUser = await Admin.findById(req.adminId);
-    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'superadmin')) {
-      return res.status(403).json({ error: 'Only admins can bulk delete reels.' });
-    }
-    // Fetch all reels
-    const allReels = await Reel.find().limit(1000).lean();
-    let deleted = 0;
-    for (const reel of allReels) {
-      try {
-        await Reel.findByIdAndDelete(reel._id);
-        deleted++;
-      } catch (e) {
-        console.error('Failed to delete reel:', reel._id, e);
-      }
-    }
-    await clearCache('reels');
-    res.json({ success: true, deletedCount: deleted });
-  } catch (err) {
-    console.error('Bulk delete reels error:', err);
-    res.status(500).json({ error: 'Failed to bulk delete reels.' });
-  }
-});
 import 'dotenv/config';
 import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
 import cors from 'cors';
 import multer from 'multer';
 import multerS3 from 'multer-s3';
@@ -45,6 +22,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+export const server = http.createServer(app);
+export const io = new Server(server, { cors: { origin: '*' } });
+
+io.on('connection', (socket) => { console.log('Client connected:', socket.id); });
 app.get('/', (req, res) => res.json({ message: 'API is working! Open the frontend on Port 3000 to see the website.' }));
 app.get('/', (req, res) => res.json({ message: 'API is working! Open the frontend on Port 3000 to see the website.' }));
 app.get('/', (req, res) => res.json({ message: 'API is working! Open the frontend on Port 3000 to see the website.' }));
@@ -129,6 +110,33 @@ app.get('/api/health', async (req, res) => {
     dbReady,
     config,
   });
+});
+
+// --- BULK DELETE ALL REELS (ADMIN ONLY) ---
+app.delete('/api/reels/bulk-delete', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'superadmin')) {
+      return res.status(403).json({ error: 'Only admins can bulk delete reels.' });
+    }
+
+    const allReels = await Reel.find().limit(1000).lean();
+    let deleted = 0;
+    for (const reel of allReels) {
+      try {
+        await Reel.findByIdAndDelete(reel._id);
+        deleted++;
+      } catch (e) {
+        console.error('Failed to delete reel:', reel._id, e);
+      }
+    }
+
+    await clearCache('reels');
+    return res.json({ success: true, deletedCount: deleted });
+  } catch (err) {
+    console.error('Bulk delete reels error:', err);
+    return res.status(500).json({ error: 'Failed to bulk delete reels.' });
+  }
 });
 
 app.use(async (req, res, next) => {
@@ -568,8 +576,8 @@ function pickAutoCreatorProfile(seedInput = '') {
   const number = (hash % DEMO_CREATOR_POOL_SIZE) + 1;
   const padded = String(number).padStart(4, '0');
   return {
-    name: `Demo Creator ${padded}`,
-    handle: `demo_creator_${padded}`,
+    name: `Creator ${padded}`,
+    handle: `creator_${padded}`,
     follower_count: getSyntheticFollowerCount(`${seedInput}-${padded}`),
   };
 }
@@ -620,7 +628,7 @@ function resolveCreatorIdentity({ payload = {}, currentUser = null, fallbackSeed
   return {
     creator_mode: 'auto',
     is_official_creator: false,
-    is_demo_creator: true,
+    is_demo_creator: false,
     creator_name: payload.creator_name || autoProfile.name,
     creator_handle: payload.creator_handle || autoProfile.handle,
     creator_avatar: payload.creator_avatar || '',
@@ -1654,8 +1662,9 @@ app.post('/api/status/:id/view', async (req, res) => {
 
 
 if (!IS_VERCEL) {
-  // Background R2 sync on start
-  if (hasR2Config) {
+  // IMPORTANT: keep OFF by default so deleted reels do not reappear from R2 on restart.
+  const autoSyncR2OnStart = readEnv('AUTO_SYNC_R2_ON_START') === 'true';
+  if (hasR2Config && autoSyncR2OnStart) {
     listAllR2Files().then(async files => {
       if (!files) return;
       for (const f of files) {
@@ -1663,20 +1672,25 @@ if (!IS_VERCEL) {
           const ex = await Reel.findOne({ video_url: f.publicUrl });
           if (!ex) {
             await Reel.create({
-              title: f.key.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " "),
-              slug: f.key.replace(/[^a-zA-Z0-9]/g, "-") + "-" + Date.now(),
+              title: f.key.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '),
+              slug: f.key.replace(/[^a-zA-Z0-9]/g, '-') + '-' + Date.now(),
               video_url: f.publicUrl,
-              status: "published",
+              status: 'published',
               is_active: true,
-              creator_name: "Admin"
+              creator_name: 'Admin'
             });
           }
         }
       }
-    }).catch(console.error);
+      console.log('[R2 Sync] Startup sync completed because AUTO_SYNC_R2_ON_START=true');
+    }).catch((err) => {
+      console.error('[R2 Sync] Startup sync failed:', err);
+    });
+  } else if (hasR2Config) {
+    console.log('[R2 Sync] Startup sync skipped (AUTO_SYNC_R2_ON_START is not true)');
   }
 
-  app.listen(PORT, () => {
+  server.listen(PORT, () => {
     console.log(`🚀 API Server running on port ${PORT}`);
   });
 }

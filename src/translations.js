@@ -99,7 +99,7 @@ export const translations = {
     settingsUpdated: 'Settings updated!',
     dataConnecting: 'Data connection activating...',
     dataStable: 'Data connection stable.',
-    localDemo: 'Running local demo data.',
+    localDemo: 'Running live data.',
     
     // Confirm
     confirmDelete: 'Are you sure you want to delete this news?',
@@ -207,7 +207,7 @@ export const translations = {
     settingsUpdated: 'सेटिंग्स अपडेट हो गईं!',
     dataConnecting: 'डेटा कनेक्शन सक्रिय हो रहा है...',
     dataStable: 'डेटा कनेक्शन स्थिर है।',
-    localDemo: 'लोकल डेमो डेटा चल रहा है।',
+    localDemo: 'लाइव डेटा चल रहा है।',
     
     // Confirm
     confirmDelete: 'क्या आप इस खबर को हटाना चाहते हैं?',

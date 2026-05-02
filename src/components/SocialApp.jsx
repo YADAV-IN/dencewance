@@ -3,6 +3,7 @@ import './SocialApp.css';
 import ReelsViewer from './ReelsViewer';
 import CreateInstagramMenu from './CreateInstagramMenu';
 import ProfileDashboard from './ProfileDashboard';
+import SkeletonImage from './SkeletonImage';
 
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
 import PYQAssistant from './PYQAssistant';
@@ -149,16 +150,6 @@ const resolveMediaUrl = (url) => {
 
 export default function SocialApp() {
   const [activeTab, setActiveTab] = useState(() => new URLSearchParams(window.location.search).get('tab') || 'home');
-  
-  useEffect(() => {
-    const url = new URL(window.location);
-    if (activeTab === 'home') {
-      url.searchParams.delete('tab');
-    } else {
-      url.searchParams.set('tab', activeTab);
-    }
-    window.history.pushState({}, '', url);
-  }, [activeTab]);
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
   const [statuses, setStatuses] = useState([]);
   const [reelsFeed, setReelsFeed] = useState([]);
@@ -290,6 +281,35 @@ export default function SocialApp() {
   const token = localStorage.getItem('adminToken');
   const adminId = localStorage.getItem('adminId');
   const [adminData, setAdminData] = useState(null);
+  const [openMenuFor, setOpenMenuFor] = useState(null);
+
+  // Sync URL path to internal tab state and keep the URL tidy/simple
+  useEffect(() => {
+    const path = (window.location.pathname || '/').replace(/^\/+/, '').toLowerCase();
+    const map = {
+      '': 'home',
+      'home': 'home',
+      'stories': 'stories',
+      'videos': 'stories',
+      'search': 'search',
+      'create': 'add',
+      'add': 'add',
+      'profile': 'profile',
+      'pyq': 'pyq',
+      'messages': 'messages'
+    };
+    const target = map[path] || 'home';
+    if (target !== activeTab) setActiveTab(target);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const path = activeTab === 'home' ? '/' : `/${activeTab}`;
+      if (window.location.pathname !== path) {
+        window.history.replaceState(null, '', path);
+      }
+    } catch (e) {}
+  }, [activeTab]);
 
   useEffect(() => {
     if (token) {
@@ -438,12 +458,6 @@ export default function SocialApp() {
         return { ...prev, reels: newReels };
       });
     };
-
-    if (String(reelId).startsWith('demo-reel')) {
-      removeLocally();
-      alert("Demo Reel removed locally.");
-      return;
-    }
 
     try {
       const res = await fetch(`${API_URL}/api/reels/${reelId}`, {
@@ -619,7 +633,13 @@ export default function SocialApp() {
                           <div key={`rec-${i}`} className="search-reel-card" onClick={() => { setActiveStoryIndex(i); setViewingMedia('recommendation'); setActiveTab('stories'); }}>
                             <span className="search-reel-tag" style={{ background: '#00FFFF', color: '#000' }}>#{r.tags?.[0] || 'Trending'}</span>
                             {r.cover_image_url ? (
-                              <img loading="lazy" src={resolveMediaUrl(r.cover_image_url)} alt="Cover" className="search-reel-cover" />
+                              <SkeletonImage
+                                src={resolveMediaUrl(r.cover_image_url)}
+                                alt="Cover"
+                                className="search-reel-cover"
+                                wrapperClassName="search-reel-cover"
+                                wrapperStyle={{ width: '100%', height: '100%' }}
+                              />
                             ) : (
                               <div style={{width:'100%', height:'100%', background:'#222', display:'flex', alignItems:'center', justifyContent:'center'}}>▶</div>
                             )}
@@ -647,7 +667,14 @@ export default function SocialApp() {
                   <div className="search-users-grid">
                     {searchResults.users.map((u, i) => (
                       <div key={`u-${i}`} className="search-user-card">
-                        <img loading="lazy" src={resolveMediaUrl(u.avatar_url) || `https://i.pravatar.cc/150?img=${i}`} alt={u.name} className="search-user-avatar" />
+                        <SkeletonImage
+                          src={resolveMediaUrl(u.avatar_url)}
+                          fallbackSrc={`https://i.pravatar.cc/150?img=${i}`}
+                          alt={u.name}
+                          className="search-user-avatar"
+                          wrapperStyle={{ width: 80, height: 80, borderRadius: '50%', margin: '0 auto 12px auto', display: 'block' }}
+                          circle={true}
+                        />
                         <div className="search-user-name">{u.name}</div>
                         <div className="search-user-id">ID: {u.id.substring(0, 8)}..</div>
                       </div>
@@ -667,7 +694,13 @@ export default function SocialApp() {
                       <div key={`r-${i}`} className="search-reel-card" onClick={() => { setActiveStoryIndex(i); setViewingMedia('search'); setActiveTab('stories'); }}>
                         <span className="search-reel-tag">Video</span>
                         {r.cover_image_url ? (
-                          <img loading="lazy" src={resolveMediaUrl(r.cover_image_url)} alt="Cover" className="search-reel-cover" />
+                          <SkeletonImage
+                            src={resolveMediaUrl(r.cover_image_url)}
+                            alt="Cover"
+                            className="search-reel-cover"
+                            wrapperClassName="search-reel-cover"
+                            wrapperStyle={{ width: '100%', height: '100%' }}
+                          />
                         ) : (
                           <div style={{width:'100%', height:'100%', background:'#222', display:'flex', alignItems:'center', justifyContent:'center'}}>▶</div>
                         )}
@@ -694,7 +727,13 @@ export default function SocialApp() {
                     {searchResults.posts.map((p, i) => (
                       <div key={`p-${i}`} className="search-post-row">
                         {p.cover_image_url && (
-                          <img loading="lazy" src={resolveMediaUrl(p.cover_image_url)} alt="Post" className="search-post-image" />
+                          <SkeletonImage
+                            src={resolveMediaUrl(p.cover_image_url)}
+                            alt="Post"
+                            className="search-post-image"
+                            wrapperStyle={{ width: 250, height: 180, display: 'block' }}
+                            skeletonHeight={180}
+                          />
                         )}
                         <div className="search-post-content">
                           <h4 className="search-post-title">{p.title}</h4>
@@ -731,9 +770,34 @@ export default function SocialApp() {
             </div>
           ) : (
             <>
-              {/* Stories Section Dropdown top */}
-              <section className="stories-container" style={{ display: 'flex', overflowX: 'auto', gap: '15px', padding: '15px 20px', alignItems: 'center' }}>
-            <div className="story status-add" style={{ cursor: 'pointer', textAlign: 'center', minWidth: '70px' }} onClick={() => statusUploadRef.current && statusUploadRef.current.click()}>
+              {/* Stories Section Wrapper */}
+              <div style={{ position: 'relative', width: '100%', marginTop: '22px' }}>
+                {/* Left Corner branding (Message Bubble Style) */}
+                <div className="stories-branding" style={{ 
+                  position: 'absolute', left: '8px', top: '-22px', 
+                  background: 'linear-gradient(180deg, #4a4a4a 0%, #1a1a1a 40%, #000000 100%)', 
+                  color: '#ffffff', 
+                  borderTop: '1px solid rgba(255,255,255,0.3)',
+                  boxShadow: 'inset 0 1px 3px rgba(255,255,255,0.2)',
+                  fontFamily: "'Cinzel', Georgia, serif", fontWeight: 800, fontSize: '11px', 
+                  padding: '6px 14px', borderRadius: '10px 10px 10px 0', 
+                  zIndex: 30, filter: 'drop-shadow(2px 4px 6px rgba(0,0,0,0.7))', 
+                  letterSpacing: '0.5px', whiteSpace: 'nowrap' 
+                }}>
+                  GLOBAL TRENDING STATUS
+                  {/* Pointer / Tail of the message bubble */}
+                  <div style={{
+                    position: 'absolute', bottom: '-7px', left: '0',
+                    width: 0, height: 0,
+                    borderTop: '8px solid #000000',
+                    borderRight: '10px solid transparent'
+                  }} />
+                </div>
+                
+                {/* Stories Section Dropdown top */}
+                <section className="stories-container" style={{ position: 'relative', display: 'flex', overflowX: 'auto', gap: '12px', padding: '12px 18px', alignItems: 'center', alignSelf: 'flex-start' }}>
+
+                <div className="story status-add" style={{ cursor: 'pointer', textAlign: 'center', minWidth: '70px' }} onClick={() => statusUploadRef.current && statusUploadRef.current.click()}>
               <StatusRing isUploading={isStatusUploading}>
                 {isStatusUploading ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', borderRadius: '50%' }}>
@@ -749,37 +813,29 @@ export default function SocialApp() {
               <span style={{ fontSize: '12px', marginTop: '5px', display: 'block', color: '#fff' }}>{isStatusUploading ? 'Uploading...' : 'New Reel'}</span>
               <input type="file" ref={statusUploadRef} style={{ display: 'none' }} accept="video/*" onChange={handleStatusUpload} />
             </div>
-
-            {statuses.length > 0 ? (
-              statuses.map((story, i) => {
-                const hasSeen = story.viewers && adminId && story.viewers.includes(adminId);
-                return (
-                 <div 
-                  className="story" 
-                  key={story._id || i} 
-                  onClick={() => {
-                    markStatusSeen(story.id || story._id);
-                    setActiveStoryIndex(i);
-                    setViewingMedia('status');
-                    setActiveTab('stories');
-                  }}
-                  style={{ cursor: 'pointer', textAlign: 'center', minWidth: '70px' }}
-                 >
-                  <StatusRing hasSeen={hasSeen}>
-                    <img loading="lazy" 
-                      src={resolveMediaUrl(story.media_url || story.cover_image_url) || `https://i.pravatar.cc/150?img=${i + 20}`} 
-                      alt={story.title || 'Status'} 
-                      style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
-                    />
-                  </StatusRing>
-                  <span style={{ fontSize: '12px', marginTop: '5px', display: 'block', color: '#ccc' }}>
-                    {story.creator_name || story.title ? (story.creator_name || story.title).substring(0, 8) : 'Status'}
-                  </span>
-                 </div>
-                );
-              })
-            ) : null}
-          </section>
+                {statuses.length > 0 ? (
+                  statuses.map((story, i) => {
+                    const thumb = story.cover_image_url || story.media_url || story.thumbnail || '';
+                    return (
+                      <div key={story._id || i} onClick={() => { markStatusSeen(story.id || story._id); setActiveStoryIndex(i); setViewingMedia('status'); setActiveTab('stories'); }} style={{ cursor: 'pointer', minWidth: 84, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ width: 84, height: 150, borderRadius: 12, overflow: 'hidden', position: 'relative', boxShadow: '0 6px 18px rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                          {thumb ? (
+                            <SkeletonImage src={resolveMediaUrl(thumb)} alt={story.title || 'Preview'} wrapperStyle={{ width: '100%', height: '100%', display: 'block' }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <div style={{ width: '100%', height: '100%', background: '#222', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>▶</div>
+                          )}
+                          {/* small profile overlay */}
+                          <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                            <SkeletonImage src={resolveMediaUrl(story.creator_avatar || story.avatar_url)} fallbackSrc={`https://i.pravatar.cc/40?img=${i + 10}`} alt={story.creator_name || 'Creator'} wrapperStyle={{ width: 34, height: 34, borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.9)', boxShadow: '0 2px 4px rgba(0,0,0,0.5)' }} circle={true} />
+                          </div>
+                        </div>
+                        <div style={{ color: '#cbd5e1', fontSize: 11, textAlign: 'center', maxWidth: 84, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: '500' }}>{(story.creator_name || story.title || 'Anon').substring(0, 12)}</div>
+                      </div>
+                    );
+                  })
+                ) : null}
+              </section>
+            </div>
 
           {/* Feed Section */}
           <section className="feed-container">
@@ -788,7 +844,14 @@ export default function SocialApp() {
                 <div className="post" key={post._id || i}>
                   <div className="post-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                     <div style={{display: 'flex', alignItems: 'center'}}>
-                      <img loading="lazy" src={post.source || `https://i.pravatar.cc/150?img=${10 + i}`} alt="Avatar" className="avatar" />
+                      <SkeletonImage
+                        src={post.source}
+                        fallbackSrc={`https://i.pravatar.cc/150?img=${10 + i}`}
+                        alt="Avatar"
+                        className="avatar"
+                        wrapperStyle={{ width: 48, height: 48, borderRadius: '50%', display: 'block' }}
+                        circle={true}
+                      />
                       <div className="post-user-info">
                         <strong style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           {post.author_name || 'DenceWance User'}
@@ -801,20 +864,38 @@ export default function SocialApp() {
                         <small>{new Date(post.published_at || Date.now()).toLocaleDateString()} • Recorded</small>
                       </div>
                     </div>
-                    {((adminData?.role === 'admin') || (adminData?.role === 'superadmin') || (post.author_id === adminId) || (adminData && (post.author_id === adminData._id || post.author_name === adminData.name)) || adminId) && (
-                      <button 
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeletePost(post.id || post._id); }}
-                        style={{background:'none', border:'none', color:'red', fontWeight:'bold', cursor:'pointer', padding:'5px 10px', zIndex: 99, position: 'relative'}}
+                    {/* More menu (three-dot) - shows Delete only to admins/owners */}
+                    <div style={{ position: 'relative' }}>
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenMenuFor(openMenuFor === (post._id || post.id) ? null : (post._id || post.id)); }}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px' }}
+                        aria-label="More"
                       >
-                        Delete
+                        <MoreVerticalIcon />
                       </button>
-                    )}
+
+                      {openMenuFor === (post._id || post.id) && (
+                        <div className="more-menu" style={{ position: 'absolute', right: 0, top: '32px', background: '#111', border: '1px solid #333', borderRadius: '8px', padding: '6px', zIndex: 9999, minWidth: 140 }} onClick={(e)=>e.stopPropagation()}>
+                          <button className="more-menu-item" onClick={(e) => { e.stopPropagation(); try { if (navigator.share) { navigator.share({ title: post.title || 'DenceWance', text: post.excerpt || '', url: window.location.href }); } else { alert('Share not supported'); } } catch(_){} setOpenMenuFor(null); }} style={{ display: 'block', width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}>Share</button>
+                          {((adminData?.role === 'admin') || (adminData?.role === 'superadmin') || (post.author_id === adminId) || (adminData && (post.author_id === adminData._id || post.author_name === adminData.name)) || adminId) ? (
+                            <button className="more-menu-item" onClick={(e) => { e.stopPropagation(); setOpenMenuFor(null); handleDeletePost(post.id || post._id); }} style={{ display: 'block', width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer' }}>{'Delete'}</button>
+                          ) : null}
+                          <button className="more-menu-item" onClick={(e) => { e.stopPropagation(); alert('Reported.'); setOpenMenuFor(null); }} style={{ display: 'block', width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}>Report</button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="post-body">
                     {post.title && !post.title.includes('Untitled') && !post.title.includes('DenceWance') && !post.content?.startsWith(post.title?.replace(/...$/, '')) && (<h4>{post.title}</h4>)}
                     <p>{post.excerpt || post.content}</p>
                     {((post.cover_image_url && post.cover_image_url.trim() !== "") || (post.image_url && post.image_url.trim() !== "")) && (
-                      <img loading="lazy" src={resolveMediaUrl(post.cover_image_url || post.image_url)} alt={post.title} className="post-image" />
+                      <SkeletonImage
+                        src={resolveMediaUrl(post.cover_image_url || post.image_url)}
+                        alt={post.title}
+                        className="post-image"
+                        wrapperStyle={{ width: '100%', display: 'block', minHeight: 280 }}
+                        skeletonHeight={280}
+                      />
                     )}
                   </div>
                   <div className="post-actions">
@@ -822,52 +903,19 @@ export default function SocialApp() {
                     <button><QuillIcon /> Inscribe</button>
                     <button><ShareIcon /> Propagate</button>
                   </div>
+                  {/* Admin visible delete icon below actions */}
+                  {((adminData?.role === 'admin') || (adminData?.role === 'superadmin') || (post.author_id === adminId) || (adminData && (post.author_id === adminData._id || post.author_name === adminData.name)) || adminId) && (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
+                      <button className="delete-icon-btn" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeletePost(post.id || post._id); }} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.06)', color: '#ff6b6b', padding: '6px 10px', borderRadius: '8px', cursor: 'pointer' }}>🗑️ Delete</button>
+                    </div>
+                  )}
                 </div>
               ))
             ) : (
-              <>
-                {/* Post Example 1 */}
-            <div className="post">
-              <div className="post-header">
-                <img loading="lazy" src="https://i.pravatar.cc/150?img=11" alt="Avatar" className="avatar" />
-                <div className="post-user-info">
-                  <strong>Preetam M.</strong>
-                  <small>II hours ago • Chronicled</small>
-                </div>
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#cbd5e1', border: '1px dashed rgba(255,255,255,0.12)', borderRadius: '18px', background: 'rgba(255,255,255,0.02)' }}>
+                <h3 style={{ marginBottom: '8px', color: '#fff' }}>No posts yet</h3>
+                <p style={{ margin: 0 }}>Live posts will appear here once content is published.</p>
               </div>
-              <div className="post-body">
-                <p>Uncovering the ancient algorithms of Rome. The past is written in the sacred nodes. We reinvent the machine not from metal, but from the lost codex. 🏛️📜 #DenceWance #HistoricalTech</p>
-                <img loading="lazy" src="https://images.unsplash.com/photo-1461360370896-922624d12aa1?auto=format&fit=crop&w=600&q=80" alt="Historical Tech Post" className="post-image" />
-              </div>
-              <div className="post-actions">
-                <button><HeartIcon /> Honor</button>
-                <button><QuillIcon /> Inscribe</button>
-                <button><ShareIcon /> Propagate</button>
-              </div>
-            </div>
-
-            {/* Post Example 2 - Video format placeholder */}
-            <div className="post">
-               <div className="post-header">
-                <img loading="lazy" src="https://i.pravatar.cc/150?img=33" alt="Avatar" className="avatar" />
-                <div className="post-user-info">
-                  <strong>Alchemist Nexus</strong>
-                  <small>V hours ago</small>
-                </div>
-              </div>
-              <div className="post-body">
-                <p>Transmuting base code into golden UI. Witness the spectacle in the grand theater of pixels. ✨</p>
-                <div className="video-placeholder">
-                  <div className="magic-play-btn">▶ Behold</div>
-                </div>
-              </div>
-               <div className="post-actions">
-                <button><HeartIcon /> Honor</button>
-                <button><QuillIcon /> Inscribe</button>
-                <button><ShareIcon /> Propagate</button>
-              </div>
-            </div>
-              </>
             )}
           </section>
           </>)}
@@ -876,19 +924,8 @@ export default function SocialApp() {
         {/* Right Sidebar for Suggestions / Messaging (Desktop) */}
         <aside className="suggestion-sidebar">
           <h3>Fellow Scholars</h3>
-          <div className="message-preview">
-            <img loading="lazy" src="https://i.pravatar.cc/150?img=52" alt="User" />
-            <div className="msg-text">
-              <strong>DaVinci_Core</strong>
-              <p>The manuscript is perfectly aligning...</p>
-            </div>
-          </div>
-          <div className="message-preview">
-            <img loading="lazy" src="https://i.pravatar.cc/150?img=47" alt="User" />
-            <div className="msg-text">
-              <strong>Arya</strong>
-              <p>Decoded the latest cipher, brother.</p>
-            </div>
+          <div style={{ padding: '16px 0', color: '#cbd5e1', fontSize: '14px', lineHeight: 1.5 }}>
+            <p style={{ margin: 0 }}>Suggested profiles will appear here after real activity starts.</p>
           </div>
         </aside>
       </div>

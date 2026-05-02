@@ -3,6 +3,7 @@ import { Heart, Share2, MoreVertical, Volume2, VolumeX } from 'lucide-react';
 
 import './ReelsViewer.css';
 import { translations as tAll } from '../translations';
+import SkeletonImage from './SkeletonImage';
 
 const REEL_PRELOAD_AHEAD = 1; // Kam kiya gaya hai taaki data kam consume ho
 
@@ -64,7 +65,9 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
 
 
   const isMobile = window.innerWidth <= 768;
-  const adminToken = null; // Removed admin actions from client Reels viewer
+  const adminToken = localStorage.getItem('adminToken');
+  const isAdmin = Boolean(adminData && (adminData.role === 'admin' || adminData.role === 'superadmin')) || Boolean(adminToken);
+  const [openMenuFor, setOpenMenuFor] = useState(null);
   const videoUploadState = { state: 'idle', message: '' };
   const [reelCreatorMode, setReelCreatorMode] = useState('auto');
   const reelUploadInputRef = useRef(null);
@@ -452,28 +455,47 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                         </div>
                       </div>
                       
-                      {((adminData?.role === 'admin') || (item.creator_id === localStorage.getItem('adminId')) || (adminData && (item.creator_id === adminData.id || item.creator_id === adminData._id || item.creator_name === adminData.name)) || localStorage.getItem('adminToken')) && onDelete && (
-                        <button 
-                          className="reel-delete-btn" 
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(item.id || item._id); }}
-                          style={{
-                            background: 'rgba(255, 0, 0, 0.7)',
-                            border: '1px solid rgba(255, 255, 255, 0.3)',
-                            color: 'white',
-                            padding: '6px 12px',
-                            borderRadius: '8px',
-                            backdropFilter: 'blur(4px)',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            marginRight: '20px',
-                            position: 'relative',
-                            zIndex: 9999,
-                            pointerEvents: 'auto'
-                          }}
-                        >
-                          Delete
-                        </button>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {/* More menu for reel actions */}
+                        <div style={{ position: 'relative' }}>
+                          <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenMenuFor(openMenuFor === (item.id || item._id) ? null : (item.id || item._id)); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#fff', padding: '6px' }} aria-label="More">
+                            <MoreVerticalIcon />
+                          </button>
+                          {openMenuFor === (item.id || item._id) && (
+                            <div style={{ position: 'absolute', right: 0, top: '32px', background: '#111', border: '1px solid #333', borderRadius: '8px', padding: '6px', zIndex: 9999, minWidth: 140 }} onClick={(e)=>e.stopPropagation()}>
+                              <button className="more-menu-item" onClick={(e) => { e.stopPropagation(); try { if (navigator.share) { navigator.share({ title: item.title || 'DenceWance', text: item.caption || '', url: window.location.href }); } else { alert('Share not supported'); } } catch(_){} setOpenMenuFor(null); }} style={{ display: 'block', width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}>Share</button>
+                              {isAdmin ? (
+                                <button className="more-menu-item" onClick={(e) => { e.stopPropagation(); setOpenMenuFor(null); onDelete && onDelete(item.id || item._id); }} style={{ display: 'block', width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer' }}>Delete</button>
+                              ) : null}
+                              <button className="more-menu-item" onClick={(e) => { e.stopPropagation(); alert('Reported.'); setOpenMenuFor(null); }} style={{ display: 'block', width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}>Report</button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Visible delete button for admins */}
+                        {isAdmin && onDelete && (
+                          <button 
+                            className="reel-delete-btn" 
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(item.id || item._id); }}
+                            style={{
+                              background: 'rgba(255, 0, 0, 0.7)',
+                              border: '1px solid rgba(255, 255, 255, 0.3)',
+                              color: 'white',
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              backdropFilter: 'blur(4px)',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              marginRight: '20px',
+                              position: 'relative',
+                              zIndex: 9999,
+                              pointerEvents: 'auto'
+                            }}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Right action column (TikTok-style) */}
@@ -481,7 +503,14 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       {/* Creator avatar + follow pill */}
                       <div className="reel-creator-pill">
                         {creatorAvatar ? (
-                          <img loading="lazy" src={resolveMediaUrl(creatorAvatar)} alt="creator" className="reel-creator-avatar-sm" style={{ objectFit: 'cover' }} />
+                          <SkeletonImage
+                            src={resolveMediaUrl(creatorAvatar)}
+                            alt="creator"
+                            className="reel-creator-avatar-sm"
+                            style={{ objectFit: 'cover' }}
+                            wrapperStyle={{ width: 44, height: 44, borderRadius: '50%', display: 'block' }}
+                            circle={true}
+                          />
                         ) : (
                           <div className="reel-creator-avatar-sm">{creatorInitial}</div>
                         )}
@@ -590,7 +619,6 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                             </svg>
                           )}
                         </strong>
-                        {item.is_demo_creator && <span className="reel-category-badge">Demo</span>}
                         {item.category && <span className="reel-category-badge">{item.category}</span>}
                       </div>
                       <p className="reel-caption-text">
