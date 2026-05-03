@@ -1723,24 +1723,18 @@
                     "type": "string",
                     "required": false,
                     "array": false,
+                    "size": 100,
                     "default": null,
-                    "format": "enum",
-                    "elements": [
-                        "pdf",
-                        "doc",
-                        "ppt",
-                        "xls",
-                        "txt"
-                    ]
+                    "encrypt": false
                 },
                 {
                     "key": "fileId",
-                    "type": "integer",
+                    "type": "string",
                     "required": false,
                     "array": false,
+                    "size": 255,
                     "default": null,
-                    "min": 1,
-                    "max": 9223372036854775807
+                    "encrypt": false
                 },
                 {
                     "key": "isPublished",
