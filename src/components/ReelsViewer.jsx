@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Heart, Share2, MoreVertical, Volume2, VolumeX } from 'lucide-react';
-import { demoReels } from './demoData';
+
+import './ReelsViewer.css';
 import { translations as tAll } from '../translations';
 
 const REEL_PRELOAD_AHEAD = 1; // Kam kiya gaya hai taaki data kam consume ho
@@ -59,7 +60,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
      if (!translation) return key;
      return typeof translation === 'object' ? translation[lang] || translation['en'] : translation;
   };
-  const siteSettings = { site_name: 'ModeBook' };
+  const siteSettings = { site_name: 'DenceWance' };
 
 
   const isMobile = window.innerWidth <= 768;
@@ -69,7 +70,33 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const reelUploadInputRef = useRef(null);
   const reelUploadProgress = 0;
   const toggleFollowCreator = () => {};
-  const handleReelLike = () => {};
+  const handleReelLike = async (item) => {
+    if (likedTracking[item._id]?.liked) return; // User already liked locally
+    
+    // Optistic UI update
+    setLikedTracking(prev => ({
+      ...prev,
+      [item._id]: {
+        liked: true,
+        count: (item.likes || 0) + 1
+      }
+    }));
+
+    try {
+      const res = await fetch(`${API_URL}/api/reels/${item._id}/like`, { method: 'POST' });
+      if (!res.ok) throw new Error('Like failed');
+    } catch (e) {
+      console.error(e);
+      // Revert optimism if failed
+      setLikedTracking(prev => ({
+        ...prev,
+        [item._id]: {
+          liked: false,
+          count: item.likes || 0
+        }
+      }));
+    }
+  };
   const handleReelFileUpload = () => {};
   const navigateTo = () => { /* Handle back navigation nicely if needed */ };
   const openReel = () => {};
@@ -82,13 +109,14 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const slugifyText = (t) => (typeof t === 'string' ? t : '').toLowerCase().replace(/\s+/g, '-');
   const reelsUrlInput = '';
 
-  const reels = fallbackData && fallbackData.length > 0 ? fallbackData : demoReels;
+  const reels = Array.isArray(fallbackData) ? fallbackData : [];
   const reelItems = reels;
   const currentPageKey = 'videos';
   console.log("Rendering ReelsViewer, total reels:", reels.length);
 
   const [activeReelIndex, setActiveReelIndex] = useState(initialIndex);
-  const [reelsMuted, setReelsMuted] = useState(true);
+  const [reelsMuted, setReelsMuted] = useState(false); // Changed to false by default as requested
+  const [likedTracking, setLikedTracking] = useState({}); // Track local likes
   const toggleReelsMute = (e) => {
     e.stopPropagation();
     setReelsMuted(!reelsMuted);
@@ -231,10 +259,22 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   return (
 <div className="reels-container" ref={reelsContainerRef}>
               {reelItems.length === 0 && (
-                <div style={{ color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100dvh', width: '100%', background: '#000', zIndex: 999 }}>
-                  <div className="pulse-dot" style={{ width: '20px', height: '20px', marginBottom: '16px' }}></div>
-                  <h3>Loading Video Stories...</h3>
-                  <p style={{ opacity: 0.6, fontSize: '14px', marginTop: '8px' }}>Please wait while content is loading or check your connection.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100dvh', background: '#000', padding: '20px', zIndex: 999 }}>
+                  <div style={{ width: '100%', height: '80%', background: '#222', borderRadius: '12px', animation: 'skeleton-pulse 1.5s infinite ease-in-out' }}></div>
+                  <div style={{ display: 'flex', marginTop: '16px', gap: '12px', alignItems: 'center' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#222', animation: 'skeleton-pulse 1.5s infinite ease-in-out' }}></div>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ width: '60%', height: '14px', background: '#222', borderRadius: '4px', animation: 'skeleton-pulse 1.5s infinite ease-in-out' }}></div>
+                      <div style={{ width: '40%', height: '14px', background: '#222', borderRadius: '4px', animation: 'skeleton-pulse 1.5s infinite ease-in-out' }}></div>
+                    </div>
+                  </div>
+                  <style>{`
+                    @keyframes skeleton-pulse {
+                      0% { opacity: 1; }
+                      50% { opacity: 0.4; }
+                      100% { opacity: 1; }
+                    }
+                  `}</style>
                 </div>
               )}
               {reelItems.map((item, idx) => {
@@ -353,7 +393,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       )}
                       {isPaused && (
                         <div className="reel-pause-indicator">
-                          <svg viewBox="0 0 24 24" fill="white" width="64" height="64" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))' }}>
+                          <svg viewBox="0 0 24 24" fill="white" width="64" height="64">
                             <path d="M8 5v14l11-7z" />
                           </svg>
                         </div>
@@ -361,7 +401,6 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     </div>
 
                     {/* Gradient overlay (non-interactive) */}
-                    <div className="reel-gradient-overlay" />
 
                     {/* Watermark & Back Navigation */}
                     <div className="reel-top-overlay" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', paddingLeft: '8px' }}>
@@ -386,18 +425,14 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                           alignItems: 'center', 
                           gap: '4px', 
                           marginLeft: '-5px',
-                          background: 'rgba(0, 0, 0, 0.4)',
                           padding: '4px 10px 4px 6px',
-                          borderRadius: '20px',
-                          backdropFilter: 'blur(5px)',
-                          border: '1px solid rgba(255,255,255,0.1)'
+                          borderRadius: '20px'
                         }}>
-                          <svg className="modebook-logo-animated" viewBox="0 0 100 100" width="22" height="22" xmlns="http://www.w3.org/2000/svg" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
+                          <svg className="dencewance-logo-animated" viewBox="0 0 100 100" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
                             <defs>
                               <linearGradient id="multiGradWatermark" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor="#fff" />
-                                <stop offset="50%" stopColor="#e0e0e0" />
-                                <stop offset="100%" stopColor="#aaa" />
+                                <stop offset="0%" stopColor="rgba(255, 255, 255, 0.7)" />
+                                <stop offset="100%" stopColor="rgba(255, 255, 255, 0.4)" />
                               </linearGradient>
                             </defs>
                             <g transform="translate(50, 50)">
@@ -410,18 +445,17 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                             fontFamily: "'Cinzel', serif", 
                             fontWeight: '900', 
                             fontSize: '15px', 
-                            color: 'rgba(255,255,255,0.95)',
+                            color: 'rgba(255, 255, 255, 0.6)',
                             letterSpacing: '1px',
-                            textTransform: 'uppercase',
-                            textShadow: '0 2px 5px rgba(0,0,0,0.8)'
-                          }}>ModeBook</span>
+                            textTransform: 'uppercase'
+                          }}>DenceWance</span>
                         </div>
                       </div>
                       
                       {((adminData?.role === 'admin') || (item.creator_id === localStorage.getItem('adminId')) || (adminData && (item.creator_id === adminData.id || item.creator_id === adminData._id || item.creator_name === adminData.name)) || localStorage.getItem('adminToken')) && onDelete && (
                         <button 
                           className="reel-delete-btn" 
-                          onClick={(e) => { e.preventDefault(); onDelete(item.id || item._id); }}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(item.id || item._id); }}
                           style={{
                             background: 'rgba(255, 0, 0, 0.7)',
                             border: '1px solid rgba(255, 255, 255, 0.3)',
@@ -431,7 +465,10 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                             backdropFilter: 'blur(4px)',
                             cursor: 'pointer',
                             fontSize: '12px',
-                            marginRight: '20px'
+                            marginRight: '20px',
+                            position: 'relative',
+                            zIndex: 9999,
+                            pointerEvents: 'auto'
                           }}
                         >
                           Delete
@@ -458,13 +495,15 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       {/* Like */}
                       <div className="reel-action-item">
                         <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); handleReelLike(item); }}>
-                          <span className="reel-action-icon">
+                          <span className="reel-action-icon" style={{ color: likedTracking[item._id]?.liked ? '#f91880' : 'currentColor' }}>
                             <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
                               <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                             </svg>
                           </span>
                         </button>
-                        <span className="reel-action-count">{formatCompactNumber(item.likes || 0)}</span>
+                        <span className="reel-action-count">
+                          {formatCompactNumber(likedTracking[item._id]?.count ?? (item.likes || 0))}
+                        </span>
                       </div>
 
                       {/* Comment / Open reel page */}
@@ -522,11 +561,11 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       </div>
 
                       {/* Admin: Delete */}
-                      {adminToken && (
+                      {adminToken && onDelete && (
                         <div className="reel-action-item">
                           <button
                             className="reel-action-btn reel-delete-btn"
-                            onClick={(e) => { e.stopPropagation(); deleteReel(item.id || item._id); }}
+                            onClick={(e) => { e.stopPropagation(); onDelete(item.id || item._id); }}
                           >
                             <span className="reel-action-icon">
                               <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
@@ -540,72 +579,16 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     </div>
 
                     {/* Bottom info area (TikTok-style caption zone) */}
-                    {/* FLOATING WATERMARK */}
-                    <div className="reel-floating-watermark" style={{
-                      position: 'absolute',
-                      bottom: '120px',
-                      right: '15px',
-                      opacity: 0.7,
-                      pointerEvents: 'none',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.8))',
-                      zIndex: 10
-                    }}>
-                      <svg viewBox="0 0 100 100" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
-                        <g transform="translate(50, 50)">
-                          <circle cx="0" cy="0" r="42" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="6" />
-                          <circle cx="0" cy="0" r="30" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="4" strokeDasharray="10 10" />
-                          <polygon points="0,-18 16,9 -16,9" fill="rgba(255,255,255,0.9)" />
-                        </g>
-                      </svg>
-                      <span style={{
-                        marginTop: '4px',
-                        fontFamily: "'Cinzel', serif",
-                        fontWeight: '900',
-                        fontSize: '12px',
-                        color: 'rgba(255,255,255,0.9)',
-                        letterSpacing: '1px',
-                        textTransform: 'uppercase'
-                      }}>MODEBOOK</span>
-                    </div>
-                    
-                    {/* FLOATING WATERMARK */}
-                    <div className="reel-floating-watermark" style={{
-                      position: 'absolute',
-                      bottom: '120px',
-                      right: '15px',
-                      opacity: 0.7,
-                      pointerEvents: 'none',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.8))',
-                      zIndex: 10
-                    }}>
-                      <svg viewBox="0 0 100 100" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
-                        <g transform="translate(50, 50)">
-                          <circle cx="0" cy="0" r="42" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="6" />
-                          <circle cx="0" cy="0" r="30" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="4" strokeDasharray="10 10" />
-                          <polygon points="0,-18 16,9 -16,9" fill="rgba(255,255,255,0.9)" />
-                        </g>
-                      </svg>
-                      <span style={{
-                        marginTop: '4px',
-                        fontFamily: "'Cinzel', serif",
-                        fontWeight: '900',
-                        fontSize: '12px',
-                        color: 'rgba(255,255,255,0.9)',
-                        letterSpacing: '1px',
-                        textTransform: 'uppercase'
-                      }}>MODEBOOK</span>
-                    </div>
                     
                     <div className="reel-bottom-info">
                       <div className="reel-creator-line">
-                        <strong className="reel-creator-handle">
+                        <strong className="reel-creator-handle" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           @{item.creator_handle || slugifyText(item.creator_name || 'creator').replace(/-/g, '')}
+                          {item.is_official_creator && (
+                            <svg viewBox="0 0 24 24" fill="#00FFFF" width="16" height="16" style={{ filter: 'drop-shadow(0 0 2px rgba(0, 255, 255, 0.4))' }}>
+                              <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1.8 14.8L6.4 13l1.4-1.4 2.4 2.4 6-6L17.6 9l-7.4 7.8z"/>
+                            </svg>
+                          )}
                         </strong>
                         {item.is_demo_creator && <span className="reel-category-badge">Demo</span>}
                         {item.category && <span className="reel-category-badge">{item.category}</span>}
