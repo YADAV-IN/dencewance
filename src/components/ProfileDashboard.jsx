@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
+import SkeletonImage from './SkeletonImage';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
 
@@ -61,10 +62,10 @@ export default function ProfileDashboard() {
         }
 
         // Fetch Posts
-        const nRes = await fetch(`${API_URL}/api/news?author_id=${myId}`);
+        const nRes = await fetch(`${API_URL}/api/posts?author_id=${myId}`);
         if(nRes.ok) {
           const nData = await nRes.json();
-          setMyPosts(rData?.data && Array.isArray(nData.data) ? nData.data : []);
+          setMyPosts(Array.isArray(nData.data) ? nData.data : []);
         }
 
         // Fetch Site Settings
@@ -137,7 +138,7 @@ export default function ProfileDashboard() {
   const handleDeletePost = async (id) => {
     if (!window.confirm('Delete this post permanently?')) return;
     try {
-      const res = await fetch(`${API_URL}/api/news/${id}`, { // posts are in news or status? News is generic text, post images. Wait.. I need to be sure where posts go.
+      const res = await fetch(`${API_URL}/api/posts/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -349,7 +350,14 @@ export default function ProfileDashboard() {
              <button onClick={()=>setIsEditing(false)} className="text-gray-400">Cancel</button>
           </div>
           <div className="flex flex-col items-center gap-2 mb-4">
-            <img src={editAvatar || 'https://ui-avatars.com/api/?name='+(editName||'User')+'&background=random'} className="w-24 h-24 rounded-full border-2 border-gray-700 object-cover cursor-pointer hover:opacity-80" onClick={() => avatarInputRef.current && avatarInputRef.current.click()} />
+            <SkeletonImage
+              src={editAvatar || 'https://ui-avatars.com/api/?name='+(editName||'User')+'&background=random'}
+              alt="Admin avatar"
+              className="w-24 h-24 rounded-full border-2 border-gray-700 object-cover cursor-pointer hover:opacity-80"
+              wrapperStyle={{ width: '6rem', height: '6rem', borderRadius: '9999px', display: 'block' }}
+              circle={true}
+              onClick={() => avatarInputRef.current && avatarInputRef.current.click()}
+            />
             <input type="hidden" placeholder="Avatar URL (Optional)" className="bg-gray-900 border border-gray-800 w-full rounded p-2 text-sm text-center" value={editAvatar} onChange={e=>setEditAvatar(e.target.value)} />
             <button className="text-blue-500 text-sm font-semibold" onClick={() => avatarInputRef.current && avatarInputRef.current.click()}>Change Admin Logo</button>
           </div>
@@ -360,7 +368,12 @@ export default function ProfileDashboard() {
           <div className="border-t border-gray-800 mt-4 pt-4 flex flex-col gap-2">
             <h3 className="text-sm font-bold text-gray-300">Website Global Logo</h3>
             <div className="flex items-center gap-4">
-              <img src={siteSettings?.site_logo_url || editAvatar || 'https://ui-avatars.com/api/?name=Website'} className="w-16 h-16 rounded shadow object-cover" />
+              <SkeletonImage
+                src={siteSettings?.site_logo_url || editAvatar || 'https://ui-avatars.com/api/?name=Website'}
+                alt="Website logo"
+                className="w-16 h-16 rounded shadow object-cover"
+                wrapperStyle={{ width: '4rem', height: '4rem', borderRadius: '0.25rem', display: 'block' }}
+              />
               <button className="bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg py-2 px-4 transition" onClick={() => logoInputRef.current.click()}>Upload Website Logo</button>
             </div>
             <p className="text-xs text-gray-500">This logo will appear everywhere on the site.</p>
@@ -374,7 +387,13 @@ export default function ProfileDashboard() {
         <>
           {/* Profile Header */}
           <div className="p-4 flex items-center justify-between">
-            <img src={profile?.avatar_url || 'https://ui-avatars.com/api/?name='+(profile?.name||'User')+'&background=random'} className="w-20 h-20 md:w-28 md:h-28 rounded-full border border-gray-700 object-cover p-1" alt="Profile" />
+            <SkeletonImage
+              src={profile?.avatar_url || 'https://ui-avatars.com/api/?name='+(profile?.name||'User')+'&background=random'}
+              alt="Profile"
+              className="w-20 h-20 md:w-28 md:h-28 rounded-full border border-gray-700 object-cover p-1"
+              wrapperStyle={{ width: '5rem', height: '5rem', borderRadius: '9999px', display: 'block' }}
+              circle={true}
+            />
             <div className="flex gap-4 md:gap-8 flex-1 justify-center">
               <div className="flex flex-col items-center"><span className="font-bold text-lg">∞</span><span className="text-sm text-gray-400">posts</span></div>
               <div className="flex flex-col items-center"><span className="font-bold text-lg">10.2K</span><span className="text-sm text-gray-400">followers</span></div>
@@ -460,7 +479,12 @@ export default function ProfileDashboard() {
               {myPosts.length === 0 && <div className="col-span-3 text-center py-10 text-gray-500 text-sm">No posts uploaded yet.</div>}
               {myPosts.map(post => (
                 <div key={post.id} className="relative aspect-square bg-gray-900 group cursor-pointer">
-                  <img src={post.image_url} className="w-full h-full object-cover" alt="Post" />
+                  <SkeletonImage
+                    src={post.image_url}
+                    className="w-full h-full object-cover"
+                    alt="Post"
+                    wrapperStyle={{ width: '100%', height: '100%', display: 'block' }}
+                  />
                   <button 
                     onClick={(e) => { e.stopPropagation(); handleDeletePost(post.id || post._id); }}
                     className="absolute top-2 right-2 bg-red-600/80 hover:bg-red-700 text-white rounded-full p-1.5 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"

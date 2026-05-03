@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: alok-backend
+    env: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    plan: free
+    autoDeploy: true
+
+  - type: web
+    name: alok-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: alok-backend
+          envVarKey: RENDER_EXTERNAL_URL

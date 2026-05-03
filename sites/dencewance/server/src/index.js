@@ -1308,7 +1308,7 @@ app.post('/api/pyq', requireAuth, async (req, res) => {
     if (missingFields.length > 0) {
       return res.status(400).json({ error: 'Missing required fields: ' + missingFields.join(', ') });
     }
-    const { ID } = require('node-appwrite');
+    
     try {
       const payload = { ...req.body };
       payload.fileType = normalizePYQFileType(payload.fileType);

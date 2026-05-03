@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import SkeletonImage from './SkeletonImage';
 
 class CampaignErrorBoundary extends React.Component {
   constructor(props) {
@@ -76,7 +77,15 @@ function CampaignRenderer({ campaign, resolveMediaUrl, onDismiss }) {
       return <video src={mediaSource} className="campaign-media-video" autoPlay muted loop playsInline controls />;
     }
 
-    return <img src={mediaSource} alt={title || 'campaign'} className="campaign-media-image" loading="lazy" />;
+    return (
+      <SkeletonImage
+        src={mediaSource}
+        alt={title || 'campaign'}
+        className="campaign-media-image"
+        wrapperClassName="campaign-media-image"
+        wrapperStyle={{ display: 'block', width: '100%' }}
+      />
+    );
   })();
 
   const ctaNode = ctaText && ctaUrl ? (

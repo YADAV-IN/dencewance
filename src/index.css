@@ -62,6 +62,24 @@
   box-sizing: border-box;
 }
 
+.image-skeleton-wrapper {
+  position: relative;
+  display: block;
+  overflow: hidden;
+}
+
+.image-skeleton-loader {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.image-skeleton-wrapper img {
+  position: relative;
+  z-index: 2;
+  transition: opacity 220ms ease;
+}
+
 html {
   font-size: 16px;
   -webkit-text-size-adjust: 100%;

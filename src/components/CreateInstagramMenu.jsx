@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
+import SkeletonImage from './SkeletonImage';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
 
@@ -38,7 +39,7 @@ export default function CreateInstagramMenu({ onComplete }) {
     setIsUploading(true);
     try {
       const imageUrl = await uploadToAppwrite(postCover, 'alok_media');
-      const res = await fetch(`${API_URL}/api/news`, {
+      const res = await fetch(`${API_URL}/api/posts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -155,7 +156,7 @@ export default function CreateInstagramMenu({ onComplete }) {
             <div className="w-full aspect-square bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center relative border border-gray-800">
               {postCoverPreview ? (
                 <>
-                  <img src={postCoverPreview} className="w-full h-full object-cover" alt="Preview"/>
+                    <SkeletonImage src={postCoverPreview} className="w-full h-full object-cover" alt="Preview" wrapperStyle={{ width: '100%', height: '100%', display: 'block' }} />
                   <button type="button" onClick={()=>{setPostCover(null); setPostCoverPreview('')}} className="absolute top-2 right-2 bg-black/60 rounded-full w-8 h-8 items-center text-white backdrop-blur">✕</button>
                 </>
               ) : (

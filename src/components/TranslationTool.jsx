@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { translateText, autoTranslate, translateFromImage, detectLanguage } from '../utils/translator';
 import './TranslationTool.css';
+import SkeletonImage from './SkeletonImage';
 
 export const TranslationTool = ({ isOpen, onClose, language }) => {
   const [mode, setMode] = useState('text'); // 'text' or 'image'
@@ -189,7 +190,13 @@ export const TranslationTool = ({ isOpen, onClose, language }) => {
             <div className="image-upload-area">
               <label className="upload-label">
                 {imagePreview ? (
-                  <img src={imagePreview} alt="Preview" className="image-preview" />
+                  <SkeletonImage
+                    src={imagePreview}
+                    alt="Preview"
+                    className="image-preview"
+                    wrapperClassName="image-preview"
+                    wrapperStyle={{ display: 'block', width: '100%' }}
+                  />
                 ) : (
                   <div className="upload-placeholder">
                     <span className="upload-icon">📸</span>

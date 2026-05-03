@@ -1,0 +1,134 @@
+.ig-profile-container {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-color);
+  min-height: 100vh;
+  margin: 0 auto;
+  max-width: 935px;
+  color: var(--text-color);
+  padding: 30px 20px;
+}
+
+.ig-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 50px;
+  margin-bottom: 40px;
+}
+
+.ig-profile-avatar-sec {
+  flex-shrink: 0;
+  position: relative;
+}
+
+.ig-profile-avatar-sec label {
+  cursor: pointer;
+}
+
+.ig-avatar {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border-color);
+}
+
+.ig-profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ig-profile-top {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.ig-username {
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.ig-edit-btn, .ig-logout-btn {
+  background-color: var(--hover-color, #efefef);
+  color: #000;
+  border: none;
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.ig-logout-btn {
+  background-color: #ff3b30;
+  color: white;
+}
+
+.ig-profile-stats {
+  display: flex;
+  gap: 40px;
+}
+
+.ig-profile-stats span {
+  font-size: 16px;
+}
+
+.ig-profile-bio {
+  font-size: 14px;
+}
+
+.ig-fullname {
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.ig-login-box {
+  max-width: 350px;
+  margin: 100px auto;
+  padding: 40px;
+  border: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.ig-login-box h2 {
+  font-family: 'Instagram Sans', cursive, sans-serif;
+  margin-bottom: 30px;
+  font-size: 32px;
+}
+
+.ig-login-box input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  background-color: var(--hover-color, #fafafa);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  color: #000;
+}
+
+.ig-login-box button {
+  width: 100%;
+  padding: 10px;
+  background-color: #0095f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  margin-top: 10px;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .ig-profile-header {
+    gap: 20px;
+  }
+  .ig-avatar {
+    width: 80px;
+    height: 80px;
+  }
+  .ig-profile-stats {
+    gap: 20px;
+  }
+}
