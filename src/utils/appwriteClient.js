@@ -60,7 +60,8 @@ export const uploadMediaToAppwrite = async (file, bucketId, onProgress) => {
         const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/${targetBucket}/files/${result.$id}/view?project=69d60fbe002bae1e32d5`;
         if (onProgress) onProgress({ progress: 100 });
         console.log('Bypass 2 (Direct Appwrite) Success!');
-        return viewUrl;
+        // Return both id and url so callers can choose the proper identifier
+        return { id: result.$id, url: viewUrl };
     } catch (e) {
         console.warn('Bypass 2 (Direct Appwrite) failed:', e.message);
     }

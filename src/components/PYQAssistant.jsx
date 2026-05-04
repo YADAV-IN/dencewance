@@ -96,17 +96,20 @@ const PYQAssistant = ({ adminData }) => {
     setUploadProgress(0);
     
     try {
-      const fileUrl = await uploadMediaToAppwrite(libFile, BUCKET_ID, (progressEvent) => {
+      const token = localStorage.getItem('adminToken') || '';
+      if (!token) throw new Error('Not authenticated — please login as admin to upload.');
+
+      const uploadResult = await uploadMediaToAppwrite(libFile, BUCKET_ID, (progressEvent) => {
         if (progressEvent && typeof progressEvent.progress === 'number') {
           setUploadProgress(Math.round(progressEvent.progress));
         }
       });
-      
+
       setUploadProgress(100);
-      
-      const token = localStorage.getItem('adminToken') || '';
-      if (!token) throw new Error('Not authenticated');
-      
+
+      // uploadResult may be a string (url) or an object {id, url}
+      const fileIdValue = (uploadResult && typeof uploadResult === 'object') ? (uploadResult.id || uploadResult.url) : uploadResult;
+
       const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
       const payload = {
         dept: libDept.toUpperCase(),
@@ -114,7 +117,7 @@ const PYQAssistant = ({ adminData }) => {
         subject: libKeywords ? `${libSubject} //SEO// ${libKeywords}` : libSubject,
         fileName: libFile.name,
         fileType: libFile.type,
-        fileId: fileUrl
+        fileId: fileIdValue
       };
 
       const res = await fetch(apiUrl + '/api/pyq', {
