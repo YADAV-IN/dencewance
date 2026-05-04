@@ -1,17 +1,23 @@
 services:
   - type: web
-    name: alok-proxy
+    name: alok-backend
     env: node
-    rootDir: server
+    rootDir: sites/dencewance/server
     buildCommand: npm install
-    startCommand: node appwrite-proxy.js
+    startCommand: npm start
     plan: free
     autoDeploy: true
     envVars:
-      - key: VITE_APPWRITE_ENDPOINT
+      - key: APPWRITE_ENDPOINT
         value: "https://nyc.cloud.appwrite.io/v1"
-      - key: VITE_APPWRITE_PROJECT_ID
+      - key: APPWRITE_PROJECT_ID
         value: "69d60fbe002bae1e32d5"
+      - key: APPWRITE_DB_ID
+        value: "69d60fe8000c9bd92750"
+      - key: APPWRITE_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        value: "your-secret-key-change-in-production"
       - key: PORT
         value: "3001"
 
@@ -23,14 +29,11 @@ services:
     autoDeploy: true
     envVars:
       - key: VITE_APPWRITE_ENDPOINT
-        fromService:
-          type: web
-          name: alok-proxy
-          envVarKey: RENDER_EXTERNAL_URL
+        value: "https://nyc.cloud.appwrite.io/v1"
       - key: VITE_APPWRITE_PROJECT_ID
         value: "69d60fbe002bae1e32d5"
       - key: VITE_API_URL
         fromService:
           type: web
-          name: alok-proxy
+          name: alok-backend
           envVarKey: RENDER_EXTERNAL_URL
