@@ -430,7 +430,7 @@ export default function SocialApp() {
         }),
 
       // Fetch posts feed
-      fetchWithTimeout(`${API_URL}/api/posts`)
+      fetchWithTimeout(`${API_URL}/api/news`)
         .then(readJsonSafely)
         .then(data => {
           if (data && Array.isArray(data.data)) {
@@ -457,7 +457,7 @@ export default function SocialApp() {
   const handleDeletePost = async (postId) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
     try {
-      const res = await fetch(`${API_URL}/api/posts/${postId}`, {
+      const res = await fetch(`${API_URL}/api/news/${postId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });

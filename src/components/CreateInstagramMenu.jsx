@@ -39,7 +39,7 @@ export default function CreateInstagramMenu({ onComplete }) {
     setIsUploading(true);
     try {
       const imageUrl = await uploadToAppwrite(postCover, 'alok_media');
-      const res = await fetch(`${API_URL}/api/posts`, {
+      const res = await fetch(`${API_URL}/api/news`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({

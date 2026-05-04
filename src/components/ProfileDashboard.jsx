@@ -62,7 +62,7 @@ export default function ProfileDashboard() {
         }
 
         // Fetch Posts
-        const nRes = await fetch(`${API_URL}/api/posts?author_id=${myId}`);
+        const nRes = await fetch(`${API_URL}/api/news?author_id=${myId}`);
         if(nRes.ok) {
           const nData = await nRes.json();
           setMyPosts(Array.isArray(nData.data) ? nData.data : []);
@@ -138,7 +138,7 @@ export default function ProfileDashboard() {
   const handleDeletePost = async (id) => {
     if (!window.confirm('Delete this post permanently?')) return;
     try {
-      const res = await fetch(`${API_URL}/api/posts/${id}`, {
+      const res = await fetch(`${API_URL}/api/news/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
