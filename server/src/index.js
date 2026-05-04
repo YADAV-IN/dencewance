@@ -1419,6 +1419,74 @@ app.put('/api/settings', requireAuth, async (req, res) => {
   return res.json({ data: settings.toJSON() });
 });
 
+// Storage usage summary (Appwrite R2 and DB counts)
+app.get('/api/storage/usage', async (req, res) => {
+  try {
+    const usage = { appwrite: null, r2: null, dbCounts: null };
+
+    // Appwrite bucket usage (if API key present)
+    try {
+      if (process.env.APPWRITE_API_KEY) {
+        const BUCKET_ID = 'alok_media';
+        const listRes = await appwriteStorage.listFiles(BUCKET_ID);
+        let files = [];
+        if (Array.isArray(listRes.files)) files = listRes.files;
+        else if (Array.isArray(listRes.documents)) files = listRes.documents;
+        else if (Array.isArray(listRes)) files = listRes;
+
+        const totalFiles = files.length;
+        const totalBytes = files.reduce((s, f) => s + (Number(f.size) || Number(f.$size) || 0), 0);
+        usage.appwrite = { available: true, bucket: BUCKET_ID, totalFiles, totalBytes };
+      } else {
+        usage.appwrite = { available: false, reason: 'APPWRITE_API_KEY not configured' };
+      }
+    } catch (err) {
+      console.warn('Appwrite usage check failed:', err?.message || err);
+      usage.appwrite = { available: false, reason: 'failed to query Appwrite' };
+    }
+
+    // R2 usage
+    try {
+      if (hasR2Config && s3Client) {
+        const files = await listAllR2Files();
+        const totalFiles = Array.isArray(files) ? files.length : 0;
+        const totalBytes = (files || []).reduce((s, f) => s + (Number(f.size) || 0), 0);
+        usage.r2 = { available: true, bucket: R2_BUCKET_NAME, totalFiles, totalBytes };
+      } else {
+        usage.r2 = { available: false, reason: 'R2 not configured' };
+      }
+    } catch (err) {
+      console.warn('R2 usage check failed:', err?.message || err);
+      usage.r2 = { available: false, reason: 'failed to query R2' };
+    }
+
+    // DB counts (sample counts for collections)
+    try {
+      const newsList = await News.find().limit(1).then(r => r || []);
+      const reelsList = await Reel.find().limit(1).then(r => r || []);
+      const pyqList = await (async () => {
+        const { Query } = require('node-appwrite');
+        const result = await appwriteDatabases.listDocuments('69d60fe8000c9bd92750', 'pyq', [Query.limit(100)]);
+        return result.documents || [];
+      })();
+
+      usage.dbCounts = {
+        newsSample: Array.isArray(newsList) ? newsList.length : 0,
+        reelsSample: Array.isArray(reelsList) ? reelsList.length : 0,
+        pyqSample: Array.isArray(pyqList) ? pyqList.length : 0,
+      };
+    } catch (err) {
+      console.warn('DB counts check failed:', err?.message || err);
+      usage.dbCounts = null;
+    }
+
+    return res.json({ success: true, data: usage });
+  } catch (err) {
+    console.error('Storage usage endpoint error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to calculate storage usage' });
+  }
+});
+
 app.use((err, req, res, next) => {
   console.error('Unhandled route error:', err);
   if (res.headersSent) return next(err);

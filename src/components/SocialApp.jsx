@@ -7,6 +7,7 @@ import SkeletonImage from './SkeletonImage';
 
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
 import PYQAssistant from './PYQAssistant';
+import StorageManager from './StorageManager';
 
 // Vintage/Historical Custom SVG Icons
 export const HomeIcon = () => (
@@ -170,6 +171,7 @@ export default function SocialApp() {
   const [isSearching, setIsSearching] = useState(false);
   const [showFeatureMenu, setShowFeatureMenu] = useState(false);
   const [showPYQAssistant, setShowPYQAssistant] = useState(false);
+  const [showStorageManager, setShowStorageManager] = useState(false);
   const [recommendations, setRecommendations] = useState({ tags: [], reels: [] });
   const statusUploadRef = useRef(null);
   const [isStatusUploading, setIsStatusUploading] = useState(false);
@@ -538,6 +540,7 @@ export default function SocialApp() {
           </button>
           
           <button onClick={() => setActiveTab('pyq')} style={{ background: 'linear-gradient(45deg, #B4A05D, #D4AF37)', color: 'black', fontWeight: 'bold', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 10px rgba(180, 160, 93, 0.3)' }}>🎓 PYQ</button>
+          <button onClick={() => setShowStorageManager(true)} title="Manage storage" style={{ marginLeft: 8, padding: '6px 10px', borderRadius: 10, background: '#111', color: '#fff', border: '1px solid #333' }}>Storage</button>
 
         </div>
       </header>
@@ -1002,6 +1005,9 @@ export default function SocialApp() {
           </section>
           </>)}
         </main>
+        {showStorageManager && (
+          <StorageManager open={showStorageManager} onClose={() => setShowStorageManager(false)} adminToken={token} />
+        )}
 
         {/* Right Sidebar for Suggestions / Messaging (Desktop) */}
         <aside className="suggestion-sidebar">

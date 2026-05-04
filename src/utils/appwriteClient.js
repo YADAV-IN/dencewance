@@ -11,59 +11,66 @@ export { ID };
 // Use backend API endpoint for uploads (avoids CORS & Appwrite limitations)
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
 
-export const uploadMediaToAppwrite = async (file, bucketId, onProgress) => {
+export const uploadMediaToAppwrite = async (file, bucketId, onProgress, preferredStorage) => {
     const token = localStorage.getItem('adminToken') || '';
     if (!token) throw new Error('You must be logged in to upload. Please login first.');
+
+    // Determine preference: explicit param > saved localStorage > default 'auto'
+    const pref = preferredStorage || localStorage.getItem('preferredStorage') || 'auto';
 
     // ==========================================
     // BYPASS 1: Try Direct R2 Presigned URL Upload 
     // (Bypasses Vercel 4.5MB limit and Render timeouts)
     // ==========================================
-    try {
-        console.log('Attempting Bypass 1: Presigned R2 Upload...');
-        const signResponse = await fetch(`${API_URL}/api/uploads/sign`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                filename: file.name,
-                contentType: file.type || 'video/mp4'
-            })
-        });
+    // If pref explicitly chooses appwrite or backend, skip R2
+    if (pref === 'r2' || pref === 'auto') {
+        try {
+            console.log('Attempting Bypass 1: Presigned R2 Upload...');
+            const signResponse = await fetch(`${API_URL}/api/uploads/sign`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    filename: file.name,
+                    contentType: file.type || 'video/mp4'
+                })
+            });
 
-        if (signResponse.ok) {
-            const signData = await signResponse.json();
-            if (signData?.uploadUrl && signData?.publicUrl) {
-                await uploadFileWithProgress(signData.uploadUrl, file, (progress) => {
-                    if (onProgress) onProgress({ progress });
-                });
-                console.log('Bypass 1 (R2 Direct) Success!');
-                return signData.publicUrl;
+            if (signResponse.ok) {
+                const signData = await signResponse.json();
+                if (signData?.uploadUrl && signData?.publicUrl) {
+                    await uploadFileWithProgress(signData.uploadUrl, file, (progress) => {
+                        if (onProgress) onProgress({ progress });
+                    });
+                    console.log('Bypass 1 (R2 Direct) Success!');
+                    return signData.publicUrl;
+                }
+            } else {
+                console.warn('Bypass 1 (R2 Direct) failed: API returned status', signResponse.status);
             }
-        } else {
-            console.warn('Bypass 1 (R2 Direct) failed: API returned status', signResponse.status);
+        } catch (e) {
+            console.warn('Bypass 1 (R2 Direct) failed:', e.message);
         }
-    } catch (e) {
-        console.warn('Bypass 1 (R2 Direct) failed:', e.message);
     }
 
     // ==========================================
     // BYPASS 2: Try Direct Appwrite Client SDK Upload
     // (Bypasses Backend entirely)
     // ==========================================
-    try {
-        console.log('Attempting Bypass 2: Direct Appwrite Client Upload...');
-        const targetBucket = bucketId || 'alok_media';
-        const result = await appwriteStorage.createFile(targetBucket, ID.unique(), file);
-        const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/${targetBucket}/files/${result.$id}/view?project=69d60fbe002bae1e32d5`;
-        if (onProgress) onProgress({ progress: 100 });
-        console.log('Bypass 2 (Direct Appwrite) Success!');
-        // Return both id and url so callers can choose the proper identifier
-        return { id: result.$id, url: viewUrl };
-    } catch (e) {
-        console.warn('Bypass 2 (Direct Appwrite) failed:', e.message);
+    if (pref === 'appwrite' || pref === 'auto') {
+        try {
+            console.log('Attempting Bypass 2: Direct Appwrite Client Upload...');
+            const targetBucket = bucketId || 'alok_media';
+            const result = await appwriteStorage.createFile(targetBucket, ID.unique(), file);
+            const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/${targetBucket}/files/${result.$id}/view?project=69d60fbe002bae1e32d5`;
+            if (onProgress) onProgress({ progress: 100 });
+            console.log('Bypass 2 (Direct Appwrite) Success!');
+            return { id: result.$id, url: viewUrl };
+        } catch (e) {
+            console.warn('Bypass 2 (Direct Appwrite) failed:', e.message);
+        }
     }
 
     // ==========================================
