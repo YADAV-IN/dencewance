@@ -1,0 +1,9 @@
+{
+  "name": "reels-api",
+  "version": "1.0.0",
+  "description": "Reels API function",
+  "main": "index.js",
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}

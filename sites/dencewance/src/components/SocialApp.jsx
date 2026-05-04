@@ -390,7 +390,14 @@ export default function SocialApp() {
         })
         .catch(err => {
           console.error('Failed to load reels', err);
-          setReelsFeed([]);
+          // Show fallback message when backend is unavailable
+          setReelsFeed([{
+            _id: 'loading-error',
+            title: 'Backend Setup Pending',
+            description: 'Video stories will load when the backend service is ready. Please refresh in a moment.',
+            is_active: false,
+            created_at: new Date().toISOString()
+          }]);
         }),
 
       // Fetch posts feed
