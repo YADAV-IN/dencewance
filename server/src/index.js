@@ -1271,13 +1271,20 @@ app.post('/api/uploads/sign', requireAuth, async (req, res) => {
 // --- PYQ Admin API ---
 
 // --- PYQ Data API ---
+const normalizePYQDocument = (document) => ({
+  ...document,
+  fileId: Array.isArray(document.fileId) ? (document.fileId[0] || '') : (document.fileId || ''),
+  uploaderId: Array.isArray(document.uploaderId) ? (document.uploaderId[0] || '') : (document.uploaderId || ''),
+  cover_url: Array.isArray(document.cover_url) ? (document.cover_url[0] || null) : (document.cover_url || null)
+});
+
 app.get('/api/pyq', async (req, res) => {
   try {
     const result = await appwriteDatabases.listDocuments('69d60fe8000c9bd92750', 'pyq', [
       Query.orderDesc('$createdAt'),
       Query.limit(100)
     ]);
-    res.json({ success: true, data: result.documents });
+    res.json({ success: true, data: result.documents.map(normalizePYQDocument) });
   } catch (err) {
     console.error("PYQ List Error:", err);
     res.status(500).json({ error: 'Failed to fetch PYQ documents.' });
@@ -1309,11 +1316,20 @@ app.post('/api/pyq', requireAuth, async (req, res) => {
     }
     
     try {
-      const payload = { ...req.body };
+      const payload = {
+        ...req.body,
+        fileId: Array.isArray(req.body.fileId) ? req.body.fileId.filter(Boolean) : [req.body.fileId].filter(Boolean),
+        uploaderId: Array.isArray(req.body.uploaderId)
+          ? req.body.uploaderId.filter(Boolean)
+          : [req.body.uploaderId].filter(Boolean),
+        cover_url: Array.isArray(req.body.cover_url)
+          ? req.body.cover_url.filter(Boolean)
+          : [req.body.cover_url].filter(Boolean)
+      };
       // Remove fields that Appwrite doesn't expect
       delete payload.fileType;
       const result = await appwriteDatabases.createDocument('69d60fe8000c9bd92750', 'pyq', ID.unique(), payload);
-      res.json({ success: true, data: result });
+      res.json({ success: true, data: normalizePYQDocument(result) });
     } catch (err) {
       // Log full error details for debugging
       console.error("PYQ Insert Error (Appwrite):", err);

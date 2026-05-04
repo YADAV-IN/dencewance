@@ -48,7 +48,7 @@
         {
             "$id": "69ec4e21000cafb63280",
             "name": "dencewance",
-            "path": "sites/dencewance",
+            "path": ".",
             "framework": "react",
             "logging": true,
             "timeout": 30,
