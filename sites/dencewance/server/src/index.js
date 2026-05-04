@@ -32,6 +32,7 @@ app.get('/', (req, res) => res.json({ message: 'API is working! Open the fronten
 const PORT = process.env.PORT || 4000;
 const IS_VERCEL = process.env.VERCEL === '1';
 const readEnv = (name) => process.env[name]?.trim() || '';
+const APPWRITE_BUCKET_ID = process.env.APPWRITE_STORAGE_BUCKET_ID?.trim() || APPWRITE_BUCKET_ID;
 
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME?.trim() || '';
 let R2_PUBLIC_URL = process.env.R2_PUBLIC_URL?.trim() || '';
@@ -332,8 +333,8 @@ app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
   try {
     const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `avatar-${Date.now()}.png`);
-    const result = await appwriteStorage.createFile('alok_media', ID.unique(), fileObj);
-    const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/alok_media/files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
+    const result = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), fileObj);
+    const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets//files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
     
     const admin = await Admin.findByIdAndUpdate(
       req.adminId,
@@ -1227,8 +1228,8 @@ app.post('/api/uploads/cover', requireAuth, upload.single('cover'), async (req, 
 
     // Fallback to Appwrite storage for small files
     const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `cover-${Date.now()}.png`);
-    const result = await appwriteStorage.createFile('alok_media', ID.unique(), fileObj);
-    const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/alok_media/files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
+    const result = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), fileObj);
+    const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets//files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
     return res.json({ data: { url: viewUrl } });
   } catch (error) {
     console.error('Upload error:', error);
@@ -1261,8 +1262,8 @@ app.post('/api/uploads/media', requireAuth, upload.single('media'), async (req, 
     }
 
     const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `media-${Date.now()}.mp4`);
-    const result = await appwriteStorage.createFile('alok_media', ID.unique(), fileObj);
-    const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/alok_media/files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
+    const result = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), fileObj);
+    const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets//files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
     
     return res.json({
       data: {
@@ -1385,7 +1386,7 @@ app.delete('/api/pyq/:id', requireAuth, async (req, res) => {
 
     if (fileId) {
       try {
-        await appwriteStorage.deleteFile('alok_media', fileId);
+        await appwriteStorage.deleteFile(APPWRITE_BUCKET_ID, fileId);
       } catch(e) {
         console.warn("Could not delete from storage:", e.message);
       }
@@ -1686,8 +1687,8 @@ app.post('/api/status', requireAuth, upload.single('media'), async (req, res) =>
       if (req.file.mimetype && req.file.mimetype.startsWith('video')) type = 'video';
       
       const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `status-${Date.now()}.${type === 'video' ? 'mp4' : 'png'}`);
-      const result = await appwriteStorage.createFile('alok_media', ID.unique(), fileObj);
-      mediaUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/alok_media/files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
+      const result = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), fileObj);
+      mediaUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets//files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
     } else {
       return res.status(400).json({ error: 'Media file is required' });
     }
