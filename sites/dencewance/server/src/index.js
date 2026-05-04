@@ -78,17 +78,6 @@ app.use(cors({
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 app.use((req,res,next)=>{console.log(req.method, req.url); next();});
-// Backward-compatible aliases expected by the frontend.
-// Some clients still call /api/posts and /api/posts/:slug.
-app.get('/api/posts', (req, res, next) => {
-  req.url = '/api/news';
-  next();
-});
-
-app.get('/api/posts/:slug', (req, res, next) => {
-  req.url = `/api/news/${req.params.slug}`;
-  next();
-});
 
 let dbInitialized = false;
 let dbInitPromise = null;
@@ -438,6 +427,53 @@ app.get('/api/recommendations', async (req, res) => {
     return res.status(500).json({ success: false, error: 'Failed to fetch recommendations' });
   }
 });
+
+// Backward-compatible feed aliases expected by frontend clients.
+app.get('/api/posts', cacheRoute(30, 'news'), async (req, res) => {
+  try {
+    const { limit = 12, category, q, status, featured, breaking, author_id } = req.query;
+    const query = {};
+    if (category) query.category = category;
+    if (author_id) query.author_id = author_id;
+    if (status) query.status = status;
+    if (featured === 'true') query.is_featured = 1;
+    if (breaking === 'true') query.is_breaking = 1;
+    if (q) {
+      query.$or = [
+        { title: new RegExp(q, 'i') },
+        { content: new RegExp(q, 'i') }
+      ];
+    }
+
+    const news = await News.find(query)
+      .sort({ published_at: -1 })
+      .limit(Math.min(Number(limit) || 12, 100))
+      .lean();
+
+    return res.json({ data: news.map(n => ({ ...n, id: n._id.toString(), _id: undefined, __v: undefined })) });
+  } catch (error) {
+    console.error('Posts list error:', error);
+    return res.status(500).json({ error: 'Failed to fetch posts.' });
+  }
+});
+
+app.get('/api/posts/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const news = await News.findOneAndUpdate(
+      { slug },
+      { $inc: { views: 1 } },
+      { new: true }
+    );
+
+    if (!news) return res.status(404).json({ error: 'Post not found.' });
+    return res.json({ data: news.toJSON() });
+  } catch (error) {
+    console.error('Post detail error:', error);
+    return res.status(500).json({ error: 'Failed to fetch post detail.' });
+  }
+});
+
 app.get('/api/news', cacheRoute(30, 'news'), async (req, res) => {
   try {
     const { limit = 12, category, q, status, featured, breaking, author_id } = req.query;
