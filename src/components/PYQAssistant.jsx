@@ -118,7 +118,6 @@ const PYQAssistant = ({ adminData }) => {
         course: libCourse.toUpperCase(),
         subject: libKeywords ? `${libSubject} //SEO// ${libKeywords}` : libSubject,
         fileName: libFile.name,
-        fileType: libFile.type,
         fileId: fileIdValue,
         uploaderId: uploaderId,
         cover_url: coverUrlFromUpload

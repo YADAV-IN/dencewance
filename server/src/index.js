@@ -12,7 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel } from './db.js';
-import { storage as appwriteStorage, databases as appwriteDatabases, ID } from './appwrite.js';
+import { storage as appwriteStorage, databases as appwriteDatabases, ID, Query } from './appwrite.js';
 import { InputFile } from 'node-appwrite/file';
 import { requireAuth, signToken } from './middleware/auth.js';
 import { slugify } from './utils/slug.js';
@@ -1273,7 +1273,6 @@ app.post('/api/uploads/sign', requireAuth, async (req, res) => {
 // --- PYQ Data API ---
 app.get('/api/pyq', async (req, res) => {
   try {
-    const { Query } = require('node-appwrite');
     const result = await appwriteDatabases.listDocuments('69d60fe8000c9bd92750', 'pyq', [
       Query.orderDesc('$createdAt'),
       Query.limit(100)
@@ -1303,7 +1302,7 @@ app.post('/api/pyq', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Only admins can insert PYQ documents.' });
     }
     // Validate required fields for PYQ
-    const requiredFields = ['dept', 'course', 'subject', 'fileName', 'fileType', 'fileId'];
+    const requiredFields = ['dept', 'course', 'subject', 'fileName', 'fileId'];
     const missingFields = requiredFields.filter(f => !req.body[f]);
     if (missingFields.length > 0) {
       return res.status(400).json({ error: 'Missing required fields: ' + missingFields.join(', ') });
@@ -1311,7 +1310,8 @@ app.post('/api/pyq', requireAuth, async (req, res) => {
     
     try {
       const payload = { ...req.body };
-      payload.fileType = normalizePYQFileType(payload.fileType);
+      // Remove fields that Appwrite doesn't expect
+      delete payload.fileType;
       const result = await appwriteDatabases.createDocument('69d60fe8000c9bd92750', 'pyq', ID.unique(), payload);
       res.json({ success: true, data: result });
     } catch (err) {
