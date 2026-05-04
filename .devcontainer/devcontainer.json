@@ -20,7 +20,11 @@
     "3000": {
       "label": "Application",
       "onAutoForward": "openPreview"
+    },
+    "4173": {
+      "label": "Preview",
+      "onAutoForward": "openPreview"
     }
   },
-  "forwardPorts": [3000]
+  "forwardPorts": [3000, 4173]
 }

@@ -216,21 +216,29 @@ export default function SocialApp() {
     setStatusUploadProgress(0);
     
     try {
-      // 1. Upload Video directly via Appwrite SDK
-      let videoUrl = await uploadMediaToAppwrite(file, 'alok_media', (progressData) => {
+      // 1. Upload Video directly via Appwrite SDK (or R2/backend)
+      const videoUploadResult = await uploadMediaToAppwrite(file, 'alok_media', (progressData) => {
         setStatusUploadProgress(Math.round(progressData.progress));
       });
 
+      const videoUrlValue = (videoUploadResult && typeof videoUploadResult === 'object') ? (videoUploadResult.url || videoUploadResult) : videoUploadResult;
+      const coverUrl = (videoUploadResult && typeof videoUploadResult === 'object') ? (videoUploadResult.cover_url || videoUploadResult.coverUrl || null) : null;
+      const uploaderId = localStorage.getItem('activeUploader') || null;
+
       // 2. Post the Reel (Video Story)
+      const reelBody = {
+        title: 'My Video Story',
+        caption: 'Uploaded from Video Stories Bar',
+        video_url: videoUrlValue,
+        status: 'published'
+      };
+      if (coverUrl) reelBody.cover_image_url = coverUrl;
+      if (uploaderId) reelBody.uploaderId = uploaderId;
+
       const reelRes = await fetch(`${API_URL}/api/reels`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          title: 'My Video Story',
-          caption: 'Uploaded from Video Stories Bar',
-          video_url: videoUrl,
-          status: 'published'
-        })
+        body: JSON.stringify(reelBody)
       });
       
       const reelData = await reelRes.json();
@@ -307,6 +315,21 @@ export default function SocialApp() {
   const adminId = localStorage.getItem('adminId');
   const [adminData, setAdminData] = useState(null);
   const [openMenuFor, setOpenMenuFor] = useState(null);
+  const [storageUsageSummary, setStorageUsageSummary] = useState(null);
+
+  useEffect(() => {
+    const fetchUsage = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/storage/usage`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.success) setStorageUsageSummary(data.data);
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchUsage();
+  }, []);
 
   // Sync URL path to internal tab state and keep the URL tidy/simple
   useEffect(() => {
@@ -540,7 +563,24 @@ export default function SocialApp() {
           </button>
           
           <button onClick={() => setActiveTab('pyq')} style={{ background: 'linear-gradient(45deg, #B4A05D, #D4AF37)', color: 'black', fontWeight: 'bold', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 10px rgba(180, 160, 93, 0.3)' }}>🎓 PYQ</button>
-          <button onClick={() => setShowStorageManager(true)} title="Manage storage" style={{ marginLeft: 8, padding: '6px 10px', borderRadius: 10, background: '#111', color: '#fff', border: '1px solid #333' }}>Storage</button>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={() => setShowStorageManager(true)} title="Manage storage" style={{ marginLeft: 8, padding: '6px 10px', borderRadius: 10, background: '#111', color: '#fff', border: '1px solid #333' }}>Storage</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {storageUsageSummary ? (
+                <div style={{ fontSize: 12, color: '#ddd', background: '#0b0b0b', padding: '6px 8px', borderRadius: 8, border: '1px solid #222' }}>
+                  R2: {storageUsageSummary.r2?.totalBytes ? Math.round(storageUsageSummary.r2.totalBytes / 1024 / 1024) + 'MB' : 'N/A'} • AW: {storageUsageSummary.appwrite?.totalBytes ? Math.round(storageUsageSummary.appwrite.totalBytes / 1024 / 1024) + 'MB' : 'N/A'}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: '#777' }}>Usage</div>
+              )}
+
+              {localStorage.getItem('activeUploader') && (
+                <div style={{ fontSize: 12, color: '#fff', background: '#222', padding: '6px 8px', borderRadius: 8, border: '1px solid #333' }} title="Active uploader id">
+                  {localStorage.getItem('activeUploader').slice(0, 8)}...
+                </div>
+              )}
+            </div>
+          </div>
 
         </div>
       </header>

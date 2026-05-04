@@ -15,101 +15,120 @@ export const uploadMediaToAppwrite = async (file, bucketId, onProgress, preferre
     const token = localStorage.getItem('adminToken') || '';
     if (!token) throw new Error('You must be logged in to upload. Please login first.');
 
-    // Determine preference: explicit param > saved localStorage > default 'auto'
     const pref = preferredStorage || localStorage.getItem('preferredStorage') || 'auto';
 
-    // ==========================================
-    // BYPASS 1: Try Direct R2 Presigned URL Upload 
-    // (Bypasses Vercel 4.5MB limit and Render timeouts)
-    // ==========================================
-    // If pref explicitly chooses appwrite or backend, skip R2
-    if (pref === 'r2' || pref === 'auto') {
+    // Helper: capture a thumbnail from a video file
+    const captureVideoThumbnail = (videoFile) => new Promise((resolve, reject) => {
         try {
-            console.log('Attempting Bypass 1: Presigned R2 Upload...');
-            const signResponse = await fetch(`${API_URL}/api/uploads/sign`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    filename: file.name,
-                    contentType: file.type || 'video/mp4'
-                })
-            });
+            const url = URL.createObjectURL(videoFile);
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            video.src = url;
+            video.muted = true;
+            video.playsInline = true;
+            video.crossOrigin = 'anonymous';
+            video.addEventListener('loadeddata', () => {
+                // Seek to 0.5s or 0
+                const seekTo = Math.min(0.5, Math.max(0, (video.duration || 0) * 0.05));
+                const onSeek = () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth || 640;
+                        canvas.height = video.videoHeight || 360;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        canvas.toBlob((blob) => {
+                            URL.revokeObjectURL(url);
+                            if (blob) resolve(blob);
+                            else reject(new Error('Failed to create thumbnail blob'));
+                        }, 'image/jpeg', 0.85);
+                    } catch (err) { reject(err); }
+                };
+                video.currentTime = seekTo;
+                video.addEventListener('seeked', onSeek, { once: true });
+            }, { once: true });
+            video.addEventListener('error', (e) => { URL.revokeObjectURL(url); reject(new Error('Video load error')); }, { once: true });
+        } catch (e) { reject(e); }
+    });
 
-            if (signResponse.ok) {
-                const signData = await signResponse.json();
-                if (signData?.uploadUrl && signData?.publicUrl) {
-                    await uploadFileWithProgress(signData.uploadUrl, file, (progress) => {
-                        if (onProgress) onProgress({ progress });
-                    });
-                    console.log('Bypass 1 (R2 Direct) Success!');
-                    return signData.publicUrl;
-                }
-            } else {
-                console.warn('Bypass 1 (R2 Direct) failed: API returned status', signResponse.status);
+    // If video, try to capture and upload a thumbnail first (best-effort)
+    let coverUrl = null;
+    if (file && file.type && file.type.startsWith && file.type.startsWith('video/')) {
+        try {
+            const thumbBlob = await captureVideoThumbnail(file);
+            const form = new FormData();
+            form.append('media', thumbBlob, (file.name || 'thumb') + '.jpg');
+            const thumbResp = await fetch(`${API_URL}/api/uploads/media`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: form
+            });
+            if (thumbResp.ok) {
+                const thumbData = await thumbResp.json();
+                if (thumbData?.data?.url) coverUrl = thumbData.data.url;
             }
         } catch (e) {
-            console.warn('Bypass 1 (R2 Direct) failed:', e.message);
+            console.warn('Thumbnail capture/upload failed:', e.message || e);
         }
     }
 
-    // ==========================================
-    // BYPASS 2: Try Direct Appwrite Client SDK Upload
-    // (Bypasses Backend entirely)
-    // ==========================================
+    // Try R2 presigned if allowed
+    if (pref === 'r2' || pref === 'auto') {
+        try {
+            const signResponse = await fetch(`${API_URL}/api/uploads/sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ filename: file.name, contentType: file.type || 'application/octet-stream' })
+            });
+            if (signResponse.ok) {
+                const signData = await signResponse.json();
+                if (signData?.uploadUrl && signData?.publicUrl) {
+                    await uploadFileWithProgress(signData.uploadUrl, file, (progress) => { if (onProgress) onProgress({ progress }); });
+                    return { url: signData.publicUrl, cover_url: coverUrl };
+                }
+            }
+        } catch (e) { console.warn('R2 presign failed', e.message || e); }
+    }
+
+    // Try Appwrite client
     if (pref === 'appwrite' || pref === 'auto') {
         try {
-            console.log('Attempting Bypass 2: Direct Appwrite Client Upload...');
             const targetBucket = bucketId || 'alok_media';
             const result = await appwriteStorage.createFile(targetBucket, ID.unique(), file);
             const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/${targetBucket}/files/${result.$id}/view?project=69d60fbe002bae1e32d5`;
             if (onProgress) onProgress({ progress: 100 });
-            console.log('Bypass 2 (Direct Appwrite) Success!');
-            return { id: result.$id, url: viewUrl };
-        } catch (e) {
-            console.warn('Bypass 2 (Direct Appwrite) failed:', e.message);
-        }
+            return { id: result.$id, url: viewUrl, cover_url: coverUrl };
+        } catch (e) { console.warn('Appwrite upload failed', e.message || e); }
     }
 
-    // ==========================================
-    // FALLBACK 3: Old Backend POST Method
-    // ==========================================
-    console.log('Falling back to traditional backend upload...');
+    // Fallback to backend upload (XHR for progress)
     return new Promise((resolve, reject) => {
         const formData = new FormData();
         formData.append('media', file);
-        
+        if (coverUrl) formData.append('cover_url', coverUrl);
+
         const xhr = new XMLHttpRequest();
-        
         if (onProgress) {
             xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable) {
-                    onProgress({ progress: (e.loaded / e.total) * 100 });
-                }
+                if (e.lengthComputable) onProgress({ progress: (e.loaded / e.total) * 100 });
             });
         }
-        
         xhr.addEventListener('load', () => {
             try {
                 const response = JSON.parse(xhr.responseText);
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    if (response.data?.url) resolve(response.data.url);
+                    if (response.data?.url) resolve({ url: response.data.url, cover_url: response.data.cover_url || coverUrl });
                     else reject(new Error('Invalid response from server'));
                 } else if (xhr.status === 401) {
                     reject(new Error('Your login session expired. Please login again and retry.'));
                 } else {
                     reject(new Error(response.error || `Upload failed with status ${xhr.status}`));
                 }
-            } catch (e) {
-                reject(new Error('Failed to parse server response.'));
-            }
+            } catch (e) { reject(new Error('Failed to parse server response.')); }
         });
-        
         xhr.addEventListener('error', () => reject(new Error('Network error during upload.')));
         xhr.addEventListener('abort', () => reject(new Error('Upload was cancelled.')));
-        
+
         xhr.open('POST', `${API_URL}/api/uploads/media`);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.send(formData);

@@ -6,11 +6,24 @@ export default function StorageManager({ open, onClose, adminToken }) {
   const [usage, setUsage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [preferred, setPreferred] = useState(() => localStorage.getItem('preferredStorage') || 'auto');
+  const [admins, setAdmins] = useState([]);
+  const [activeUploader, setActiveUploader] = useState(() => localStorage.getItem('activeUploader') || '');
 
   useEffect(() => {
     if (!open) return;
     fetchUsage();
+    fetchAdmins();
   }, [open]);
+
+  const fetchAdmins = async () => {
+    if (!adminToken) return;
+    try {
+      const res = await fetch(`${API_URL}/api/admins`, { headers: { Authorization: `Bearer ${adminToken}` } });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.data) setAdmins(data.data);
+    } catch (e) { console.warn('Failed to fetch admins', e); }
+  };
 
   const fetchUsage = async () => {
     setLoading(true);
@@ -27,16 +40,17 @@ export default function StorageManager({ open, onClose, adminToken }) {
 
   const savePreferred = async () => {
     localStorage.setItem('preferredStorage', preferred);
+    localStorage.setItem('activeUploader', activeUploader || '');
     // Try to save to backend settings if adminToken available
     if (adminToken) {
       try {
         await fetch(`${API_URL}/api/settings`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
-          body: JSON.stringify({ preferred_storage: preferred })
+          body: JSON.stringify({ preferred_storage: preferred, active_uploader: activeUploader || null })
         });
       } catch (e) { console.warn('Failed to save setting to backend', e); }
     }
-    alert('Preferred storage saved: ' + preferred);
+    alert('Preferred storage saved: ' + preferred + (activeUploader ? '\nActive uploader set.' : ''));
     if (onClose) onClose();
   };
 
@@ -88,6 +102,17 @@ export default function StorageManager({ open, onClose, adminToken }) {
         )}
 
         <div style={{ marginTop: 16 }}>
+          {admins && admins.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display:'block', marginBottom:8, color:'#ccc' }}>Active Uploader (developer/admin):</label>
+              <select value={activeUploader} onChange={(e) => setActiveUploader(e.target.value)} style={{ padding: '8px', borderRadius: 8, background: '#0a0a0a', color: '#fff', border: '1px solid #333', width: '100%' }}>
+                <option value="">-- Use current token --</option>
+                {admins.map(a => (<option key={a._id} value={a._id}>{a.name || a.email || a._id}</option>))}
+              </select>
+              <div style={{ fontSize: 12, color: '#aaa', marginTop: 6 }}>Selecting an uploader sets active uploader locally and attempts to persist to backend settings.</div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="radio" name="pref" value="auto" checked={preferred === 'auto'} onChange={() => setPreferred('auto')} /> Auto (try R2 → Appwrite → Backend)</label>
             <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="radio" name="pref" value="r2" checked={preferred === 'r2'} onChange={() => setPreferred('r2')} /> R2 (Cloudflare)</label>

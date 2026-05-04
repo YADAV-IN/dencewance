@@ -12,6 +12,10 @@ export default defineConfig({
       '/uploads': 'http://localhost:4000',
     },
   },
+  preview: {
+    host: '0.0.0.0',
+    port: 4173,
+  },
   test: {
     globals: true,
     environment: 'jsdom',

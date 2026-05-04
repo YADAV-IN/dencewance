@@ -107,8 +107,10 @@ const PYQAssistant = ({ adminData }) => {
 
       setUploadProgress(100);
 
-      // uploadResult may be a string (url) or an object {id, url}
+      // uploadResult may be a string (url) or an object {id, url, cover_url}
       const fileIdValue = (uploadResult && typeof uploadResult === 'object') ? (uploadResult.id || uploadResult.url) : uploadResult;
+      const coverUrlFromUpload = (uploadResult && typeof uploadResult === 'object') ? (uploadResult.cover_url || uploadResult.coverUrl || uploadResult.cover) : null;
+      const uploaderId = localStorage.getItem('activeUploader') || null;
 
       const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
       const payload = {
@@ -117,7 +119,9 @@ const PYQAssistant = ({ adminData }) => {
         subject: libKeywords ? `${libSubject} //SEO// ${libKeywords}` : libSubject,
         fileName: libFile.name,
         fileType: libFile.type,
-        fileId: fileIdValue
+        fileId: fileIdValue,
+        uploaderId: uploaderId,
+        cover_url: coverUrlFromUpload
       };
 
       const res = await fetch(apiUrl + '/api/pyq', {
