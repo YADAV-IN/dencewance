@@ -885,13 +885,23 @@ export default function SocialApp() {
                         <div style={{ width: 84, height: 150, borderRadius: 12, overflow: 'hidden', position: 'relative', boxShadow: '0 6px 18px rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.1)' }}>
                           {thumb ? (
                             (/(\.mp4|\.mov|\.webm|\.m3u8)(\?|$)/i.test(thumb) || (story.video_url && !story.cover_image_url)) ? (
-                              <video src={resolveMediaUrl(story.video_url || thumb)} muted loop playsInline autoPlay style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                                <video src={resolveMediaUrl(story.video_url || thumb)} muted loop playsInline autoPlay style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                                  <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '700', fontSize: '20px' }}>▶</div>
+                                </div>
+                              </div>
                             ) : (
                               <SkeletonImage src={resolveMediaUrl(thumb)} alt={story.title || 'Preview'} wrapperStyle={{ width: '100%', height: '100%', display: 'block' }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             )
                           ) : (
                             story.video_url ? (
-                              <video src={resolveMediaUrl(story.video_url)} muted loop playsInline autoPlay style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                                <video src={resolveMediaUrl(story.video_url)} muted loop playsInline autoPlay style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                                  <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '700', fontSize: '20px' }}>▶</div>
+                                </div>
+                              </div>
                             ) : (
                               <div style={{ width: '100%', height: '100%', background: '#222', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>▶</div>
                             )
