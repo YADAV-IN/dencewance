@@ -319,8 +319,12 @@ export default function SocialApp() {
 
   useEffect(() => {
     const fetchUsage = async () => {
+      if (!adminData || (adminData.role !== 'admin' && adminData.role !== 'superadmin')) return;
+      if (!token) return;
       try {
-        const res = await fetch(`${API_URL}/api/storage/usage`);
+        const res = await fetch(`${API_URL}/api/storage/usage`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         if (!res.ok) return;
         const data = await res.json();
         if (data?.success) setStorageUsageSummary(data.data);
@@ -329,7 +333,7 @@ export default function SocialApp() {
       }
     };
     fetchUsage();
-  }, []);
+  }, [adminData, token]);
 
   // Sync URL path to internal tab state and keep the URL tidy/simple
   useEffect(() => {
@@ -563,24 +567,28 @@ export default function SocialApp() {
           </button>
           
           <button onClick={() => setActiveTab('pyq')} style={{ background: 'linear-gradient(45deg, #B4A05D, #D4AF37)', color: 'black', fontWeight: 'bold', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 10px rgba(180, 160, 93, 0.3)' }}>🎓 PYQ</button>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            <button onClick={() => setShowStorageManager(true)} title="Manage storage" style={{ marginLeft: 8, padding: '6px 10px', borderRadius: 10, background: '#111', color: '#fff', border: '1px solid #333' }}>Storage</button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {storageUsageSummary ? (
-                <div style={{ fontSize: 12, color: '#ddd', background: '#0b0b0b', padding: '6px 8px', borderRadius: 8, border: '1px solid #222' }}>
-                  R2: {storageUsageSummary.r2?.totalBytes ? Math.round(storageUsageSummary.r2.totalBytes / 1024 / 1024) + 'MB' : 'N/A'} • AW: {storageUsageSummary.appwrite?.totalBytes ? Math.round(storageUsageSummary.appwrite.totalBytes / 1024 / 1024) + 'MB' : 'N/A'}
-                </div>
-              ) : (
-                <div style={{ fontSize: 12, color: '#777' }}>Usage</div>
-              )}
+          
+          {/* Storage Manager - ADMIN ONLY */}
+          {adminData && (adminData.role === 'admin' || adminData.role === 'superadmin') && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+              <button onClick={() => setShowStorageManager(true)} title="Manage storage" style={{ marginLeft: 8, padding: '6px 10px', borderRadius: 10, background: '#111', color: '#fff', border: '1px solid #333' }}>Storage</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {storageUsageSummary ? (
+                  <div style={{ fontSize: 12, color: '#ddd', background: '#0b0b0b', padding: '6px 8px', borderRadius: 8, border: '1px solid #222' }}>
+                    R2: {storageUsageSummary.r2?.totalBytes ? Math.round(storageUsageSummary.r2.totalBytes / 1024 / 1024) + 'MB' : 'N/A'} • AW: {storageUsageSummary.appwrite?.totalBytes ? Math.round(storageUsageSummary.appwrite.totalBytes / 1024 / 1024) + 'MB' : 'N/A'}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: '#777' }}>Usage</div>
+                )}
 
-              {localStorage.getItem('activeUploader') && (
-                <div style={{ fontSize: 12, color: '#fff', background: '#222', padding: '6px 8px', borderRadius: 8, border: '1px solid #333' }} title="Active uploader id">
-                  {localStorage.getItem('activeUploader').slice(0, 8)}...
-                </div>
-              )}
+                {localStorage.getItem('activeUploader') && (
+                  <div style={{ fontSize: 12, color: '#fff', background: '#222', padding: '6px 8px', borderRadius: 8, border: '1px solid #333' }} title="Active uploader id">
+                    {localStorage.getItem('activeUploader').slice(0, 8)}...
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
         </div>
       </header>

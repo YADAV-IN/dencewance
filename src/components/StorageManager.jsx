@@ -3,11 +3,15 @@ import React, { useState, useEffect } from 'react';
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
 
 export default function StorageManager({ open, onClose, adminToken }) {
+  // Only admins can view storage manager
+  if (!adminToken) return null;
+
   const [usage, setUsage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [preferred, setPreferred] = useState(() => localStorage.getItem('preferredStorage') || 'auto');
   const [admins, setAdmins] = useState([]);
   const [activeUploader, setActiveUploader] = useState(() => localStorage.getItem('activeUploader') || '');
+  const [authError, setAuthError] = useState(null);
 
   useEffect(() => {
     if (!open) return;
@@ -27,8 +31,16 @@ export default function StorageManager({ open, onClose, adminToken }) {
 
   const fetchUsage = async () => {
     setLoading(true);
+    setAuthError(null);
     try {
-      const res = await fetch(`${API_URL}/api/storage/usage`);
+      const res = await fetch(`${API_URL}/api/storage/usage`, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+      if (res.status === 401 || res.status === 403) {
+        setAuthError('Admin access required');
+        setUsage(null);
+        return;
+      }
       if (!res.ok) throw new Error('Failed to fetch usage');
       const data = await res.json();
       if (data && data.success) setUsage(data.data);
@@ -53,6 +65,20 @@ export default function StorageManager({ open, onClose, adminToken }) {
     alert('Preferred storage saved: ' + preferred + (activeUploader ? '\nActive uploader set.' : ''));
     if (onClose) onClose();
   };
+
+  if (!open) return null;
+
+  if (authError) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 500, maxWidth: '95%', background: '#0b0b0b', padding: 20, borderRadius: 12, color: '#fff' }}>
+          <h3 style={{ margin: 0, marginBottom: 12, color: '#ff6666' }}>Access Denied</h3>
+          <p style={{ color: '#ccc', marginBottom: 16 }}>{authError}</p>
+          <button onClick={onClose} style={{ padding: '8px 12px', background: '#ff6666', color: '#000', border: 'none', borderRadius: 8, fontWeight: 700 }}>Close</button>
+        </div>
+      </div>
+    );
+  }
 
   if (!open) return null;
 

@@ -1419,8 +1419,22 @@ app.put('/api/settings', requireAuth, async (req, res) => {
   return res.json({ data: settings.toJSON() });
 });
 
-// Storage usage summary (Appwrite R2 and DB counts)
-app.get('/api/storage/usage', async (req, res) => {
+// Storage usage summary (Appwrite R2 and DB counts) - ADMIN ONLY
+app.get('/api/storage/usage', requireAuth, async (req, res) => {
+  // Verify user is admin
+  const adminId = req.adminId || req.userId;
+  if (!adminId) return res.status(401).json({ error: 'Not authenticated' });
+  
+  try {
+    const admin = await Admin.findById(adminId);
+    if (!admin || (admin.role !== 'admin' && admin.role !== 'superadmin')) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+  } catch (err) {
+    console.warn('Admin check failed:', err);
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
   try {
     const usage = { appwrite: null, r2: null, dbCounts: null };
 
