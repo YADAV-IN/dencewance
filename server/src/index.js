@@ -1620,6 +1620,140 @@ app.post('/api/reels/:id/save', async (req, res) => {
   }
 });
 
+// Like/Unlike a Reel
+app.post('/api/reels/:id/like', async (req, res) => {
+  try {
+    const { user_id } = req.body;
+    const userId = user_id || (req.adminId);
+    const reelId = req.params.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Must be logged in to like' });
+    }
+
+    const reel = await Reel.findById(reelId);
+    if (!reel) {
+      return res.status(404).json({ error: 'Reel not found' });
+    }
+
+    // Check if user already liked
+    const likes = reel.likes_by || [];
+    const alreadyLiked = likes.includes(userId);
+
+    if (alreadyLiked) {
+      // Unlike
+      reel.likes_by = likes.filter(id => id !== userId);
+      reel.likes = Math.max(0, (reel.likes || 0) - 1);
+      await reel.save();
+      return res.json({ liked: false, likes: reel.likes });
+    } else {
+      // Like
+      reel.likes_by = [...likes, userId];
+      reel.likes = (reel.likes || 0) + 1;
+      await reel.save();
+      return res.json({ liked: true, likes: reel.likes });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Check if user liked a reel
+app.get('/api/reels/:id/liked-by/:userId', async (req, res) => {
+  try {
+    const reel = await Reel.findById(req.params.id);
+    if (!reel) {
+      return res.status(404).json({ error: 'Reel not found' });
+    }
+    const isLiked = (reel.likes_by || []).includes(req.params.userId);
+    return res.json({ liked: isLiked, likes: reel.likes || 0 });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete a comment
+app.delete('/api/reels/:reelId/comments/:commentId', requireAuth, async (req, res) => {
+  try {
+    const comment = await ReelComment.findById(req.params.commentId);
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    // Only admin or comment author can delete
+    if (req.adminId !== comment.user_id && req.adminId !== comment.$id) {
+      return res.status(403).json({ error: 'Not authorized to delete this comment' });
+    }
+
+    await ReelComment.findByIdAndDelete(req.params.commentId);
+    res.json({ success: true, message: 'Comment deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get public user profile by ID or handle
+app.get('/api/users/:userHandle', async (req, res) => {
+  try {
+    const handle = req.params.userHandle;
+    
+    let user = await Admin.findById(handle);
+    if (!user) {
+      user = await Admin.findOne({ email: handle });
+    }
+    if (!user) {
+      // Try to find from custom user_handle field
+      const reels = await Reel.find({ creator_handle: handle }).limit(1);
+      if (reels.length > 0) {
+        return res.json({
+          id: handle,
+          name: reels[0].creator_name || 'User',
+          handle: handle,
+          avatar_url: reels[0].creator_avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(handle),
+          bio: `Creator: ${reels[0].creator_name}`,
+          followers: 0,
+          following: 0,
+          verified: false
+        });
+      }
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      handle: user.email?.split('@')[0] || handle,
+      avatar_url: user.avatar_url || '',
+      bio: user.bio || '',
+      followers: 0,
+      following: 0,
+      verified: false
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get user's reels and posts
+app.get('/api/users/:userId/content', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    const reels = await Reel.find({ creator_id: userId }).sort({ published_at: -1 }).limit(50);
+    const posts = await News.find({ author_id: userId }).sort({ published_at: -1 }).limit(50);
+
+    res.json({
+      reels: reels || [],
+      posts: posts || [],
+      totalReels: reels?.length || 0,
+      totalPosts: posts?.length || 0
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 // --- SYNC MANUAL R2 UPLOADS ---
 app.get('/api/reels/sync-r2', async (req, res) => {
