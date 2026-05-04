@@ -1,22 +1,14 @@
 services:
   - type: web
-    name: alok-backend
-    env: node
-    rootDir: server
-    buildCommand: npm install
-    startCommand: npm start
-    plan: free
-    autoDeploy: true
-
-  - type: web
     name: alok-frontend
     env: static
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     autoDeploy: true
     envVars:
+      - key: VITE_APPWRITE_ENDPOINT
+        value: "https://nyc.cloud.appwrite.io/v1"
+      - key: VITE_APPWRITE_PROJECT_ID
+        value: "69d60fbe002bae1e32d5"
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: alok-backend
-          envVarKey: RENDER_EXTERNAL_URL
+        value: "https://nyc.cloud.appwrite.io/v1"
