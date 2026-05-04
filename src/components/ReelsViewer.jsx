@@ -3,6 +3,9 @@ import { Heart, Share2, MoreVertical, Volume2, VolumeX } from 'lucide-react';
 
 import './ReelsViewer.css';
 import { translations as tAll } from '../translations';
+import UserProfileView from './UserProfileView';
+import CommentsSection from './CommentsSection';
+import LikeButton from './LikeButton';
 
 const REEL_PRELOAD_AHEAD = 1; // Kam kiya gaya hai taaki data kam consume ho
 
@@ -126,6 +129,9 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const [isStoryPage, setIsStoryPage] = useState(false);
   const [routeStory, setRouteStory] = useState(null);
   const [selectedStory, setSelectedStory] = useState(null);
+  const [selectedUserId, setSelectedUserId] = useState(null);
+  const [showComments, setShowComments] = useState(false);
+  const [selectedReelForComments, setSelectedReelForComments] = useState(null);
 
   const reelsContainerRef = useRef(null);
   const reelVideoRefs = useRef({});
@@ -479,7 +485,11 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     {/* Right action column (TikTok-style) */}
                     <div className="reel-actions-col">
                       {/* Creator avatar + follow pill */}
-                      <div className="reel-creator-pill">
+                      <button
+                        className="reel-creator-pill"
+                        onClick={(e) => { e.stopPropagation(); setSelectedUserId(item.creator_id || item.creator_name); }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      >
                         {creatorAvatar ? (
                           <img loading="lazy" src={resolveMediaUrl(creatorAvatar)} alt="creator" className="reel-creator-avatar-sm" style={{ objectFit: 'cover' }} />
                         ) : (
@@ -490,32 +500,30 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                           onClick={(e) => { e.stopPropagation(); toggleFollowCreator(item); }}
                           title="Follow creator"
                         >＋</button>
-                      </div>
+                      </button>
 
                       {/* Like */}
                       <div className="reel-action-item">
-                        <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); handleReelLike(item); }}>
-                          <span className="reel-action-icon" style={{ color: likedTracking[item._id]?.liked ? '#f91880' : 'currentColor' }}>
-                            <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
-                              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                            </svg>
-                          </span>
-                        </button>
-                        <span className="reel-action-count">
-                          {formatCompactNumber(likedTracking[item._id]?.count ?? (item.likes || 0))}
-                        </span>
+                        <LikeButton
+                          reelId={item._id}
+                          userId={localStorage.getItem('adminId')}
+                          initialLikes={item.likes || 0}
+                        />
                       </div>
 
-                      {/* Comment / Open reel page */}
+                      {/* Comment / Open comments panel */}
                       <div className="reel-action-item">
-                        <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); openReel(item); }}>
+                        <button
+                          className="reel-action-btn"
+                          onClick={(e) => { e.stopPropagation(); setSelectedReelForComments(item._id); setShowComments(true); }}
+                        >
                           <span className="reel-action-icon">
                             <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
                               <path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/>
                             </svg>
                           </span>
                         </button>
-                        <span className="reel-action-count">12</span>
+                        <span className="reel-action-count">💬</span>
                       </div>
 
                       {/* Bookmark */}
@@ -636,6 +644,67 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                   </div>
                 );
               })}
+
+              {/* User Profile Modal */}
+              {selectedUserId && (
+                <UserProfileView
+                  userId={selectedUserId}
+                  onClose={() => setSelectedUserId(null)}
+                />
+              )}
+
+              {/* Comments Panel Modal */}
+              {showComments && selectedReelForComments && (
+                <div
+                  style={{
+                    position: 'fixed',
+                    top: 0,
+                    right: 0,
+                    width: isMobile ? '100%' : '380px',
+                    height: '100%',
+                    background: 'rgba(0,0,0,0.95)',
+                    borderLeft: '1px solid rgba(255,255,255,0.1)',
+                    zIndex: 10000,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    animation: 'slideInRight 0.3s ease-out'
+                  }}
+                >
+                  <CommentsSection
+                    reelId={selectedReelForComments}
+                    userId={localStorage.getItem('adminId')}
+                  />
+                  <button
+                    onClick={() => setShowComments(false)}
+                    style={{
+                      position: 'absolute',
+                      top: 12,
+                      right: 12,
+                      background: 'rgba(255,255,255,0.1)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      color: '#fff',
+                      width: 32,
+                      height: 32,
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      fontSize: 18,
+                      zIndex: 10001,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              <style>{`
+                @keyframes slideInRight {
+                  from { transform: translateX(100%); }
+                  to { transform: translateX(0); }
+                }
+              `}</style>
 
               {/* Floating Upload Button (FAB) */}
               {adminToken && (
