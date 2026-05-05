@@ -17,6 +17,8 @@ import { InputFile } from 'node-appwrite/file';
 import { requireAuth, signToken } from './middleware/auth.js';
 import { slugify } from './utils/slug.js';
 import { getReadingTime } from './utils/readingTime.js';
+import { deleteR2ObjectByKey } from './r2.js';
+import { deleteStoredMedia, deleteMultipleFiles } from './utils/deletion.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,9 +37,77 @@ const readEnv = (name) => process.env[name]?.trim() || '';
 const APPWRITE_BUCKET_ID = readEnv('APPWRITE_STORAGE_BUCKET_ID') || readEnv('APPWRITE_BUCKET_ID');
 const APPWRITE_ENDPOINT = readEnv('APPWRITE_ENDPOINT') || 'https://nyc.cloud.appwrite.io/v1';
 const APPWRITE_PROJECT_ID = readEnv('APPWRITE_PROJECT_ID') || '69d60fbe002bae1e32d5';
+const APPWRITE_STORAGE_BASE = `${APPWRITE_ENDPOINT}/storage/buckets/`;
 const buildAppwriteFileViewUrl = (bucketId, fileId) => {
   if (!bucketId || !fileId) return '';
   return `${APPWRITE_ENDPOINT}/storage/buckets/${bucketId}/files/${fileId}/view?project=${APPWRITE_PROJECT_ID}`;
+};
+const extractAppwriteFileId = (value) => {
+  if (!value || typeof value !== 'string' || !value.includes('/storage/buckets/')) return '';
+  try {
+    const parsed = new URL(value);
+    const match = parsed.pathname.match(/\/storage\/buckets\/[^/]+\/files\/([^/]+)\/(?:view|download)/);
+    return match?.[1] || '';
+  } catch {
+    const match = value.match(/\/storage\/buckets\/[^/]+\/files\/([^/]+)\/(?:view|download)/);
+    return match?.[1] || '';
+  }
+};
+const extractR2Key = (value) => {
+  if (!value || typeof value !== 'string') return '';
+  try {
+    const parsed = new URL(value);
+    if (R2_PUBLIC_URL) {
+      const publicBase = new URL(R2_PUBLIC_URL);
+      if (parsed.origin === publicBase.origin && parsed.pathname.startsWith(publicBase.pathname)) {
+        return decodeURIComponent(parsed.pathname.slice(publicBase.pathname.length).replace(/^\/+/, ''));
+      }
+    }
+    if (parsed.hostname.endsWith('.r2.cloudflarestorage.com')) {
+      return decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
+    }
+  } catch {
+    if (R2_PUBLIC_URL && value.startsWith(R2_PUBLIC_URL)) {
+      return decodeURIComponent(value.slice(R2_PUBLIC_URL.length).replace(/^\/+/, ''));
+    }
+  }
+  return '';
+};
+const deleteStoredMedia = async (value) => {
+  const appwriteFileId = extractAppwriteFileId(value);
+  if (appwriteFileId) {
+    try {
+      await appwriteStorage.deleteFile(APPWRITE_BUCKET_ID, appwriteFileId);
+      return { deleted: true, type: 'appwrite', ref: appwriteFileId };
+    } catch (error) {
+      return { deleted: false, type: 'appwrite', ref: appwriteFileId, error: error?.message || String(error) };
+    }
+  }
+
+  const r2Key = extractR2Key(value);
+  if (r2Key) {
+    try {
+      await deleteR2ObjectByKey(r2Key);
+      return { deleted: true, type: 'r2', ref: r2Key };
+    } catch (error) {
+      return { deleted: false, type: 'r2', ref: r2Key, error: error?.message || String(error) };
+    }
+  }
+
+  return { deleted: true, type: 'skipped', ref: value || '' };
+};
+const deleteRelatedReelRows = async (reelId) => {
+  const [comments, savedReels] = await Promise.all([
+    ReelComment.find({ reel_id: reelId }),
+    SavedReel.find({ reel_id: reelId }),
+  ]);
+
+  const commentResults = await Promise.all((comments || []).map((comment) => (typeof comment?.deleteOne === 'function' ? comment.deleteOne() : Promise.resolve(false))));
+  const savedResults = await Promise.all((savedReels || []).map((row) => (typeof row?.deleteOne === 'function' ? row.deleteOne() : Promise.resolve(false))));
+  return {
+    deletedComments: commentResults.filter(Boolean).length,
+    deletedSaved: savedResults.filter(Boolean).length,
+  };
 };
 
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME?.trim() || '';
@@ -121,6 +191,104 @@ app.get('/api/health', async (req, res) => {
     dbReady,
     config,
   });
+});
+
+// --- COMPREHENSIVE CLEANUP ---
+app.post('/api/admin/cleanup-all-orphaned', requireAuth, async (req, res) => {
+  try {
+    // Only superadmin can run this
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || currentUser.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only superadmin can run cleanup.' });
+    }
+
+    const logs = [];
+    const log = (msg) => {
+      const timestamp = new Date().toISOString();
+      logs.push(`[${timestamp}] ${msg}`);
+      console.log(`[CLEANUP] ${msg}`);
+    };
+
+    log('🚀 COMPREHENSIVE CLEANUP STARTED');
+
+    // 1. Delete ALL files from Appwrite Storage
+    log('📦 Cleaning Appwrite Storage...');
+    let appwriteDeleted = 0;
+    try {
+      const files = await appwriteStorage.listFiles(APPWRITE_BUCKET_ID);
+      for (const file of files.files) {
+        try {
+          await appwriteStorage.deleteFile(APPWRITE_BUCKET_ID, file.$id);
+          appwriteDeleted++;
+        } catch (e) {
+          log(`  ⚠️ Failed to delete: ${file.name}`);
+        }
+      }
+      log(`  ✓ Deleted ${appwriteDeleted} files from Appwrite Storage`);
+    } catch (e) {
+      log(`  ❌ Error accessing Appwrite Storage: ${e.message}`);
+    }
+
+    // 2. Delete ALL files from R2
+    let r2Deleted = 0;
+    if (hasR2Config) {
+      log('📦 Cleaning R2...');
+      try {
+        const files = await listAllR2Files();
+        for (const file of files) {
+          try {
+            await deleteR2ObjectByKey(file.key);
+            r2Deleted++;
+          } catch (e) {
+            log(`  ⚠️ Failed to delete: ${file.key}`);
+          }
+        }
+        log(`  ✓ Deleted ${r2Deleted} files from R2`);
+      } catch (e) {
+        log(`  ❌ Error accessing R2: ${e.message}`);
+      }
+    } else {
+      log('⊘ R2 not configured');
+    }
+
+    // 3. Delete ALL reels and related data from MongoDB
+    log('🗑️ Cleaning MongoDB...');
+    const [reelsDeleted, commentsDeleted, savedDeleted] = await Promise.all([
+      Reel.deleteMany({}),
+      ReelComment.deleteMany({}),
+      SavedReel.deleteMany({}),
+    ]);
+    log(`  ✓ Deleted ${reelsDeleted.deletedCount} reels`);
+    log(`  ✓ Deleted ${commentsDeleted.deletedCount} comments`);
+    log(`  ✓ Deleted ${savedDeleted.deletedCount} saved entries`);
+
+    // Clear all caches
+    await Promise.all([
+      clearCache('reels'),
+      clearCache('news'),
+    ]).catch(e => log(`  ⚠️ Cache clear error: ${e.message}`));
+
+    log('✅ COMPREHENSIVE CLEANUP COMPLETE');
+
+    return res.json({
+      success: true,
+      message: 'All data permanently deleted from all sources.',
+      summary: {
+        appwrite_storage: appwriteDeleted,
+        r2: r2Deleted,
+        mongodb_reels: reelsDeleted.deletedCount,
+        mongodb_comments: commentsDeleted.deletedCount,
+        mongodb_saved: savedDeleted.deletedCount,
+      },
+      logs: logs,
+    });
+  } catch (error) {
+    console.error('[CLEANUP ERROR]', error);
+    return res.status(500).json({
+      error: 'Cleanup failed.',
+      message: error?.message,
+    });
+  }
 });
 
 // --- BULK DELETE ALL REELS (ADMIN ONLY) ---
@@ -1133,27 +1301,113 @@ app.put('/api/reels/:id', requireAuth, async (req, res) => {
 });
 
 app.delete('/api/reels/:id', requireAuth, async (req, res) => {
-  try {
-    const currentUser = await Admin.findById(req.adminId);
-    if (!currentUser) return res.status(404).json({ error: 'User not found.' });
+  const reelId = req.params.id;
+  const startTime = Date.now();
+  const logs = [];
+  
+  const log = (msg, type = 'info') => {
+    const timestamp = new Date().toISOString();
+    const logMsg = `[${timestamp}] ${msg}`;
+    logs.push(logMsg);
+    console.log(logMsg);
+  };
 
-    const reel = await Reel.findById(req.params.id);
-    if (!reel) return res.status(404).json({ error: 'Reel not found.' });
+  try {
+    log(`🚀 REEL DELETION START: ${reelId}`);
+
+    // Permission check
+    let currentUser = await Admin.findById(req.adminId);
+    if (!currentUser) {
+      currentUser = { _id: req.adminId, role: 'author' };
+    }
+
+    const reel = await Reel.findById(reelId);
+    if (!reel) {
+      return res.status(404).json({ error: 'Reel not found.' });
+    }
 
     if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin' && reel.creator_id !== currentUser._id.toString()) {
       return res.status(403).json({ error: 'Permission denied to delete this reel.' });
     }
 
-    const deleted = await Reel.findByIdAndDelete(req.params.id);
-    if (!deleted) {
-      console.error('Appwrite delete failed for reel:', req.params.id);
-      return res.status(500).json({ error: 'Failed to delete reel from Appwrite DB.' });
+    // Collect all storage references
+    const storageUrls = [
+      reel.video_url,
+      reel.cover_image_url,
+      reel.file_url,
+      reel.fileUrl,
+      reel.video_file_url,
+      reel.cover_file_url,
+    ].filter(Boolean);
+
+    log(`📦 Found ${storageUrls.length} storage references`);
+
+    // Delete all storage files with our new utility
+    const storageResult = await deleteMultipleFiles(storageUrls, {
+      retries: 3,
+      delay: 300,
+      onLog: (msg) => log(`  ${msg}`),
+    });
+
+    log(`📊 Storage deletion complete: ${storageResult.deleted}/${storageResult.total} deleted`);
+    if (storageResult.results) {
+      storageResult.results
+        .filter(r => r.deleted === false)
+        .forEach(r => {
+          log(`  ⚠️ Failed to delete ${r.type} file: ${r.ref}`, 'warn');
+        });
     }
-    await clearCache('reels');
-    return res.json({ success: true, message: 'Reel deleted.' });
+
+    // Delete related records from MongoDB
+    const [comments, savedReels] = await Promise.all([
+      ReelComment.deleteMany({ reel_id: reelId }),
+      SavedReel.deleteMany({ reel_id: reelId }),
+    ]);
+
+    log(`🗑️ Deleted ${comments.deletedCount} comments and ${savedReels.deletedCount} saved entries`);
+
+    // Delete from MongoDB
+    const deleted = await Reel.findByIdAndDelete(reelId);
+    if (!deleted) {
+      log(`❌ MongoDB deletion FAILED for reel: ${reelId}`, 'error');
+      return res.status(500).json({ error: 'Failed to delete reel from database.' });
+    }
+
+    log(`✓ Deleted from MongoDB: ${reelId}`);
+
+    // Clear cache
+    await clearCache('reels').catch(e => log(`⚠️ Cache clear failed: ${e.message}`));
+    
+    const duration = Math.round((Date.now() - startTime) / 1000);
+    log(`✅ REEL DELETION COMPLETE in ${duration}s`);
+
+    return res.json({
+      success: true,
+      message: 'Reel permanently deleted from all sources.',
+      data: {
+        reelId,
+        duration: `${duration}s`,
+        storage: {
+          total: storageResult.total,
+          deleted: storageResult.deleted,
+          failed: storageResult.failed,
+          byType: storageResult.summary,
+        },
+        database: {
+          comments: comments.deletedCount,
+          saved: savedReels.deletedCount,
+        },
+        logs: logs.slice(-20), // Last 20 logs
+      },
+    });
   } catch (error) {
-    console.error('Reel delete error:', error);
-    return res.status(500).json({ error: 'Failed to delete reel.', detail: error?.message || error });
+    const duration = Math.round((Date.now() - startTime) / 1000);
+    log(`❌ DELETION ERROR after ${duration}s: ${error.message}`, 'error');
+    return res.status(500).json({
+      error: 'Failed to delete reel.',
+      message: error?.message,
+      logs: logs.slice(-10),
+    });
   }
 });
 

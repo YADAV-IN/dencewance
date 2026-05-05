@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "node --watch-path=src src/index.js",
     "start": "node src/index.js",
-    "import:reels": "node scripts/import-reels.js"
+    "import:reels": "node scripts/import-reels.js",
+    "delete:all": "node scripts/permanent-delete.js",
+    "test:deletion": "node test-deletion.js",
+    "cleanup:storage": "node scripts/permanent-delete.js 3"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1021.0",
