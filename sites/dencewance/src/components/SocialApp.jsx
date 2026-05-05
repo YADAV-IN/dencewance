@@ -235,7 +235,9 @@ export default function SocialApp() {
       if (!reelRes.ok) throw new Error(reelData.error || 'Failed to create Video Story');
 
       // Refresh Global Statuses immediately & Open the reel
-      const latestRes = await fetch(`${API_URL}/api/global-status`);
+      const latestRes = await fetch(`${API_URL}/api/global-status?_t=${Date.now()}`, {
+        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+      });
       if (latestRes.ok) {
         const latestData = await latestRes.json();
         setStatuses(latestData.data || []);

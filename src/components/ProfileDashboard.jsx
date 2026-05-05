@@ -284,7 +284,9 @@ export default function ProfileDashboard() {
       if(savedReel.data && savedReel.data.id) {
          window.location.hash = '#viewReel=' + savedReel.data.id;
       }
-      window.location.reload();
+      
+      // Refresh page to show new story in feed
+      setTimeout(() => window.location.reload(), 500);
       
     } catch (err) {
       console.error(err);
