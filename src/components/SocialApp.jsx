@@ -180,36 +180,61 @@ export default function SocialApp() {
   const trendingTimeoutRef = useRef(null);
 
   const handleUploadPanelComplete = async (savedData) => {
-    // If it's a Reel, refresh statuses and open it
-    if (savedData && savedData.data && savedData.data.video_url) {
+    // If it's a Reel, optimistically insert and navigate, then refresh in background
+    if (savedData && (savedData.data?.video_url || savedData.video_url)) {
       try {
-        // Fetch both trending and regular reels to ensure data is fresh
-        const [statusRes, reelsRes] = await Promise.all([
-          fetch(`${API_URL}/api/global-status?_t=${Date.now()}`),
-          fetch(`${API_URL}/api/reels?limit=100&_t=${Date.now()}`)
-        ]);
-        
-        if (statusRes.ok) {
-          const latestData = await statusRes.json();
-          setStatuses(latestData.data || []);
-        }
-        
-        if (reelsRes.ok) {
-          const reelsData = await reelsRes.json();
-          setReelsFeed(reelsData.data || []);
-        }
-        
-        // Navigate to uploaded reel
-        const newReelId = savedData.data._id || savedData.data.id;
-        if (newReelId) {
-          window.location.hash = '#viewReel=' + newReelId;
-        }
-        
+        const savedReel = savedData.data || savedData;
+        const normalized = {
+          _id: savedReel._id || savedReel.id || savedReel.$id || String(Date.now()),
+          id: savedReel.id || savedReel._id || savedReel.$id || String(Date.now()),
+          video_url: savedReel.video_url || savedReel.videoUrl || savedReel.url || '',
+          cover_image_url: savedReel.cover_image_url || savedReel.coverUrl || savedReel.cover || '',
+          title: savedReel.title || savedReel.caption || '',
+          creator_id: savedReel.creator_id || savedReel.creatorId || '',
+          creator_name: savedReel.creator_name || savedReel.creatorName || 'You',
+          is_active: typeof savedReel.is_active !== 'undefined' ? savedReel.is_active : true,
+          created_at: savedReel.created_at || new Date().toISOString()
+        };
+
+        // Optimistic update: add reel to feeds immediately
+        setReelsFeed(prev => {
+          const filtered = prev.filter(r => (r.id || r._id) !== normalized.id);
+          return [normalized, ...filtered].slice(0, 200);
+        });
+
+        setStatuses(prev => {
+          if (prev.some(s => (s.id || s._id) === normalized.id)) return prev;
+          const newStatus = { ...normalized };
+          return [newStatus, ...prev].slice(0, 50);
+        });
+
+        // Navigate to uploaded reel immediately for good UX
+        window.location.hash = '#viewReel=' + normalized.id;
         setActiveTab('stories');
+
+        // Fire-and-forget: refresh full lists in background to reconcile with server
+        (async () => {
+          try {
+            const [statusRes, reelsRes] = await Promise.all([
+              fetchWithRetry(`${API_URL}/api/global-status?_t=${Date.now()}`),
+              fetchWithRetry(`${API_URL}/api/reels?limit=100&_t=${Date.now()}`)
+            ]);
+            if (statusRes.ok) {
+              const latestData = await statusRes.json();
+              setStatuses(latestData.data || []);
+            }
+            if (reelsRes.ok) {
+              const reelsData = await reelsRes.json();
+              setReelsFeed(reelsData.data || []);
+            }
+          } catch (e) {
+            console.warn('Background refresh failed', e);
+          }
+        })();
+
         return;
       } catch (err) {
         console.error('Error refreshing after upload:', err);
-        // Fallback: just reload page
         setTimeout(() => window.location.reload(), 1000);
         return;
       }
@@ -392,8 +417,8 @@ export default function SocialApp() {
       setIsLoading(false);
     }, 20000);
 
-    // Helper: Fetch with timeout (5 seconds per request)
-    const fetchWithTimeout = (url, options = {}, timeoutMs = 5000) => {
+    // Helper: Fetch with timeout (default 15 seconds per request)
+    const fetchWithTimeout = (url, options = {}, timeoutMs = 15000) => {
       return Promise.race([
         fetch(url, options),
         new Promise((_, reject) => 
@@ -402,9 +427,23 @@ export default function SocialApp() {
       ]);
     };
 
+    // Fetch with a single retry on failure (helps transient network issues)
+    const fetchWithRetry = async (url, options = {}, retries = 1, timeoutMs = 15000) => {
+      try {
+        return await fetchWithTimeout(url, options, timeoutMs);
+      } catch (err) {
+        if (retries > 0) {
+          // small backoff
+          await new Promise(r => setTimeout(r, 500));
+          return fetchWithRetry(url, options, retries - 1, timeoutMs);
+        }
+        throw err;
+      }
+    };
+
     Promise.all([
       // Fetch Statuses
-      fetchWithTimeout(`${API_URL}/api/global-status?_t=${Date.now()}`)
+      fetchWithRetry(`${API_URL}/api/global-status?_t=${Date.now()}`)
         .then(readJsonSafely)
         .then(data => {
           if (data && Array.isArray(data.data)) {
@@ -417,7 +456,7 @@ export default function SocialApp() {
         }),
 
       // Fetch Reels (Video Stories)
-      fetchWithTimeout(`${API_URL}/api/reels?limit=100&_t=${Date.now()}`)
+      fetchWithRetry(`${API_URL}/api/reels?limit=100&_t=${Date.now()}`)
         .then(readJsonSafely)
         .then(data => {
           if (data && Array.isArray(data.data) && data.data.length > 0) {
@@ -439,7 +478,7 @@ export default function SocialApp() {
         }),
 
       // Fetch posts feed
-      fetchWithTimeout(`${API_URL}/api/news`)
+      fetchWithRetry(`${API_URL}/api/news`)
         .then(readJsonSafely)
         .then(data => {
           if (data && Array.isArray(data.data)) {
