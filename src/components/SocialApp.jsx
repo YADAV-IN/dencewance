@@ -141,7 +141,7 @@ export const StatusRing = ({ children, hasSeen = false, isUploading = false }) =
   );
 };
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 const resolveMediaUrl = (url) => {
   if (!url || typeof url !== 'string' || url === 'null' || url === 'undefined') return '';
@@ -377,14 +377,14 @@ export default function SocialApp() {
   useEffect(() => {
     setIsLoading(true); // Fetching chalu
     
-    // Timeout safety: If loading takes more than 10 seconds, force stop
+    // Timeout safety: If loading takes more than 20 seconds, force stop
     const loadingTimeout = setTimeout(() => {
       console.warn('API loading timeout - using defaults');
       setIsLoading(false);
-    }, 10000);
+    }, 20000);
 
-    // Helper: Fetch with timeout (2 seconds per request - faster)
-    const fetchWithTimeout = (url, options = {}, timeoutMs = 2000) => {
+    // Helper: Fetch with timeout (5 seconds per request)
+    const fetchWithTimeout = (url, options = {}, timeoutMs = 5000) => {
       return Promise.race([
         fetch(url, options),
         new Promise((_, reject) => 
