@@ -1031,6 +1031,7 @@ app.post('/api/reels', requireAuth, async (req, res) => {
     video_url: payload.video_url,
     dedup_key: dedupKey,
     cover_image_url: payload.cover_image_url || '',
+    creator_id: currentUser._id.toString(),
     creator_name: creatorIdentity.creator_name,
     creator_handle: creatorIdentity.creator_handle,
     creator_avatar: creatorIdentity.creator_avatar,
@@ -1040,7 +1041,7 @@ app.post('/api/reels', requireAuth, async (req, res) => {
     follower_count: creatorIdentity.follower_count,
     tags: Array.isArray(payload.tags) ? payload.tags : [],
     status: payload.status || 'published',
-    is_active: payload.is_active !== false,
+    is_active: true,
     published_at: payload.published_at || new Date(),
   });
 

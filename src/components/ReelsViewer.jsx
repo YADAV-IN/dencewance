@@ -104,7 +104,14 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const navigateTo = () => { /* Handle back navigation nicely if needed */ };
   const openReel = () => {};
   const shareReel = () => {};
-  const deleteReel = () => {};
+  const deleteReel = async () => {
+    if (!onDelete) return;
+    const item = reels[activeReelIndex];
+    if (!item) return;
+    const reelId = item.id || item._id;
+    if (!window.confirm('Delete this reel permanently?')) return;
+    onDelete(reelId);
+  };
   const formatCompactNumber = (n) => {
     if (!n) return '0';
     return Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(n);

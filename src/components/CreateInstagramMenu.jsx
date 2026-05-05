@@ -85,7 +85,8 @@ export default function CreateInstagramMenu({ onComplete }) {
           video_url: videoUrl,
           status: 'published',
           creator_mode: uploaderType,
-          custom_author_name: uploaderName
+          custom_author_name: uploaderName,
+          is_active: true
         })
       });
       if (!res.ok) throw new Error('Failed to create Reel');
