@@ -89,12 +89,6 @@ export default function CreateInstagramMenu({ onComplete }) {
       });
       if (!res.ok) throw new Error('Failed to create Reel');
       const savedReel = await res.json();
-      const isDuplicate = Boolean(savedReel?.duplicate) || String(savedReel?.message || '').toLowerCase().includes('already exists') || String(savedReel?.message || '').toLowerCase().includes('duplicate');
-      if (isDuplicate) {
-        alert('यह वीडियो पहले से मौजूद है. नया upload नहीं बनाया गया.');
-        if (onComplete) onComplete(savedReel);
-        return;
-      }
       alert('Video Story (Reel) Uploaded Successfully!');
       setReelCaption(''); setReelVideoFile(null); setReelVideoPreview(''); setReelVideoUrlInput('');
       finalizeReelUpload(savedReel);
@@ -108,9 +102,7 @@ export default function CreateInstagramMenu({ onComplete }) {
   // When finished successfully navigate to new reel
   const finalizeReelUpload = (savedReel) => {
       if(savedReel && savedReel.data && savedReel.data.id) {
-         if (!savedReel.duplicate) {
-           window.location.hash = '#viewReel=' + savedReel.data.id;
-         }
+         window.location.hash = '#viewReel=' + savedReel.data.id;
       }
       if (onComplete) onComplete(savedReel);
       else window.location.reload();

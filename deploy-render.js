@@ -11,7 +11,8 @@
  * 2. Run: node deploy-render.js your-api-key-here
  */
 
-const API_KEY = process.argv[2];
+// Support API key passed as argv[2] or via environment variable RENDER_API_KEY
+const API_KEY = process.argv[2] || process.env.RENDER_API_KEY;
 
 if (!API_KEY) {
   console.log(`

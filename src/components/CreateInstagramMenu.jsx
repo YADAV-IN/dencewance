@@ -104,14 +104,7 @@ export default function CreateInstagramMenu({ onComplete }) {
       });
       if (!res.ok) throw new Error('Failed to create Reel');
       const savedReel = await res.json();
-      const isDuplicate = Boolean(savedReel?.duplicate) || String(savedReel?.message || '').toLowerCase().includes('already exists') || String(savedReel?.message || '').toLowerCase().includes('duplicate');
-      if (isDuplicate) {
-        alert('यह वीडियो पहले से मौजूद है. नया upload नहीं बनाया गया.');
-        if (onComplete) onComplete(savedReel);
-        return;
-      } else {
-        alert('Video Story (Reel) Uploaded Successfully!');
-      }
+      alert('Video Story (Reel) Uploaded Successfully!');
       setReelCaption(''); setReelVideoFile(null); setReelVideoPreview(''); setReelVideoUrlInput('');
       finalizeReelUpload(savedReel);
     } catch (err) {
@@ -127,7 +120,7 @@ export default function CreateInstagramMenu({ onComplete }) {
       if(savedReel && (savedReel.data || savedReel)) {
          const reelData = savedReel.data || savedReel;
          const reelId = reelData.id || reelData._id;
-         if (reelId && !savedReel.duplicate) {
+         if (reelId) {
            window.location.hash = '#viewReel=' + reelId;
          }
       }

@@ -1195,20 +1195,6 @@ app.post('/api/reels', async (req, res) => {
   payload.video_url = normalizeReelVideoUrl(payload.video_url);
   const dedupKey = getVideoDedupKey(payload.video_url);
 
-  const existingReel = await Reel.findOne({
-    $or: [
-      { dedup_key: dedupKey },
-      { video_url: payload.video_url },
-    ],
-  });
-  if (existingReel) {
-    return res.status(200).json({
-      duplicate: true,
-      data: existingReel.toJSON(),
-      message: 'This reel already exists.',
-    });
-  }
-
   const baseSlug = slugify(payload.title) || `reel-${Date.now()}`;
   const slug = await findUniqueReelSlug(baseSlug);
   const creatorIdentity = resolveCreatorIdentity({
@@ -1298,17 +1284,6 @@ app.put('/api/reels/:id', requireAuth, async (req, res) => {
   if (payload.video_url) {
     payload.video_url = normalizeReelVideoUrl(payload.video_url);
     payload.dedup_key = getVideoDedupKey(payload.video_url);
-
-    const duplicate = await Reel.findOne({
-      _id: { $ne: id },
-      $or: [
-        { dedup_key: payload.dedup_key },
-        { video_url: payload.video_url },
-      ],
-    });
-    if (duplicate) {
-      return res.status(409).json({ error: 'Duplicate reel video link already exists.' });
-    }
   }
 
   const reel = await Reel.findByIdAndUpdate(id, payload, { new: true });
