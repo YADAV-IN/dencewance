@@ -183,30 +183,39 @@ export default function SocialApp() {
     // If it's a Reel, refresh statuses and open it
     if (savedData && savedData.data && savedData.data.video_url) {
       try {
-        const latestRes = await fetch(`${API_URL}/api/global-status`);
-        if (latestRes.ok) {
-          const latestData = await latestRes.json();
+        // Fetch both trending and regular reels to ensure data is fresh
+        const [statusRes, reelsRes] = await Promise.all([
+          fetch(`${API_URL}/api/global-status?_t=${Date.now()}`),
+          fetch(`${API_URL}/api/reels?limit=100&_t=${Date.now()}`)
+        ]);
+        
+        if (statusRes.ok) {
+          const latestData = await statusRes.json();
           setStatuses(latestData.data || []);
-          
-          const newReelId = savedData.data._id || savedData.data.id;
-          if (newReelId && latestData.data) {
-            const newIndex = latestData.data.findIndex(s => (s._id === newReelId || s.id === newReelId));
-            if (newIndex !== -1) {
-              setActiveStoryIndex(newIndex);
-              setViewingMedia('status');
-              setActiveTab('stories');
-              return;
-            }
-          }
         }
+        
+        if (reelsRes.ok) {
+          const reelsData = await reelsRes.json();
+          setReelsFeed(reelsData.data || []);
+        }
+        
+        // Navigate to uploaded reel
+        const newReelId = savedData.data._id || savedData.data.id;
+        if (newReelId) {
+          window.location.hash = '#viewReel=' + newReelId;
+        }
+        
+        setActiveTab('stories');
+        return;
       } catch (err) {
-        console.error('Error refreshing statuses after upload', err);
+        console.error('Error refreshing after upload:', err);
+        // Fallback: just reload page
+        setTimeout(() => window.location.reload(), 1000);
+        return;
       }
-      setActiveTab('stories');
-      return;
     }
-    // If it's a Post, just go to home and maybe refresh feed, but a reload is safer if feed refresh isn't robust
-    window.location.reload();
+    // If it's a Post, reload page
+    setTimeout(() => window.location.reload(), 800);
   };
 
   const handleStatusUpload = async (e) => {

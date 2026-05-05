@@ -103,11 +103,21 @@ export default function CreateInstagramMenu({ onComplete }) {
 
   // When finished successfully navigate to new reel
   const finalizeReelUpload = (savedReel) => {
-      if(savedReel && savedReel.data && savedReel.data.id) {
-         window.location.hash = '#viewReel=' + savedReel.data.id;
+      // Show success and refresh
+      if(savedReel && (savedReel.data || savedReel)) {
+         const reelData = savedReel.data || savedReel;
+         const reelId = reelData.id || reelData._id;
+         if (reelId) {
+           window.location.hash = '#viewReel=' + reelId;
+         }
       }
-      if (onComplete) onComplete(savedReel);
-      else window.location.reload();
+      // Always call onComplete to trigger parent refresh
+      if (onComplete) {
+        onComplete(savedReel);
+      } else {
+        // Fallback: reload page
+        setTimeout(() => window.location.reload(), 1000);
+      }
   };
 
   if (!token) {

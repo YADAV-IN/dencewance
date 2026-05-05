@@ -1046,7 +1046,9 @@ app.post('/api/reels', requireAuth, async (req, res) => {
   });
 
   await clearCache('reels');
-  return res.status(201).json({ data: reel.toJSON() });
+  const responseData = reel.toJSON();
+  responseData.id = responseData.id || responseData._id?.toString();
+  return res.status(201).json({ data: responseData });
 });
 
 app.put('/api/reels/:id', requireAuth, async (req, res) => {
