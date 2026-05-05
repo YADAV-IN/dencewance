@@ -156,6 +156,17 @@ export const StatusRing = ({ children, hasSeen = false, isUploading = false }) =
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
+// Normalize reel IDs to ensure string format for proper matching
+const normalizeReelData = (reel) => {
+  if (!reel) return null;
+  const reelId = String(reel.id || reel._id || reel.$id || '');
+  return {
+    ...reel,
+    id: reelId,
+    _id: reelId,
+  };
+};
+
 const fetchWithTimeout = (url, options = {}, timeoutMs = 15000) => {
   return Promise.race([
     fetch(url, options),
@@ -256,9 +267,14 @@ export default function SocialApp() {
     if (savedData && (savedData.data?.video_url || savedData.video_url)) {
       try {
         const savedReel = savedData.data || savedData;
+        
+        // Ensure ID is always a string for proper matching
+        const reelId = String(savedReel.id || savedReel._id || savedReel.$id || Date.now());
+        console.log('📤 Upload Complete - Received Reel:', { savedData, savedReel, reelId });
+        
         const normalized = {
-          _id: savedReel._id || savedReel.id || savedReel.$id || String(Date.now()),
-          id: savedReel.id || savedReel._id || savedReel.$id || String(Date.now()),
+          _id: reelId,
+          id: reelId,
           video_url: savedReel.video_url || savedReel.videoUrl || savedReel.url || '',
           cover_image_url: savedReel.cover_image_url || savedReel.coverUrl || savedReel.cover || '',
           title: savedReel.title || savedReel.caption || '',
@@ -268,23 +284,31 @@ export default function SocialApp() {
           created_at: savedReel.created_at || new Date().toISOString()
         };
 
+        // Merge all fields from server response to ensure nothing is lost
+        const mergedReel = {
+          ...savedReel,
+          ...normalized,
+        };
+        
+        console.log('✅ Merged reel data:', mergedReel);
+
         // Optimistic update: add reel to feeds immediately
         setReelsFeed(prev => {
-          const filtered = prev.filter(r => (r.id || r._id) !== normalized.id);
-          return [normalized, ...filtered].slice(0, 200);
+          const filtered = prev.filter(r => (r.id || r._id) !== reelId);
+          return [mergedReel, ...filtered].slice(0, 200);
         });
 
         setStatuses(prev => {
-          if (prev.some(s => (s.id || s._id) === normalized.id)) return prev;
-          const newStatus = { ...normalized };
+          if (prev.some(s => (s.id || s._id) === reelId)) return prev;
+          const newStatus = { ...mergedReel };
           return [newStatus, ...prev].slice(0, 50);
         });
 
         // Navigate to uploaded reel immediately for good UX
-        window.location.hash = '#viewReel=' + normalized.id;
+        window.location.hash = '#viewReel=' + reelId;
         setViewingMedia('reel');
         setActiveStoryIndex(0);
-        openReelById(normalized.id);
+        openReelById(reelId);
         setActiveTab('stories');
 
         // Fire-and-forget: refresh full lists in background to reconcile with server
@@ -296,11 +320,13 @@ export default function SocialApp() {
             ]);
             if (statusRes.ok) {
               const latestData = await statusRes.json();
-              setStatuses(latestData.data || []);
+              const normalizedStatuses = (latestData.data || []).map(normalizeReelData);
+              setStatuses(normalizedStatuses);
             }
             if (reelsRes.ok) {
               const reelsData = await reelsRes.json();
-              setReelsFeed(reelsData.data || []);
+              const normalizedReels = (reelsData.data || []).map(normalizeReelData);
+              setReelsFeed(normalizedReels);
             }
           } catch (e) {
             console.warn('Background refresh failed', e);
@@ -422,7 +448,11 @@ export default function SocialApp() {
         .then(r => r.json())
         .then(data => {
           if (data.success) {
-            setRecommendations(data.data);
+            const normalizedData = {
+              tags: data.data.tags || [],
+              reels: (data.data.reels || []).map(normalizeReelData)
+            };
+            setRecommendations(normalizedData);
           }
         }).catch(err => console.error('Error fetching recommendations', err));
     }
@@ -506,7 +536,8 @@ export default function SocialApp() {
         .then(readJsonSafely)
         .then(data => {
           if (data && Array.isArray(data.data)) {
-            setStatuses(data.data.slice(0, 30));
+            const normalizedStatuses = data.data.slice(0, 30).map(normalizeReelData);
+            setStatuses(normalizedStatuses);
           }
         })
         .catch(err => {
@@ -519,7 +550,8 @@ export default function SocialApp() {
         .then(readJsonSafely)
         .then(data => {
           if (data && Array.isArray(data.data) && data.data.length > 0) {
-            setReelsFeed(data.data);
+            const normalizedReels = data.data.map(normalizeReelData);
+            setReelsFeed(normalizedReels);
           } else {
             setReelsFeed([]);
           }
@@ -589,7 +621,7 @@ export default function SocialApp() {
         setSearchResults({
           users: data.data.users || [],
           posts: data.data.posts || [],
-          reels: data.data.reels || []
+          reels: (data.data.reels || []).map(normalizeReelData)
         });
       }
     } catch (err) {
@@ -633,6 +665,31 @@ export default function SocialApp() {
       if (res.ok) {
         removeLocally();
         alert("Reel deleted.");
+        
+        // Force refresh with cache buster to ensure deleted reel doesn't come back
+        await new Promise(r => setTimeout(r, 500));
+        const now = Date.now();
+        
+        // Refresh all reel sources with forced cache bust
+        Promise.all([
+          fetchWithRetry(`${API_URL}/api/global-status?_t=${now}`),
+          fetchWithRetry(`${API_URL}/api/reels?limit=100&_t=${now}`),
+        ]).then(async ([statusRes, reelsRes]) => {
+          try {
+            if (statusRes.ok) {
+              const latestData = await statusRes.json();
+              const normalizedStatuses = (latestData.data || []).map(normalizeReelData);
+              setStatuses(normalizedStatuses);
+            }
+            if (reelsRes.ok) {
+              const reelsData = await reelsRes.json();
+              const normalizedReels = (reelsData.data || []).map(normalizeReelData);
+              setReelsFeed(normalizedReels);
+            }
+          } catch (e) {
+            console.warn('Background refresh after delete failed', e);
+          }
+        });
       } else {
         let data = {};
         try { data = await res.json(); } catch(e) {}

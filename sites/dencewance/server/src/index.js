@@ -55,9 +55,74 @@ const deleteRelatedReelRows = async (reelId) => {
   };
 };
 
+const toCanonicalUrl = (value = '') => {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    parsed.hash = '';
+    parsed.search = '';
+    const pathname = parsed.pathname.replace(/\/+$|^\/+$/g, '');
+    return `${parsed.origin.toLowerCase()}/${pathname}`;
+  } catch {
+    return raw.replace(/[?#].*$/, '').replace(/\/+$/, '');
+  }
+};
+
+const reelUrlCandidates = (value = '') => {
+  const canonical = toCanonicalUrl(value);
+  if (!canonical) return [];
+
+  const set = new Set([canonical]);
+  try {
+    const parsed = new URL(canonical);
+    const key = parsed.pathname.replace(/^\/+/, '');
+    if (key) {
+      set.add(key);
+      set.add(`/${key}`);
+    }
+  } catch {
+    if (canonical.includes('/')) {
+      const key = canonical.replace(/^\/+/, '');
+      set.add(key);
+      set.add(`/${key}`);
+    }
+  }
+  return [...set];
+};
+
 const normalizeDeletedReelUrls = (urls = []) => {
   const list = Array.isArray(urls) ? urls : [urls];
-  return [...new Set(list.map((value) => (typeof value === 'string' ? value.trim() : '')).filter(Boolean))];
+  const expanded = list.flatMap((value) => reelUrlCandidates(value));
+  return [...new Set(expanded.filter(Boolean))];
+};
+
+const isReelTombstoned = (reel, deletedSet) => {
+  if (!reel || !deletedSet || deletedSet.size === 0) return false;
+  const reelId = String(reel.id || reel._id || reel.$id || '').trim();
+  const slug = String(reel.slug || '').trim();
+  const candidates = [
+    ...reelUrlCandidates(reel.video_url),
+    ...reelUrlCandidates(reel.cover_image_url),
+    reelId,
+    reelId ? `id:${reelId}` : '',
+    slug ? `slug:${slug}` : '',
+  ].filter(Boolean);
+  return candidates.some((candidate) => deletedSet.has(candidate));
+};
+
+const purgeDeletedReelMarkers = async (markers = []) => {
+  const nextMarkers = normalizeDeletedReelUrls(markers);
+  if (!nextMarkers.length) return;
+
+  const existingSettings = await SiteSettings.find().sort({ created_at: -1 }).limit(1);
+  const settings = existingSettings[0];
+  if (!settings) return;
+
+  const current = normalizeDeletedReelUrls(settings?.deleted_reel_urls || []);
+  const filtered = current.filter((value) => !nextMarkers.includes(value));
+  settings.deleted_reel_urls = filtered;
+  await settings.save();
 };
 
 const getDeletedReelUrlSet = async () => {
@@ -113,6 +178,12 @@ const storage = hasR2Config
 const upload = multer({
   storage,
   limits: { fileSize: 200 * 1024 * 1024 }, // 200MB max
+});
+
+// PYQ packet uploads need raw buffer access so we can store the file and create the DB row in one request.
+const packetUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
 });
 
 app.get('/', (req, res) => res.json({status: 'OK', message: 'Backend is running! Open Frontend on Port 3000'}));
@@ -399,6 +470,78 @@ app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req
   }
 });
 
+app.get('/api/storage/usage', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'superadmin')) {
+      return res.status(403).json({ error: 'Admin access required.' });
+    }
+
+    const usage = { appwrite: null, r2: null, dbCounts: null };
+
+    try {
+      if (APPWRITE_BUCKET_ID) {
+        const listRes = await appwriteStorage.listFiles(APPWRITE_BUCKET_ID);
+        const files = Array.isArray(listRes?.files) ? listRes.files : [];
+        usage.appwrite = {
+          available: true,
+          bucket: APPWRITE_BUCKET_ID,
+          totalFiles: files.length,
+          totalBytes: files.reduce((sum, file) => sum + (Number(file?.size) || Number(file?.$size) || 0), 0),
+        };
+      } else {
+        usage.appwrite = { available: false, reason: 'Appwrite bucket is not configured.' };
+      }
+    } catch (error) {
+      console.warn('Appwrite usage check failed:', error?.message || error);
+      usage.appwrite = { available: false, reason: 'Failed to query Appwrite storage.' };
+    }
+
+    try {
+      if (hasR2Config && s3Client) {
+        const files = await listAllR2Files();
+        usage.r2 = {
+          available: true,
+          bucket: process.env.R2_BUCKET_NAME?.trim() || '',
+          totalFiles: Array.isArray(files) ? files.length : 0,
+          totalBytes: (files || []).reduce((sum, file) => sum + (Number(file?.size) || 0), 0),
+        };
+      } else {
+        usage.r2 = { available: false, reason: 'R2 is not configured.' };
+      }
+    } catch (error) {
+      console.warn('R2 usage check failed:', error?.message || error);
+      usage.r2 = { available: false, reason: 'Failed to query R2 storage.' };
+    }
+
+    try {
+      const [newsCount, reelCount, profileCount, savedCount, commentCount] = await Promise.all([
+        News.countDocuments(),
+        Reel.countDocuments(),
+        UserProfile.countDocuments(),
+        SavedReel.countDocuments(),
+        ReelComment.countDocuments(),
+      ]);
+
+      usage.dbCounts = {
+        news: newsCount,
+        reels: reelCount,
+        profiles: profileCount,
+        savedReels: savedCount,
+        comments: commentCount,
+      };
+    } catch (error) {
+      console.warn('DB counts check failed:', error?.message || error);
+      usage.dbCounts = null;
+    }
+
+    return res.json({ success: true, data: usage });
+  } catch (error) {
+    console.error('Storage usage endpoint error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to calculate storage usage.' });
+  }
+});
+
 // --- UNIFIED SEARCH ENDPOINT --- //
 app.get('/api/search', async (req, res) => {
   try {
@@ -448,6 +591,29 @@ app.get('/api/search', async (req, res) => {
   } catch (err) {
     console.error('Search error:', err);
     return res.status(500).json({ success: false, error: 'Database search failed' });
+  }
+});
+
+app.get('/api/users/:userId/content', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'superadmin')) {
+      return res.status(403).json({ error: 'Admin access required.' });
+    }
+
+    const userId = req.params.userId;
+    const reels = await Reel.find({ creator_id: userId }).sort({ published_at: -1 }).limit(50).lean();
+    const posts = await News.find({ author_id: userId }).sort({ published_at: -1 }).limit(50).lean();
+
+    return res.json({
+      reels: reels || [],
+      posts: posts || [],
+      totalReels: reels?.length || 0,
+      totalPosts: posts?.length || 0,
+    });
+  } catch (error) {
+    console.error('User content fetch error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch user content.' });
   }
 });
 
@@ -848,8 +1014,15 @@ app.get('/api/reels', async (req, res) => {
       .sort({ published_at: -1 })
       .limit(Math.min(Number(limit) || 50, 200))
       .lean();
+    const deletedUrlSet = await getDeletedReelUrlSet();
+    const visibleReels = reels.filter((reel) => !isReelTombstoned(reel, deletedUrlSet));
 
-    return res.json({ data: reels.map((item) => ({ ...item, id: item._id.toString(), _id: undefined, __v: undefined })) });
+    // Disable all caching for reels - always fresh data
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
+    return res.json({ data: visibleReels.map((item) => ({ ...item, id: item._id.toString(), _id: undefined, __v: undefined })) });
   } catch (error) {
     console.error('Reels list error:', error);
     return res.status(500).json({ error: 'Failed to fetch reels.' });
@@ -866,8 +1039,10 @@ app.get('/api/reels/recommendations', async (req, res) => {
       .sort({ published_at: -1 })
       .limit(Math.min(Number(limit) || 120, 250))
       .lean();
+    const deletedUrlSet = await getDeletedReelUrlSet();
+    const visibleReels = reels.filter((reel) => !isReelTombstoned(reel, deletedUrlSet));
 
-    const scored = reels.map((item) => {
+    const scored = visibleReels.map((item) => {
       const sourceType = detectReelSourceType(item.video_url);
       return {
         ...item,
@@ -1082,7 +1257,17 @@ app.post('/api/reels', requireAuth, async (req, res) => {
   });
 
   await clearCache('reels');
-  return res.status(201).json({ data: reel.toJSON() });
+  
+  // Ensure clean ID format in response
+  const reelId = reel._id?.toString() || String(reel.id);
+  const cleanResponse = {
+    id: reelId,
+    _id: reelId,
+    ...reel.toJSON(),
+  };
+  delete cleanResponse.__v;
+  
+  return res.status(201).json({ data: cleanResponse });
 });
 
 app.put('/api/reels/:id', requireAuth, async (req, res) => {
@@ -1133,7 +1318,12 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
     const storageResults = await Promise.all(storageTargets.map((value) => deleteStoredMedia(value)));
     const relatedCounts = await deleteRelatedReelRows(req.params.id);
 
-    await persistDeletedReelUrls(storageTargets);
+    await persistDeletedReelUrls([
+      ...storageTargets,
+      req.params.id,
+      reel.slug ? `slug:${reel.slug}` : '',
+      `id:${req.params.id}`,
+    ]);
 
     const deleted = await Reel.findByIdAndDelete(req.params.id);
     if (!deleted) {
@@ -1156,6 +1346,66 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Reel delete error:', error);
     return res.status(500).json({ error: 'Failed to delete reel.', detail: error?.message || error });
+  }
+});
+
+app.post('/api/admin/reels/permanent-cleanup', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || currentUser.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only superadmin can run permanent cleanup.' });
+    }
+
+    const reelId = String(req.body?.reelId || req.body?.id || '').trim();
+    const reelUrl = String(req.body?.videoUrl || req.body?.video_url || '').trim();
+    if (!reelId && !reelUrl) {
+      return res.status(400).json({ error: 'reelId or videoUrl required.' });
+    }
+
+    const reel = reelId ? await Reel.findById(reelId) : await Reel.findOne({ video_url: normalizeReelVideoUrl(reelUrl) });
+    const storageTargets = new Set();
+    if (reel) {
+      [reel.video_url, reel.cover_image_url, reel.file_url, reel.fileUrl, reel.video_file_url, reel.cover_file_url]
+        .filter(Boolean)
+        .forEach((value) => storageTargets.add(value));
+    }
+    if (reelUrl) storageTargets.add(normalizeReelVideoUrl(reelUrl));
+
+    const storageResults = await deleteMultipleFiles([...storageTargets], { retries: 2, delay: 200, onLog: () => {} });
+
+    if (reel) {
+      await Promise.all([
+        ReelComment.deleteMany({ reel_id: reel._id.toString() }),
+        SavedReel.deleteMany({ reel_id: reel._id.toString() }),
+      ]);
+      await Reel.findByIdAndDelete(reel._id.toString());
+      await purgeDeletedReelMarkers([
+        ...storageTargets,
+        reel._id.toString(),
+        reel.slug ? `slug:${reel.slug}` : '',
+        `id:${reel._id.toString()}`,
+      ]);
+    } else {
+      await purgeDeletedReelMarkers([
+        ...storageTargets,
+        reelId,
+        reelUrl,
+      ]);
+    }
+
+    await clearCache('reels');
+    return res.json({
+      success: true,
+      message: 'Permanent cleanup completed.',
+      data: {
+        reelId,
+        reelUrl,
+        storageDeleted: storageResults?.deleted || 0,
+      },
+    });
+  } catch (error) {
+    console.error('Permanent cleanup error:', error);
+    return res.status(500).json({ error: 'Permanent cleanup failed.', detail: error?.message || error });
   }
 });
 
@@ -1431,6 +1681,50 @@ app.post('/api/pyq', requireAuth, async (req, res) => {
   }
 });
 
+app.post('/api/pyq/upload', requireAuth, packetUpload.single('file'), async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'superadmin')) {
+      return res.status(403).json({ error: 'Only admins can insert PYQ documents.' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'file required.' });
+    }
+
+    const { dept, course, subject, keywords = '' } = req.body || {};
+    const missingFields = ['dept', 'course', 'subject'].filter((f) => !req.body?.[f]);
+    if (missingFields.length > 0) {
+      return res.status(400).json({ error: 'Missing required fields: ' + missingFields.join(', ') });
+    }
+
+    if (!APPWRITE_BUCKET_ID) {
+      return res.status(503).json({ error: 'Appwrite storage bucket is not configured.' });
+    }
+
+    const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `pyq-${Date.now()}`);
+    const stored = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), fileObj);
+    const fileId = stored.$id;
+    const fileUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, fileId);
+
+    const payload = {
+      dept: String(dept).toUpperCase(),
+      course: String(course).toUpperCase(),
+      subject: keywords ? `${subject} //SEO// ${keywords}` : subject,
+      fileName: req.file.originalname,
+      fileType: normalizePYQFileType(req.file.mimetype || req.file.contentType || req.file.type || ''),
+      fileId: fileUrl,
+      uploaderId: currentUser._id.toString(),
+    };
+
+    const result = await appwriteDatabases.createDocument('69d60fe8000c9bd92750', 'pyq', ID.unique(), payload);
+    return res.status(201).json({ success: true, data: result, file: { id: fileId, url: fileUrl } });
+  } catch (err) {
+    console.error('PYQ Multipart Upload Error:', err);
+    return res.status(500).json({ error: 'Failed to upload PYQ packet.' });
+  }
+});
+
 app.delete('/api/pyq/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -1641,10 +1935,15 @@ app.post('/api/reels/:id/save', async (req, res) => {
 
 
 // --- SYNC MANUAL R2 UPLOADS ---
-app.get('/api/reels/sync-r2', async (req, res) => {
+// Keep this admin-only and explicit so deleted reels do not silently reappear.
+app.post('/api/reels/sync-r2', requireAuth, async (req, res) => {
   try {
     if (!hasR2Config) {
       return res.status(400).json({ error: 'R2 is not configured' });
+    }
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || !['admin', 'superadmin'].includes(currentUser.role)) {
+      return res.status(403).json({ error: 'Admin permission required for R2 sync.' });
     }
     const files = await listAllR2Files();
     if (!files || files.length === 0) {
@@ -1656,7 +1955,8 @@ app.get('/api/reels/sync-r2', async (req, res) => {
     let added = 0;
     for (const file of files) {
       if (file.key.match(/\.(mp4|webm|mov)$/i)) {
-        if (deletedUrlSet.has(file.publicUrl)) continue;
+        const fileCandidates = reelUrlCandidates(file.publicUrl);
+        if (fileCandidates.some((candidate) => deletedUrlSet.has(candidate))) continue;
         const existing = await Reel.findOne({ video_url: file.publicUrl });
         if (!existing) {
           const title = file.key.replace(/\.(mp4|webm|mov)$/i, '').replace(/[-_]/g, ' ');
@@ -1669,8 +1969,10 @@ app.get('/api/reels/sync-r2', async (req, res) => {
             caption: 'Manual upload from R2',
             is_active: true,
             status: 'published',
+            creator_id: currentUser._id.toString(),
             creator_name: 'Admin',
             creator_handle: 'admin',
+            creator_mode: 'admin',
             published_at: file.lastModified || new Date(),
             created_at: file.lastModified || new Date()
           });
@@ -1696,10 +1998,12 @@ app.get('/api/reels/sync-r2', async (req, res) => {
 app.get('/api/global-status', async (req, res) => {
   try {
     const reels = await Reel.find({ is_active: true }).lean();
+    const deletedUrlSet = await getDeletedReelUrlSet();
+    const visibleReels = reels.filter((reel) => !isReelTombstoned(reel, deletedUrlSet));
     const now = Date.now();
     
     // Process and sort by viral algorithm
-    const scoredStatuses = reels.map(reel => {
+    const scoredStatuses = visibleReels.map(reel => {
       const likes = reel.likes || 0;
       const views = reel.views || 0;
       const shares = reel.shares || 0;
@@ -1723,6 +2027,11 @@ app.get('/api/global-status', async (req, res) => {
     
     // Sort descending by viral score
     scoredStatuses.sort((a, b) => b.viralScore - a.viralScore);
+    
+    // Disable all caching - always fresh data
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     
     // Return top 20 Global Latest Statuses
     return res.json({ 

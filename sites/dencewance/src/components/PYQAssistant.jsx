@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Client, Databases, Storage, ID, Query } from 'appwrite';
-import { uploadMediaToAppwrite } from '../utils/appwriteClient';
+import { apiClient, getApiErrorMessage } from '../utils/apiClient';
 
 // --- Appwrite Config ---
 const client = new Client();
@@ -96,53 +96,33 @@ const PYQAssistant = ({ adminData }) => {
     setUploadProgress(0);
     
     try {
-      const fileUrl = await uploadMediaToAppwrite(libFile, BUCKET_ID, (progressEvent) => {
-        if (progressEvent && typeof progressEvent.progress === 'number') {
-          setUploadProgress(Math.round(progressEvent.progress));
-        }
-      });
-      
-      setUploadProgress(100);
-      
-      const token = localStorage.getItem('adminToken') || '';
-      if (!token) throw new Error('Not authenticated');
-      
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const payload = {
-        dept: libDept.toUpperCase(),
-        course: libCourse.toUpperCase(),
-        subject: libKeywords ? `${libSubject} //SEO// ${libKeywords}` : libSubject,
-        fileName: libFile.name,
-        fileType: libFile.type,
-        fileId: fileUrl
-      };
+      const formData = new FormData();
+      formData.append('file', libFile);
+      formData.append('dept', libDept);
+      formData.append('course', libCourse);
+      formData.append('subject', libSubject);
+      formData.append('keywords', libKeywords);
 
-      const res = await fetch(apiUrl + '/api/pyq', {
-        method: 'POST',
+      const res = await apiClient.post('/api/pyq/upload', formData, {
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${localStorage.getItem('adminToken') || ''}`,
         },
-        body: JSON.stringify(payload)
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent?.total) {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percent);
+          }
+        },
       });
 
-      // Check if response is valid JSON
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await res.text();
-        console.error('Server returned non-JSON response:', text);
-        throw new Error(`Server error: ${res.status}. The backend may have crashed. Check server logs.`);
-      }
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to upload PYQ data');
+      setUploadProgress(100);
       
       alert("PYQ Uploaded successfully!");
       setLibDept(''); setLibCourse(''); setLibSubject(''); setLibKeywords(''); setLibFile(null);
       fetchLibrary();
     } catch (err) {
       console.error("Upload error:", err);
-      alert("Upload failed: " + err.message);
+      alert("Upload failed: " + getApiErrorMessage(err, 'Failed to upload PYQ packet'));
     } finally {
       setLibLoading(false);
       setTimeout(() => { setIsUploading(false); setUploadProgress(0); }, 2000);

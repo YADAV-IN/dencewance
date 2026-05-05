@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Client, Databases, Storage, ID, Query } from 'appwrite';
-import { uploadMediaToAppwrite } from '../utils/appwriteClient';
+import { Client, Databases, Storage, Query } from 'appwrite';
+import { apiClient, getApiErrorMessage } from '../utils/apiClient';
 
 // --- Appwrite Config ---
 const client = new Client();
@@ -119,61 +119,32 @@ const PYQAssistant = ({ adminData }) => {
     setUploadProgress(0);
     
     try {
-      const uploadResult = await uploadMediaToAppwrite(libFile, BUCKET_ID, (progressEvent) => {
-        if (progressEvent && typeof progressEvent.progress === 'number') {
-          setUploadProgress(Math.round(progressEvent.progress));
-        }
+      const formData = new FormData();
+      formData.append('file', libFile);
+      formData.append('dept', libDept);
+      formData.append('course', libCourse);
+      formData.append('subject', libSubject);
+      formData.append('keywords', libKeywords);
+
+      await apiClient.post('/api/pyq/upload', formData, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('adminToken') || ''}`,
+        },
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent?.total) {
+            setUploadProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total));
+          }
+        },
       });
 
       setUploadProgress(100);
 
-      // uploadResult may be a string (url) or an object {id, url, cover_url}
-      const fileIdValue = (uploadResult && typeof uploadResult === 'object') ? (uploadResult.id || uploadResult.url) : uploadResult;
-      const coverUrlFromUpload = (uploadResult && typeof uploadResult === 'object') ? (uploadResult.cover_url || uploadResult.coverUrl || uploadResult.cover) : null;
-      const uploaderId = localStorage.getItem('activeUploader') || null;
-      const creatorMode = adminData?.role === 'superadmin' || adminData?.role === 'admin' ? 'official' : 'anonymous';
-
-      const payload = {
-        dept: libDept.toUpperCase(),
-        course: libCourse.toUpperCase(),
-        subject: libKeywords ? `${libSubject} //SEO// ${libKeywords}` : libSubject,
-        fileName: libFile.name,
-        fileType: libFile.type || 'application/pdf',
-        fileId: [fileIdValue].filter(Boolean),
-        uploaderId: [uploaderId || adminData?._id || adminData?.id || ''].filter(Boolean),
-        cover_url: [coverUrlFromUpload].filter(Boolean),
-        creator_mode: creatorMode,
-        creator_name: adminData?.name || 'Admin',
-      };
-      let savedDocument = null;
-      try {
-        savedDocument = await databases.createDocument(DATABASE_ID, 'pyq', ID.unique(), payload);
-      } catch (directErr) {
-        console.warn('Direct Appwrite insert failed, falling back to backend:', directErr);
-        const token = localStorage.getItem('adminToken') || '';
-        if (!token) throw directErr;
-
-        const apiUrl = import.meta.env.VITE_API_URL || '';
-        const res = await fetch(apiUrl + '/api/pyq', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to upload PYQ data');
-        savedDocument = data.data;
-      }
-      
       alert("PYQ Uploaded successfully!");
       setLibDept(''); setLibCourse(''); setLibSubject(''); setLibKeywords(''); setLibFile(null);
       await fetchLibrary();
     } catch (err) {
       console.error("Upload error:", err);
-      alert("Upload failed: " + err.message);
+      alert("Upload failed: " + getApiErrorMessage(err, 'Failed to upload PYQ packet'));
     } finally {
       setLibLoading(false);
       setTimeout(() => { setIsUploading(false); setUploadProgress(0); }, 2000);

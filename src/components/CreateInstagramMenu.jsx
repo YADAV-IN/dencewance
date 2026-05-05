@@ -116,19 +116,12 @@ export default function CreateInstagramMenu({ onComplete }) {
 
   // When finished successfully navigate to new reel
   const finalizeReelUpload = (savedReel) => {
-      // Show success and refresh
-      if(savedReel && (savedReel.data || savedReel)) {
-         const reelData = savedReel.data || savedReel;
-         const reelId = reelData.id || reelData._id;
-         if (reelId) {
-           window.location.hash = '#viewReel=' + reelId;
-         }
-      }
-      // Always call onComplete to trigger parent refresh
+      // Call onComplete FIRST to add reel to feed, then navigate
       if (onComplete) {
+        // Pass the reel data and let parent handle navigation
         onComplete(savedReel);
       } else {
-        // Fallback: reload page
+        // Fallback: just reload page if no parent handler
         setTimeout(() => window.location.reload(), 1000);
       }
   };

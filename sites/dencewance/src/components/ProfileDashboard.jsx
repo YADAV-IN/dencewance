@@ -134,6 +134,24 @@ export default function ProfileDashboard() {
     }
   };
 
+  const handlePurgeReel = async (reel) => {
+    const reelId = reel.id || reel._id;
+    if (!window.confirm('Permanently purge this reel from DB, storage, and tombstones?')) return;
+    try {
+      const res = await fetch(`${API_URL}/api/admin/reels/permanent-cleanup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ reelId, videoUrl: reel.video_url })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Permanent cleanup failed');
+      setMyReels(prev => prev.filter(r => (r.id || r._id) !== reelId));
+      alert('Reel purged permanently.');
+    } catch (err) {
+      alert('Permanent cleanup failed: ' + err.message);
+    }
+  };
+
   const handleDeletePost = async (id) => {
     if (!window.confirm('Delete this post permanently?')) return;
     try {
@@ -447,6 +465,13 @@ export default function ProfileDashboard() {
                     title="Delete Reel"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinelinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handlePurgeReel(reel); }}
+                    className="absolute top-2 right-10 bg-orange-600/80 hover:bg-orange-700 text-white rounded-full px-2 py-1 text-[10px] font-bold shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    title="Permanent Purge"
+                  >
+                    PURGE
                   </button>
 
                   <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition opacity-0 group-hover:opacity-100 flex items-center justify-center pointer-events-none">

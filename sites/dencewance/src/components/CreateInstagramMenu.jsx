@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
+import { apiPost, getApiErrorMessage } from '../utils/apiClient';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -38,29 +39,25 @@ export default function CreateInstagramMenu({ onComplete }) {
     setIsUploading(true);
     try {
       const imageUrl = await uploadToAppwrite(postCover, 'alok_media');
-      const res = await fetch(`${API_URL}/api/posts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          title: postContent ? postContent.slice(0, 30) : 'New Photo Post',
-          caption: postContent,
-          excerpt: postContent ? postContent.slice(0, 100) : 'Photo.',
-          content: postContent || 'Photo post without caption.',
-          image_url: imageUrl,
-          cover_image_url: imageUrl,
-          category: 'social',
-          status: 'published',
-          creator_mode: uploaderType,
-          custom_author_name: uploaderName
-        })
+      const savedPost = await apiPost('/api/posts', {
+        title: postContent ? postContent.slice(0, 30) : 'New Photo Post',
+        caption: postContent,
+        excerpt: postContent ? postContent.slice(0, 100) : 'Photo.',
+        content: postContent || 'Photo post without caption.',
+        image_url: imageUrl,
+        cover_image_url: imageUrl,
+        category: 'social',
+        status: 'published',
+        creator_mode: uploaderType,
+        custom_author_name: uploaderName
+      }, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      if (!res.ok) throw new Error('Failed to create post');
       alert('Post Created Successfully!');
       setPostContent(''); setPostCover(null); setPostCoverPreview('');
-      const savedPost = await res.json();
       if (onComplete) onComplete(savedPost); else window.location.reload();
     } catch (err) {
-      alert('Upload Error: ' + err.message);
+      alert('Upload Error: ' + getApiErrorMessage(err, 'Failed to create post'));
     } finally {
       setIsUploading(false);
     }
@@ -75,25 +72,21 @@ export default function CreateInstagramMenu({ onComplete }) {
       if (reelVideoFile && !reelVideoUrlInput) {
         videoUrl = await uploadToAppwrite(reelVideoFile, 'alok_media');
       }
-      const res = await fetch(`${API_URL}/api/reels`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          title: reelCaption.slice(0, 20) || 'Viral Reel',
-          caption: reelCaption,
-          video_url: videoUrl,
-          status: 'published',
-          creator_mode: uploaderType,
-          custom_author_name: uploaderName
-        })
+      const savedReel = await apiPost('/api/reels', {
+        title: reelCaption.slice(0, 20) || 'Viral Reel',
+        caption: reelCaption,
+        video_url: videoUrl,
+        status: 'published',
+        creator_mode: uploaderType,
+        custom_author_name: uploaderName
+      }, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      if (!res.ok) throw new Error('Failed to create Reel');
-      const savedReel = await res.json();
       alert('Video Story (Reel) Uploaded Successfully!');
       setReelCaption(''); setReelVideoFile(null); setReelVideoPreview(''); setReelVideoUrlInput('');
       finalizeReelUpload(savedReel);
     } catch (err) {
-      alert('Upload Error: ' + err.message);
+      alert('Upload Error: ' + getApiErrorMessage(err, 'Failed to create reel'));
     } finally {
       setIsUploading(false);
     }
@@ -101,9 +94,7 @@ export default function CreateInstagramMenu({ onComplete }) {
 
   // When finished successfully navigate to new reel
   const finalizeReelUpload = (savedReel) => {
-      if(savedReel && savedReel.data && savedReel.data.id) {
-         window.location.hash = '#viewReel=' + savedReel.data.id;
-      }
+      // Call onComplete to let parent handle navigation and feed updates
       if (onComplete) onComplete(savedReel);
       else window.location.reload();
   };

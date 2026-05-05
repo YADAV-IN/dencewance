@@ -3,9 +3,11 @@ import './SocialApp.css';
 import ReelsViewer from './ReelsViewer';
 import CreateInstagramMenu from './CreateInstagramMenu';
 import ProfileDashboard from './ProfileDashboard';
+import CRMDashboard from './CRMDashboard';
 import SkeletonImage from './SkeletonImage';
 
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
+import { apiGet, apiDelete, getApiErrorMessage } from '../utils/apiClient';
 import PYQAssistant from './PYQAssistant';
 
 // Vintage/Historical Custom SVG Icons
@@ -142,6 +144,17 @@ export const StatusRing = ({ children, hasSeen = false, isUploading = false }) =
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+// Normalize reel IDs to ensure string format for proper matching
+const normalizeReelData = (reel) => {
+  if (!reel) return null;
+  const reelId = String(reel.id || reel._id || reel.$id || '');
+  return {
+    ...reel,
+    id: reelId,
+    _id: reelId,
+  };
+};
+
 const resolveMediaUrl = (url) => {
   if (!url || typeof url !== 'string' || url === 'null' || url === 'undefined') return '';
   if (url.startsWith('http') || url.startsWith('//') || url.startsWith('data:')) return url;
@@ -159,6 +172,7 @@ const readJsonSafely = async (response) => {
 
 export default function SocialApp() {
   const [activeTab, setActiveTab] = useState(() => new URLSearchParams(window.location.search).get('tab') || 'home');
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
   const [statuses, setStatuses] = useState([]);
   const [reelsFeed, setReelsFeed] = useState([]);
@@ -177,18 +191,54 @@ export default function SocialApp() {
   const [trendingNotification, setTrendingNotification] = useState(null);
   const trendingTimeoutRef = useRef(null);
 
+  useEffect(() => {
+    const updateViewport = () => setIsDesktop(window.innerWidth >= 1024);
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    return () => window.removeEventListener('resize', updateViewport);
+  }, []);
+
   const handleUploadPanelComplete = async (savedData) => {
-    // If it's a Reel, refresh statuses and open it
+    // If it's a Reel, optimistically insert and navigate, then refresh from server
     if (savedData && savedData.data && savedData.data.video_url) {
       try {
-        const latestRes = await fetch(`${API_URL}/api/global-status`);
+        const savedReel = savedData.data;
+        const reelId = String(savedReel._id || savedReel.id || savedReel.$id || Date.now());
+        const normalized = normalizeReelData({
+          ...savedReel,
+          _id: reelId,
+          id: reelId,
+          created_at: savedReel.created_at || new Date().toISOString(),
+          is_active: typeof savedReel.is_active !== 'undefined' ? savedReel.is_active : true,
+        });
+
+        setStatuses(prev => {
+          const filtered = prev.filter(s => String(s.id || s._id || '') !== reelId);
+          return [normalized, ...filtered].slice(0, 50);
+        });
+        setReelsFeed(prev => {
+          const filtered = prev.filter(r => String(r.id || r._id || '') !== reelId);
+          return [normalized, ...filtered].slice(0, 200);
+        });
+
+        window.location.hash = '#viewReel=' + reelId;
+        setActiveStoryIndex(0);
+        setViewingMedia('status');
+        setActiveTab('stories');
+
+        const latestRes = await fetch(`${API_URL}/api/global-status?_t=${Date.now()}`);
         if (latestRes.ok) {
           const latestData = await latestRes.json();
-          setStatuses(latestData.data || []);
+          const normalizedStatuses = (latestData.data || []).map(normalizeReelData);
+          setStatuses(normalizedStatuses);
           
-          const newReelId = savedData.data._id || savedData.data.id;
-          if (newReelId && latestData.data) {
-            const newIndex = latestData.data.findIndex(s => (s._id === newReelId || s.id === newReelId));
+          // Ensure newReelId is always a string for proper comparison
+          const newReelId = String(savedData.data._id || savedData.data.id || '');
+          if (newReelId && normalizedStatuses.length > 0) {
+            const newIndex = normalizedStatuses.findIndex(s => {
+              const sId = String(s._id || s.id || '');
+              return sId === newReelId;
+            });
             if (newIndex !== -1) {
               setActiveStoryIndex(newIndex);
               setViewingMedia('status');
@@ -372,7 +422,8 @@ export default function SocialApp() {
         .then(readJsonSafely)
         .then(data => {
           if (data && Array.isArray(data.data)) {
-            setStatuses(data.data.slice(0, 15));
+            const normalizedStatuses = data.data.slice(0, 15).map(normalizeReelData);
+            setStatuses(normalizedStatuses);
           }
         })
         .catch(err => {
@@ -385,7 +436,8 @@ export default function SocialApp() {
         .then(readJsonSafely)
         .then(data => {
           if (data && Array.isArray(data.data) && data.data.length > 0) {
-            setReelsFeed(data.data);
+            const normalizedReels = data.data.map(normalizeReelData);
+            setReelsFeed(normalizedReels);
           } else {
             setReelsFeed([]);
           }
@@ -430,17 +482,13 @@ export default function SocialApp() {
   const handleDeletePost = async (postId) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
     try {
-      const res = await fetch(`${API_URL}/api/posts/${postId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+      await apiDelete(`/api/posts/${postId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      if (res.ok) {
-        setFeed(prev => prev.filter(p => (p.id || p._id) !== postId));
-      } else {
-        alert("Failed to delete post.");
-      }
+      setFeed(prev => prev.filter(p => (p.id || p._id) !== postId));
     } catch(err) {
       console.error(err);
+      alert('Delete failed: ' + getApiErrorMessage(err, 'Failed to delete post'));
     }
   };
 
@@ -449,13 +497,14 @@ export default function SocialApp() {
     if (!searchQuery.trim()) return;
     setIsSearching(true);
     try {
-      const res = await fetch(`${API_URL}/api/search?q=${encodeURIComponent(searchQuery)}`);
-      const data = await res.json();
+      const data = await apiGet('/api/search', {
+        params: { q: searchQuery }
+      });
       if (data && data.success) {
         setSearchResults({
           users: data.data.users || [],
           posts: data.data.posts || [],
-          reels: data.data.reels || []
+          reels: (data.data.reels || []).map(normalizeReelData)
         });
       }
     } catch (err) {
@@ -492,21 +541,26 @@ export default function SocialApp() {
     };
 
     try {
-      const res = await fetch(`${API_URL}/api/reels/${reelId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+      await apiDelete(`/api/reels/${reelId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      if (res.ok) {
-        removeLocally();
-        alert("Reel deleted.");
-      } else {
-        let data = {};
-        try { data = await res.json(); } catch(e) {}
-        alert((data.error ? `Delete failed: ${data.error}` : "Failed to delete reel.") + (data.detail ? `\nDetail: ${data.detail}` : ''));
-      }
+      removeLocally();
+      alert("Reel deleted.");
+
+      // Force refresh with cache buster to ensure deleted reel doesn't come back
+      await new Promise(r => setTimeout(r, 500));
+      const [statusData, reelsData] = await Promise.all([
+        apiGet('/api/global-status'),
+        apiGet('/api/reels')
+      ]);
+
+      const normalizedStatuses = (statusData?.data || []).map(normalizeReelData);
+      const normalizedReels = (reelsData?.data || []).map(normalizeReelData);
+      setStatuses(normalizedStatuses);
+      setReelsFeed(normalizedReels);
     } catch(err) {
       console.error(err);
-      alert("Delete request failed: " + (err?.message || err));
+      alert("Delete request failed: " + getApiErrorMessage(err, 'Failed to delete reel'));
     }
   };
 
@@ -547,6 +601,9 @@ export default function SocialApp() {
           </button>
           
           <button onClick={() => setActiveTab('pyq')} style={{ background: 'linear-gradient(45deg, #B4A05D, #D4AF37)', color: 'black', fontWeight: 'bold', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 10px rgba(180, 160, 93, 0.3)' }}>🎓 PYQ</button>
+          {(adminData?.role === 'admin' || adminData?.role === 'superadmin') && isDesktop && (
+            <button onClick={() => setActiveTab('crm')} style={{ background: 'linear-gradient(45deg, #0ea5e9, #7c3aed)', color: '#fff', fontWeight: 'bold', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 10px rgba(14, 165, 233, 0.28)' }}>CRM</button>
+          )}
 
         </div>
       </header>
@@ -571,6 +628,16 @@ export default function SocialApp() {
             <li className={activeTab === 'profile' ? 'active' : ''} onClick={() => setActiveTab('profile')}>
               <EyeIcon /> <span>Profile</span>
             </li>
+            {(adminData?.role === 'admin' || adminData?.role === 'superadmin') && (
+              <li className={activeTab === 'crm' ? 'active' : ''} onClick={() => setActiveTab('crm')}>
+                <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 19V5h16v14" />
+                  <path d="M8 9h8" />
+                  <path d="M8 13h5" />
+                </svg>
+                <span>CRM</span>
+              </li>
+            )}
           </ul>
         </nav>
 
@@ -651,7 +718,18 @@ export default function SocialApp() {
           </div>
         )}
         <main className="main-content">
-          {activeTab === 'pyq' ? (
+          {activeTab === 'crm' ? (
+            isDesktop ? (
+              <CRMDashboard adminData={adminData} isDesktop={isDesktop} />
+            ) : (
+              <div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#fff', textAlign: 'center', padding: 24 }}>
+                <div style={{ maxWidth: 520, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 24, background: 'rgba(8,12,24,0.78)' }}>
+                  <h2 style={{ marginTop: 0 }}>CRM is desktop only</h2>
+                  <p style={{ marginBottom: 0, color: '#cbd5e1' }}>Open this page from a larger screen to view analytics, user management, and PDF reports.</p>
+                </div>
+              </div>
+            )
+          ) : activeTab === 'pyq' ? (
             <PYQAssistant isPage={true} adminData={adminData} />
           ) : activeTab === 'search' ? (
             <div className="search-container">

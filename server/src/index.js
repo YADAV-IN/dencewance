@@ -13,7 +13,7 @@ import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel } from './db.js';
-import { storage as appwriteStorage, databases as appwriteDatabases, ID, Query } from './appwrite.js';
+import { storage as appwriteStorage, databases as appwriteDatabases, APPWRITE_DB_ID, ID, Query } from './appwrite.js';
 import { InputFile } from 'node-appwrite/file';
 import { requireAuth, signToken } from './middleware/auth.js';
 import { slugify } from './utils/slug.js';
@@ -58,9 +58,74 @@ const deleteRelatedReelRows = async (reelId) => {
   };
 };
 
+const toCanonicalUrl = (value = '') => {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    parsed.hash = '';
+    parsed.search = '';
+    const pathname = parsed.pathname.replace(/\/+$|^\/+$/g, '');
+    return `${parsed.origin.toLowerCase()}/${pathname}`;
+  } catch {
+    return raw.replace(/[?#].*$/, '').replace(/\/+$/, '');
+  }
+};
+
+const reelUrlCandidates = (value = '') => {
+  const canonical = toCanonicalUrl(value);
+  if (!canonical) return [];
+
+  const set = new Set([canonical]);
+  try {
+    const parsed = new URL(canonical);
+    const key = parsed.pathname.replace(/^\/+/, '');
+    if (key) {
+      set.add(key);
+      set.add(`/${key}`);
+    }
+  } catch {
+    if (canonical.includes('/')) {
+      const key = canonical.replace(/^\/+/, '');
+      set.add(key);
+      set.add(`/${key}`);
+    }
+  }
+  return [...set];
+};
+
 const normalizeDeletedReelUrls = (urls = []) => {
   const list = Array.isArray(urls) ? urls : [urls];
-  return [...new Set(list.map((value) => (typeof value === 'string' ? value.trim() : '')).filter(Boolean))];
+  const expanded = list.flatMap((value) => reelUrlCandidates(value));
+  return [...new Set(expanded.filter(Boolean))];
+};
+
+const isReelTombstoned = (reel, deletedSet) => {
+  if (!reel || !deletedSet || deletedSet.size === 0) return false;
+  const reelId = String(reel.id || reel._id || reel.$id || '').trim();
+  const slug = String(reel.slug || '').trim();
+  const candidates = [
+    ...reelUrlCandidates(reel.video_url),
+    ...reelUrlCandidates(reel.cover_image_url),
+    reelId,
+    reelId ? `id:${reelId}` : '',
+    slug ? `slug:${slug}` : '',
+  ].filter(Boolean);
+  return candidates.some((candidate) => deletedSet.has(candidate));
+};
+
+const purgeDeletedReelMarkers = async (markers = []) => {
+  const nextMarkers = normalizeDeletedReelUrls(markers);
+  if (!nextMarkers.length) return;
+
+  const existingSettings = await SiteSettings.find().sort({ created_at: -1 }).limit(1);
+  const settings = existingSettings[0];
+  if (!settings) return;
+
+  const current = normalizeDeletedReelUrls(settings?.deleted_reel_urls || []);
+  const filtered = current.filter((value) => !nextMarkers.includes(value));
+  settings.deleted_reel_urls = filtered;
+  await settings.save();
 };
 
 const getDeletedReelUrlSet = async () => {
@@ -116,6 +181,12 @@ const storage = hasR2Config
 const upload = multer({
   storage,
   limits: { fileSize: 200 * 1024 * 1024 }, // 200MB max
+});
+
+// PYQ packet uploads need raw buffer access so we can store file + DB row in one request.
+const packetUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
 });
 
 app.get('/', (req, res) => res.json({status: 'OK', message: 'Backend is running! Open Frontend on Port 3000'}));
@@ -994,8 +1065,15 @@ app.get('/api/reels', async (req, res) => {
       .sort({ published_at: -1 })
       .limit(Math.min(Number(limit) || 100, 500))
       .lean();
+    const deletedUrlSet = await getDeletedReelUrlSet();
+    const visibleReels = reels.filter((reel) => !isReelTombstoned(reel, deletedUrlSet));
 
-    return res.json({ data: reels.map((item) => ({ ...item, id: item._id.toString(), _id: undefined, __v: undefined })) });
+    // Disable all caching for reels - always fresh data
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
+    return res.json({ data: visibleReels.map((item) => ({ ...item, id: item._id.toString(), _id: undefined, __v: undefined })) });
   } catch (error) {
     console.error('Reels list error:', error);
     return res.status(500).json({ error: 'Failed to fetch reels.' });
@@ -1012,8 +1090,10 @@ app.get('/api/reels/recommendations', async (req, res) => {
       .sort({ published_at: -1 })
       .limit(Math.min(Number(limit) || 120, 250))
       .lean();
+    const deletedUrlSet = await getDeletedReelUrlSet();
+    const visibleReels = reels.filter((reel) => !isReelTombstoned(reel, deletedUrlSet));
 
-    const scored = reels.map((item) => {
+    const scored = visibleReels.map((item) => {
       const sourceType = detectReelSourceType(item.video_url);
       return {
         ...item,
@@ -1257,7 +1337,17 @@ app.post('/api/reels', async (req, res) => {
   await clearCache('reels');
   const responseData = reel.toJSON();
   responseData.id = responseData.id || responseData._id?.toString();
-  return res.status(201).json({ data: responseData });
+  
+  // Ensure clean ID format in response
+  const reelId = reel._id?.toString() || String(reel.id);
+  const cleanResponse = {
+    id: reelId,
+    _id: reelId,
+    ...responseData,
+  };
+  delete cleanResponse.__v;
+  
+  return res.status(201).json({ data: cleanResponse });
 });
 
 // Temporary test route: create a reel without auth (dev only)
@@ -1389,7 +1479,12 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
         });
     }
 
-      await persistDeletedReelUrls(storageUrls);
+      await persistDeletedReelUrls([
+        ...storageUrls,
+        reelId,
+        reel.slug ? `slug:${reel.slug}` : '',
+        `id:${reelId}`,
+      ]);
 
     // Delete related records from MongoDB
     const [comments, savedReels] = await Promise.all([
@@ -1441,6 +1536,66 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
       message: error?.message,
       logs: logs.slice(-10),
     });
+  }
+});
+
+app.post('/api/admin/reels/permanent-cleanup', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || currentUser.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only superadmin can run permanent cleanup.' });
+    }
+
+    const reelId = String(req.body?.reelId || req.body?.id || '').trim();
+    const reelUrl = String(req.body?.videoUrl || req.body?.video_url || '').trim();
+    if (!reelId && !reelUrl) {
+      return res.status(400).json({ error: 'reelId or videoUrl required.' });
+    }
+
+    const reel = reelId ? await Reel.findById(reelId) : await Reel.findOne({ video_url: normalizeReelVideoUrl(reelUrl) });
+    const storageTargets = new Set();
+    if (reel) {
+      [reel.video_url, reel.cover_image_url, reel.file_url, reel.fileUrl, reel.video_file_url, reel.cover_file_url]
+        .filter(Boolean)
+        .forEach((value) => storageTargets.add(value));
+    }
+    if (reelUrl) storageTargets.add(normalizeReelVideoUrl(reelUrl));
+
+    const storageResults = await deleteMultipleFiles([...storageTargets], { retries: 2, delay: 200, onLog: () => {} });
+
+    if (reel) {
+      await Promise.all([
+        ReelComment.deleteMany({ reel_id: reel._id.toString() }),
+        SavedReel.deleteMany({ reel_id: reel._id.toString() }),
+      ]);
+      await Reel.findByIdAndDelete(reel._id.toString());
+      await purgeDeletedReelMarkers([
+        ...storageTargets,
+        reel._id.toString(),
+        reel.slug ? `slug:${reel.slug}` : '',
+        `id:${reel._id.toString()}`,
+      ]);
+    } else {
+      await purgeDeletedReelMarkers([
+        ...storageTargets,
+        reelId,
+        reelUrl,
+      ]);
+    }
+
+    await clearCache('reels');
+    return res.json({
+      success: true,
+      message: 'Permanent cleanup completed.',
+      data: {
+        reelId,
+        reelUrl,
+        storageDeleted: storageResults?.deleted || 0,
+      },
+    });
+  } catch (error) {
+    console.error('Permanent cleanup error:', error);
+    return res.status(500).json({ error: 'Permanent cleanup failed.', detail: error?.message || error });
   }
 });
 
@@ -1787,6 +1942,51 @@ app.post('/api/pyq', requireAuth, async (req, res) => {
     // Log unexpected errors
     console.error("PYQ Insert Error (Unexpected):", err);
     res.status(500).json({ error: 'Unexpected error: ' + (err && err.message ? err.message : err) });
+  }
+});
+
+app.post('/api/pyq/upload', requireAuth, packetUpload.single('file'), async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'superadmin')) {
+      return res.status(403).json({ error: 'Only admins can insert PYQ documents.' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'file required.' });
+    }
+
+    const { dept, course, subject, keywords = '' } = req.body || {};
+    const missingFields = ['dept', 'course', 'subject'].filter((f) => !req.body?.[f]);
+    if (missingFields.length > 0) {
+      return res.status(400).json({ error: 'Missing required fields: ' + missingFields.join(', ') });
+    }
+
+    if (!APPWRITE_BUCKET_ID) {
+      return res.status(503).json({ error: 'Appwrite storage bucket is not configured.' });
+    }
+
+    const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `pyq-${Date.now()}`);
+    const result = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), fileObj);
+    const fileUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, result.$id);
+
+    const payload = {
+      dept: String(dept).toUpperCase(),
+      course: String(course).toUpperCase(),
+      subject: keywords ? `${subject} //SEO// ${keywords}` : subject,
+      fileName: req.file.originalname,
+      fileType: normalizePYQFileType(req.file.mimetype || req.file.contentType || req.file.type || ''),
+      fileId: [fileUrl],
+      uploaderId: [currentUser._id.toString()],
+      creator_mode: currentUser.role === 'superadmin' || currentUser.role === 'admin' ? 'official' : 'anonymous',
+      creator_name: currentUser.name || 'Admin',
+    };
+
+    const doc = await appwriteDatabases.createDocument(APPWRITE_DB_ID, 'pyq', ID.unique(), payload);
+    return res.status(201).json({ success: true, data: normalizePYQDocument(doc), file: { id: result.$id, url: fileUrl } });
+  } catch (err) {
+    console.error('PYQ Multipart Upload Error:', err);
+    return res.status(500).json({ error: 'Failed to upload PYQ packet.' });
   }
 });
 
@@ -2237,7 +2437,8 @@ app.post('/api/reels/sync-r2', requireAuth, async (req, res) => {
     let added = 0;
     for (const file of files) {
       if (file.key.match(/\.(mp4|webm|mov)$/i)) {
-        if (deletedUrlSet.has(file.publicUrl)) continue;
+        const fileCandidates = reelUrlCandidates(file.publicUrl);
+        if (fileCandidates.some((candidate) => deletedUrlSet.has(candidate))) continue;
         const existing = await Reel.findOne({ video_url: file.publicUrl });
         if (!existing) {
           const title = file.key.replace(/\.(mp4|webm|mov)$/i, '').replace(/[-_]/g, ' ');
@@ -2279,10 +2480,12 @@ app.post('/api/reels/sync-r2', requireAuth, async (req, res) => {
 app.get('/api/global-status', async (req, res) => {
   try {
     const reels = await Reel.find({ is_active: true }).lean();
+    const deletedUrlSet = await getDeletedReelUrlSet();
+    const visibleReels = reels.filter((reel) => !isReelTombstoned(reel, deletedUrlSet));
     const now = Date.now();
     
     // Process and sort by viral algorithm
-    const scoredStatuses = reels.map(reel => {
+    const scoredStatuses = visibleReels.map(reel => {
       const likes = reel.likes || 0;
       const views = reel.views || 0;
       const shares = reel.shares || 0;
@@ -2306,6 +2509,11 @@ app.get('/api/global-status', async (req, res) => {
     
     // Sort descending by viral score
     scoredStatuses.sort((a, b) => b.viralScore - a.viralScore);
+    
+    // Disable all caching - always fresh data
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     
     // Return top 50 Global Latest Statuses
     return res.json({ 
