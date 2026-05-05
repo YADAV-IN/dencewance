@@ -140,7 +140,7 @@ export const StatusRing = ({ children, hasSeen = false, isUploading = false }) =
   );
 };
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 const resolveMediaUrl = (url) => {
   if (!url || typeof url !== 'string' || url === 'null' || url === 'undefined') return '';

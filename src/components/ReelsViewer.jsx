@@ -25,7 +25,7 @@ const getEmbedSource = (input) => {
   return { type: 'video', src: input, id: input };
 };
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 const resolveMediaUrl = (url) => {
   if (!url || typeof url !== 'string') return '';

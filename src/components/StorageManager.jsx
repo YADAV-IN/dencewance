@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function StorageManager({ open, onClose, adminToken }) {
   // Only admins can view storage manager

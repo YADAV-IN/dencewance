@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
 import SkeletonImage from './SkeletonImage';
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function ProfileDashboard() {
   const [token, setToken] = useState(localStorage.getItem('adminToken') || '');

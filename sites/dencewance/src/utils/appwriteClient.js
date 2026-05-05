@@ -9,7 +9,7 @@ export const appwriteStorage = new Storage(client);
 export { ID };
 
 // Use backend API endpoint for uploads (avoids CORS & Appwrite limitations)
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 export const uploadMediaToAppwrite = async (file, bucketId, onProgress) => {
     const token = localStorage.getItem('adminToken') || '';

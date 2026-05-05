@@ -37,7 +37,7 @@ const PYQAssistant = ({ adminData }) => {
   const fetchLibrary = async () => {
     try {
       setLoading(true);
-      const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       const response = await fetch(apiUrl + '/api/pyq');
       
       // Check content-type before parsing JSON
@@ -67,7 +67,7 @@ const PYQAssistant = ({ adminData }) => {
       const token = localStorage.getItem('adminToken') || '';
       if (!token) throw new Error('Not authenticated');
 
-      const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       const url = apiUrl + `/api/pyq/${docId}` + (fileId ? `?fileId=${fileId}` : '');
       const res = await fetch(url, {
         method: 'DELETE',
@@ -112,7 +112,7 @@ const PYQAssistant = ({ adminData }) => {
       const coverUrlFromUpload = (uploadResult && typeof uploadResult === 'object') ? (uploadResult.cover_url || uploadResult.coverUrl || uploadResult.cover) : null;
       const uploaderId = localStorage.getItem('activeUploader') || null;
 
-      const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com');
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       const payload = {
         dept: libDept.toUpperCase(),
         course: libCourse.toUpperCase(),

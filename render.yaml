@@ -2,7 +2,7 @@ services:
   - type: web
     name: alok-backend
     env: node
-    rootDir: sites/dencewance/server
+    rootDir: server
     buildCommand: npm install
     startCommand: npm start
     plan: free
@@ -16,6 +16,8 @@ services:
         value: "69d60fe8000c9bd92750"
       - key: APPWRITE_API_KEY
         sync: false
+      - key: APPWRITE_STORAGE_BUCKET_ID
+        sync: false
       - key: JWT_SECRET
         value: "your-secret-key-change-in-production"
       - key: PORT
@@ -26,6 +28,7 @@ services:
     env: static
     buildCommand: npm install && npm run build
     staticPublishPath: dist
+    rootDir: .
     autoDeploy: true
     envVars:
       - key: VITE_APPWRITE_ENDPOINT

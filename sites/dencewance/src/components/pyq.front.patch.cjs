@@ -8,7 +8,7 @@ const replaceStr = `  const handleDeleteDocument = async (docId, fileId) => {
       const token = localStorage.getItem('adminToken') || '';
       if (!token) throw new Error('Not authenticated');
 
-      const url = \`\${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://alok-backend.onrender.com')}/api/pyq/\${docId}\` + (fileId ? \`?fileId=\${fileId}\` : '');
+      const url = \`\${import.meta.env.VITE_API_URL || ''}/api/pyq/\${docId}\` + (fileId ? \`?fileId=\${fileId}\` : '');
       const res = await fetch(url, {
         method: 'DELETE',
         headers: { 'Authorization': \`Bearer \${token}\` }

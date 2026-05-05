@@ -32,7 +32,7 @@ app.get('/', (req, res) => res.json({ message: 'API is working! Open the fronten
 const PORT = process.env.PORT || 4000;
 const IS_VERCEL = process.env.VERCEL === '1';
 const readEnv = (name) => process.env[name]?.trim() || '';
-const APPWRITE_BUCKET_ID = process.env.APPWRITE_STORAGE_BUCKET_ID?.trim() || APPWRITE_BUCKET_ID;
+const APPWRITE_BUCKET_ID = readEnv('APPWRITE_STORAGE_BUCKET_ID') || readEnv('APPWRITE_BUCKET_ID');
 
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME?.trim() || '';
 let R2_PUBLIC_URL = process.env.R2_PUBLIC_URL?.trim() || '';
