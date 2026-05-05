@@ -91,7 +91,12 @@ export default function CreateInstagramMenu({ onComplete }) {
       });
       if (!res.ok) throw new Error('Failed to create Reel');
       const savedReel = await res.json();
-      alert('Video Story (Reel) Uploaded Successfully!');
+      // If server signals a duplicate, inform user clearly
+      if (savedReel && savedReel.message && savedReel.message.toLowerCase().includes('duplicate')) {
+        alert('यह वीडियो पहले से मौजूद है - पुरानी Reel खोल रहे हैं.');
+      } else {
+        alert('Video Story (Reel) Uploaded Successfully!');
+      }
       setReelCaption(''); setReelVideoFile(null); setReelVideoPreview(''); setReelVideoUrlInput('');
       finalizeReelUpload(savedReel);
     } catch (err) {
