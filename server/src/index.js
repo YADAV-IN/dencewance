@@ -792,14 +792,14 @@ function mixSourcesForFeed(list = []) {
 
 app.get('/api/reels', async (req, res) => {
   try {
-    const { limit = 50, active = 'true', creator_id } = req.query;
+    const { limit = 100, active = 'true', creator_id } = req.query;
     const query = {};
     if (active === 'true') query.is_active = true;
     if (creator_id) query.creator_id = creator_id;
 
     const reels = await Reel.find(query)
       .sort({ published_at: -1 })
-      .limit(Math.min(Number(limit) || 50, 200))
+      .limit(Math.min(Number(limit) || 100, 500))
       .lean();
 
     return res.json({ data: reels.map((item) => ({ ...item, id: item._id.toString(), _id: undefined, __v: undefined })) });
@@ -1901,11 +1901,11 @@ app.get('/api/global-status', async (req, res) => {
     // Sort descending by viral score
     scoredStatuses.sort((a, b) => b.viralScore - a.viralScore);
     
-    // Return top 20 Global Latest Statuses
+    // Return top 50 Global Latest Statuses
     return res.json({ 
       success: true, 
       algorithm: 'GVCA v1.0.0', 
-      data: scoredStatuses.slice(0, 20) 
+      data: scoredStatuses.slice(0, 50) 
     });
   } catch (err) {
     console.error('Global Status API Error:', err);

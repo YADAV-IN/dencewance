@@ -383,8 +383,8 @@ export default function SocialApp() {
       setIsLoading(false);
     }, 10000);
 
-    // Helper: Fetch with timeout (5 seconds per request)
-    const fetchWithTimeout = (url, options = {}, timeoutMs = 5000) => {
+    // Helper: Fetch with timeout (2 seconds per request - faster)
+    const fetchWithTimeout = (url, options = {}, timeoutMs = 2000) => {
       return Promise.race([
         fetch(url, options),
         new Promise((_, reject) => 
@@ -395,11 +395,11 @@ export default function SocialApp() {
 
     Promise.all([
       // Fetch Statuses
-      fetchWithTimeout(`${API_URL}/api/global-status`)
+      fetchWithTimeout(`${API_URL}/api/global-status?_t=${Date.now()}`)
         .then(readJsonSafely)
         .then(data => {
           if (data && Array.isArray(data.data)) {
-            setStatuses(data.data.slice(0, 15));
+            setStatuses(data.data.slice(0, 30));
           }
         })
         .catch(err => {
@@ -408,7 +408,7 @@ export default function SocialApp() {
         }),
 
       // Fetch Reels (Video Stories)
-      fetchWithTimeout(`${API_URL}/api/reels?t="${Date.now()}"`)
+      fetchWithTimeout(`${API_URL}/api/reels?limit=100&_t=${Date.now()}`)
         .then(readJsonSafely)
         .then(data => {
           if (data && Array.isArray(data.data) && data.data.length > 0) {
