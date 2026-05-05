@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-DOMAIN="https://alok-frontend-ig2e.onrender.com"
+DOMAIN="https://dencewance.onrender.com"
 PROJECT_ID="69d60fbe002bae1e32d5"
 ENDPOINT="https://nyc.cloud.appwrite.io/v1"
 

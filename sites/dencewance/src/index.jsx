@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
-import { client } from './appwrite';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
@@ -38,5 +37,3 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   });
 }
 
-// Ping Appwrite backend on app start
-typeof client.ping === 'function' && client.ping();

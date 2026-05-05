@@ -33,6 +33,12 @@ const PORT = process.env.PORT || 4000;
 const IS_VERCEL = process.env.VERCEL === '1';
 const readEnv = (name) => process.env[name]?.trim() || '';
 const APPWRITE_BUCKET_ID = readEnv('APPWRITE_STORAGE_BUCKET_ID') || readEnv('APPWRITE_BUCKET_ID');
+const APPWRITE_ENDPOINT = readEnv('APPWRITE_ENDPOINT') || 'https://nyc.cloud.appwrite.io/v1';
+const APPWRITE_PROJECT_ID = readEnv('APPWRITE_PROJECT_ID') || '69d60fbe002bae1e32d5';
+const buildAppwriteFileViewUrl = (bucketId, fileId) => {
+  if (!bucketId || !fileId) return '';
+  return `${APPWRITE_ENDPOINT}/storage/buckets/${bucketId}/files/${fileId}/view?project=${APPWRITE_PROJECT_ID}`;
+};
 
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME?.trim() || '';
 let R2_PUBLIC_URL = process.env.R2_PUBLIC_URL?.trim() || '';
@@ -334,7 +340,7 @@ app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req
   try {
     const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `avatar-${Date.now()}.png`);
     const result = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), fileObj);
-    const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets//files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
+    const viewUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, result.$id);
     
     const admin = await Admin.findByIdAndUpdate(
       req.adminId,
@@ -1009,7 +1015,11 @@ app.post('/api/reels', requireAuth, async (req, res) => {
     ],
   });
   if (existingReel) {
-    return res.status(200).json({ data: existingReel.toJSON(), message: 'Duplicate reel skipped.' });
+    return res.status(200).json({
+      duplicate: true,
+      data: existingReel.toJSON(),
+      message: 'This reel already exists.',
+    });
   }
 
   const baseSlug = slugify(payload.title) || `reel-${Date.now()}`;
@@ -1229,7 +1239,7 @@ app.post('/api/uploads/cover', requireAuth, upload.single('cover'), async (req, 
     // Fallback to Appwrite storage for small files
     const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `cover-${Date.now()}.png`);
     const result = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), fileObj);
-    const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets//files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
+    const viewUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, result.$id);
     return res.json({ data: { url: viewUrl } });
   } catch (error) {
     console.error('Upload error:', error);
@@ -1263,7 +1273,7 @@ app.post('/api/uploads/media', requireAuth, upload.single('media'), async (req, 
 
     const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `media-${Date.now()}.mp4`);
     const result = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), fileObj);
-    const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets//files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
+    const viewUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, result.$id);
     
     return res.json({
       data: {
@@ -1688,7 +1698,7 @@ app.post('/api/status', requireAuth, upload.single('media'), async (req, res) =>
       
       const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `status-${Date.now()}.${type === 'video' ? 'mp4' : 'png'}`);
       const result = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), fileObj);
-      mediaUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets//files/${result.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
+      mediaUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, result.$id);
     } else {
       return res.status(400).json({ error: 'Media file is required' });
     }

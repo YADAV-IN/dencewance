@@ -2,21 +2,6 @@
     "projectId": "69d60fbe002bae1e32d5",
     "projectName": "PREETAM",
     "endpoint": "https://nyc.cloud.appwrite.io/v1",
-    "functions": [
-        {
-            "$id": "reels-api-function",
-            "name": "reels-api",
-            "enabled": true,
-            "live": true,
-            "logging": true,
-            "runtime": "node-18.0",
-            "timeout": 30,
-            "entrypoint": "index.js",
-            "commands": "npm install",
-            "version": "v3",
-            "path": "functions/reels-api"
-        }
-    ],
     "settings": {
         "services": {
             "account": true,
@@ -59,6 +44,21 @@
             }
         }
     },
+    "functions": [
+        {
+            "$id": "reels-api-function",
+            "name": "reels-api",
+            "enabled": true,
+            "live": true,
+            "logging": true,
+            "runtime": "node-18.0",
+            "timeout": 30,
+            "entrypoint": "index.js",
+            "commands": "npm install",
+            "version": "v3",
+            "path": "functions/reels-api"
+        }
+    ],
     "sites": [
         {
             "$id": "69ec4e21000cafb63280",

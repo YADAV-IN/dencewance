@@ -143,6 +143,27 @@ export const StatusRing = ({ children, hasSeen = false, isUploading = false }) =
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
+const fetchWithTimeout = (url, options = {}, timeoutMs = 15000) => {
+  return Promise.race([
+    fetch(url, options),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
+    )
+  ]);
+};
+
+const fetchWithRetry = async (url, options = {}, retries = 1, timeoutMs = 15000) => {
+  try {
+    return await fetchWithTimeout(url, options, timeoutMs);
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise(r => setTimeout(r, 500));
+      return fetchWithRetry(url, options, retries - 1, timeoutMs);
+    }
+    throw err;
+  }
+};
+
 const resolveMediaUrl = (url) => {
   if (!url || typeof url !== 'string' || url === 'null' || url === 'undefined') return '';
   if (url.startsWith('http') || url.startsWith('//') || url.startsWith('data:')) return url;
@@ -416,30 +437,6 @@ export default function SocialApp() {
       console.warn('API loading timeout - using defaults');
       setIsLoading(false);
     }, 20000);
-
-    // Helper: Fetch with timeout (default 15 seconds per request)
-    const fetchWithTimeout = (url, options = {}, timeoutMs = 15000) => {
-      return Promise.race([
-        fetch(url, options),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
-        )
-      ]);
-    };
-
-    // Fetch with a single retry on failure (helps transient network issues)
-    const fetchWithRetry = async (url, options = {}, retries = 1, timeoutMs = 15000) => {
-      try {
-        return await fetchWithTimeout(url, options, timeoutMs);
-      } catch (err) {
-        if (retries > 0) {
-          // small backoff
-          await new Promise(r => setTimeout(r, 500));
-          return fetchWithRetry(url, options, retries - 1, timeoutMs);
-        }
-        throw err;
-      }
-    };
 
     Promise.all([
       // Fetch Statuses
