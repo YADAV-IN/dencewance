@@ -58,6 +58,32 @@ const deleteRelatedReelRows = async (reelId) => {
   };
 };
 
+const normalizeDeletedReelUrls = (urls = []) => {
+  const list = Array.isArray(urls) ? urls : [urls];
+  return [...new Set(list.map((value) => (typeof value === 'string' ? value.trim() : '')).filter(Boolean))];
+};
+
+const getDeletedReelUrlSet = async () => {
+  try {
+    const settings = await SiteSettings.findOne();
+    return new Set(normalizeDeletedReelUrls(settings?.deleted_reel_urls || []));
+  } catch (error) {
+    return new Set();
+  }
+};
+
+const persistDeletedReelUrls = async (urls = []) => {
+  const nextUrls = normalizeDeletedReelUrls(urls);
+  if (!nextUrls.length) return;
+
+  const existingSettings = await SiteSettings.find().sort({ created_at: -1 }).limit(1);
+  const settings = existingSettings[0] || await SiteSettings.create({ deleted_reel_urls: nextUrls });
+  const currentUrls = normalizeDeletedReelUrls(settings?.deleted_reel_urls || []);
+  const mergedUrls = [...new Set([...currentUrls, ...nextUrls])];
+  settings.deleted_reel_urls = mergedUrls;
+  await settings.save();
+};
+
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME?.trim() || '';
 let R2_PUBLIC_URL = process.env.R2_PUBLIC_URL?.trim() || '';
 if (R2_PUBLIC_URL && R2_PUBLIC_URL.endsWith('/')) {
@@ -248,15 +274,19 @@ app.delete('/api/reels/bulk-delete', requireAuth, async (req, res) => {
     }
 
     const allReels = await Reel.find().limit(1000).lean();
+    const deletedUrls = [];
     let deleted = 0;
     for (const reel of allReels) {
       try {
+        deletedUrls.push(reel.video_url, reel.cover_image_url, reel.file_url, reel.fileUrl, reel.video_file_url, reel.cover_file_url);
         await Reel.findByIdAndDelete(reel._id);
         deleted++;
       } catch (e) {
         console.error('Failed to delete reel:', reel._id, e);
       }
     }
+
+    await persistDeletedReelUrls(deletedUrls);
 
     await clearCache('reels');
     return res.json({ success: true, deletedCount: deleted });
@@ -1359,6 +1389,8 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
         });
     }
 
+      await persistDeletedReelUrls(storageUrls);
+
     // Delete related records from MongoDB
     const [comments, savedReels] = await Promise.all([
       ReelComment.deleteMany({ reel_id: reelId }),
@@ -2199,10 +2231,13 @@ app.post('/api/reels/sync-r2', requireAuth, async (req, res) => {
     if (!files || files.length === 0) {
       return res.json({ message: 'No files found in R2' });
     }
+
+    const deletedUrlSet = await getDeletedReelUrlSet();
     
     let added = 0;
     for (const file of files) {
       if (file.key.match(/\.(mp4|webm|mov)$/i)) {
+        if (deletedUrlSet.has(file.publicUrl)) continue;
         const existing = await Reel.findOne({ video_url: file.publicUrl });
         if (!existing) {
           const title = file.key.replace(/\.(mp4|webm|mov)$/i, '').replace(/[-_]/g, ' ');
@@ -2336,8 +2371,10 @@ if (!IS_VERCEL) {
   if (hasR2Config && autoSyncR2OnStart) {
     listAllR2Files().then(async files => {
       if (!files) return;
+      const deletedUrlSet = await getDeletedReelUrlSet();
       for (const f of files) {
         if (f.key.match(/\.(mp4|webm|mov)$/i)) {
+          if (deletedUrlSet.has(f.publicUrl)) continue;
           const ex = await Reel.findOne({ video_url: f.publicUrl });
           if (!ex) {
             await Reel.create({
