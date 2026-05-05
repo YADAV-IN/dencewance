@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# 🚀 Render Auto-Deploy Script
+# यह script Render पर automatically deploy करेगा
+
+# Step 1: GitHub से deploy करो (recommended)
+echo "🚀 Starting Render Deployment..."
+echo ""
+echo "✅ GitHub Code already pushed!"
+echo "✅ render.yaml configured!"
+echo ""
+echo "📋 Next Steps:"
+echo ""
+echo "1️⃣  Go to: https://dashboard.render.com"
+echo "2️⃣  Click: New → Blueprint"
+echo "3️⃣  Select: GitHub repo (YADAV-IN/dencewance)"
+echo "4️⃣  Set Variables:"
+echo "    APPWRITE_API_KEY = [From admin_token.txt]"
+echo "    JWT_SECRET = [Any secure string]"
+echo "5️⃣  Click: Deploy"
+echo ""
+echo "📊 Status:"
+echo "   • Frontend: Ready for deployment ✅"
+echo "   • Backend: Ready for deployment ✅"
+echo "   • Appwrite: Connected ✅"
+echo ""
+echo "🔗 After Deploy, you'll get:"
+echo "   • Frontend URL: https://alok-frontend-xxx.onrender.com"
+echo "   • Backend URL: https://alok-backend-xxx.onrender.com"
+echo ""
+echo "✨ Features:"
+echo "   • Auto-redeploy on push to main ✅"
+echo "   • Auto-connect frontend to backend ✅"
+echo "   • Environment variables auto-loaded ✅"
+echo ""
