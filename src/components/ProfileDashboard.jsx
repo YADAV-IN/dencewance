@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
+import { buildCreatorIdentity, getPreferredCreatorMode } from '../utils/creatorIdentity';
 import SkeletonImage from './SkeletonImage';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -248,6 +249,11 @@ export default function ProfileDashboard() {
     setIsUploadingReel(true);
     setUploadProgress(0);
     setUploadStatusText('Connecting to Cloudflare...');
+    const creatorIdentity = buildCreatorIdentity({
+      mode: getPreferredCreatorMode(),
+      seed: file.name || `profile-reel-${Date.now()}`,
+      name: profile?.name || 'You',
+    });
     
     try {
       setUploadStatusText('Uploading Video directly via Appwrite...');
@@ -262,9 +268,9 @@ export default function ProfileDashboard() {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}` 
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ video_url: fileUrl, caption: 'My Latest Profile Story' })
+        body: JSON.stringify({ video_url: fileUrl, caption: 'My Latest Profile Story', ...creatorIdentity })
       });
       
       if (!reelRes.ok) throw new Error('Failed to create video story row');

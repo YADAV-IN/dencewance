@@ -13,9 +13,8 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 
 export const uploadMediaToAppwrite = async (file, bucketId, onProgress, preferredStorage) => {
     const token = localStorage.getItem('adminToken') || '';
-    if (!token) throw new Error('You must be logged in to upload. Please login first.');
 
-    const pref = preferredStorage || localStorage.getItem('preferredStorage') || 'auto';
+    const pref = preferredStorage || localStorage.getItem('preferredStorage') || (token ? 'auto' : 'backend');
 
     // Helper: capture a thumbnail from a video file
     const captureVideoThumbnail = (videoFile) => new Promise((resolve, reject) => {
@@ -58,9 +57,11 @@ export const uploadMediaToAppwrite = async (file, bucketId, onProgress, preferre
             const thumbBlob = await captureVideoThumbnail(file);
             const form = new FormData();
             form.append('media', thumbBlob, (file.name || 'thumb') + '.jpg');
+            const thumbHeaders = {};
+            if (token) thumbHeaders.Authorization = `Bearer ${token}`;
             const thumbResp = await fetch(`${API_URL}/api/uploads/media`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
+                headers: thumbHeaders,
                 body: form
             });
             if (thumbResp.ok) {
@@ -73,7 +74,7 @@ export const uploadMediaToAppwrite = async (file, bucketId, onProgress, preferre
     }
 
     // Try R2 presigned if allowed
-    if (pref === 'r2' || pref === 'auto') {
+    if (token && (pref === 'r2' || pref === 'auto')) {
         try {
             const signResponse = await fetch(`${API_URL}/api/uploads/sign`, {
                 method: 'POST',
@@ -91,7 +92,7 @@ export const uploadMediaToAppwrite = async (file, bucketId, onProgress, preferre
     }
 
     // Try Appwrite client
-    if (pref === 'appwrite' || pref === 'auto') {
+    if (token && (pref === 'appwrite' || pref === 'auto')) {
         try {
             const targetBucket = bucketId || 'alok_media';
             const result = await appwriteStorage.createFile(targetBucket, ID.unique(), file);
@@ -130,7 +131,9 @@ export const uploadMediaToAppwrite = async (file, bucketId, onProgress, preferre
         xhr.addEventListener('abort', () => reject(new Error('Upload was cancelled.')));
 
         xhr.open('POST', `${API_URL}/api/uploads/media`);
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        if (token) {
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        }
         xhr.send(formData);
     });
 };

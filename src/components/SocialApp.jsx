@@ -6,6 +6,7 @@ import ProfileDashboard from './ProfileDashboard';
 import SkeletonImage from './SkeletonImage';
 
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
+import { buildCreatorIdentity, getPreferredCreatorMode } from '../utils/creatorIdentity';
 import PYQAssistant from './PYQAssistant';
 import StorageManager from './StorageManager';
 
@@ -269,6 +270,11 @@ export default function SocialApp() {
     if (!file) return;
     setIsStatusUploading(true);
     setStatusUploadProgress(0);
+    const creatorIdentity = buildCreatorIdentity({
+      mode: getPreferredCreatorMode(),
+      seed: file.name || `status-${Date.now()}`,
+      name: adminData?.name || 'You',
+    });
     
     try {
       // 1. Upload Video directly via Appwrite SDK (or R2/backend)
@@ -285,14 +291,15 @@ export default function SocialApp() {
         title: 'My Video Story',
         caption: 'Uploaded from Video Stories Bar',
         video_url: videoUrlValue,
-        status: 'published'
+        status: 'published',
+        ...creatorIdentity,
       };
       if (coverUrl) reelBody.cover_image_url = coverUrl;
       if (uploaderId) reelBody.uploaderId = uploaderId;
 
       const reelRes = await fetch(`${API_URL}/api/reels`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify(reelBody)
       });
       

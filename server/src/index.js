@@ -11,6 +11,7 @@ const hasR2Config = oldHasR2Config;
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel } from './db.js';
 import { storage as appwriteStorage, databases as appwriteDatabases, ID, Query } from './appwrite.js';
 import { InputFile } from 'node-appwrite/file';
@@ -37,6 +38,7 @@ const readEnv = (name) => process.env[name]?.trim() || '';
 const APPWRITE_BUCKET_ID = readEnv('APPWRITE_STORAGE_BUCKET_ID') || readEnv('APPWRITE_BUCKET_ID');
 const APPWRITE_ENDPOINT = readEnv('APPWRITE_ENDPOINT') || 'https://nyc.cloud.appwrite.io/v1';
 const APPWRITE_PROJECT_ID = readEnv('APPWRITE_PROJECT_ID') || '69d60fbe002bae1e32d5';
+const JWT_SECRET = readEnv('JWT_SECRET') || 'dev_secret_change_me';
 const APPWRITE_STORAGE_BASE = `${APPWRITE_ENDPOINT}/storage/buckets/`;
 const buildAppwriteFileViewUrl = (bucketId, fileId) => {
   if (!bucketId || !fileId) return '';
@@ -754,28 +756,67 @@ function pickAutoCreatorProfile(seedInput = '') {
   };
 }
 
+function makeStableCreatorId(prefix = 'creator', seedInput = '') {
+  const hash = Math.abs(createSeedHash(seedInput || `${prefix}-${Date.now()}`)).toString(36);
+  return `${prefix}_${hash.slice(0, 10)}`;
+}
+
 function resolveCreatorIdentity({ payload = {}, currentUser = null, fallbackSeed = '' } = {}) {
-  const mode = payload.creator_mode || 'auto';
+  const mode = (payload.creator_mode || (currentUser ? 'official' : 'anonymous') || 'auto').toLowerCase();
+  const incomingCreatorId = String(payload.creator_id || payload.creatorId || payload.uploaderId || payload.uploader_id || '').trim();
+  const fallbackIdSeed = fallbackSeed || payload.title || payload.video_url || payload.slug || 'reel';
+  const officialCreatorId = incomingCreatorId || currentUser?._id?.toString() || makeStableCreatorId('official', fallbackIdSeed);
+  const developerCreatorId = incomingCreatorId || readEnv('DEVELOPER_CREATOR_ID') || makeStableCreatorId('dev', fallbackIdSeed);
+  const anonymousCreatorId = incomingCreatorId || makeStableCreatorId('anon', fallbackIdSeed);
+
+  const creatorCommon = {
+    creator_avatar: payload.creator_avatar || currentUser?.avatar_url || '',
+    follower_count: Number(payload.follower_count) > 0 ? Number(payload.follower_count) : 0,
+    is_demo_creator: false,
+  };
+
+  if (mode === 'developer') {
+    return {
+      creator_mode: 'developer',
+      is_official_creator: false,
+      creator_id: developerCreatorId,
+      creator_name: payload.custom_author_name || payload.creator_name || 'Developer',
+      creator_handle: payload.creator_handle || slugify((payload.custom_author_name || payload.creator_name || 'developer').toLowerCase()),
+      ...creatorCommon,
+    };
+  }
+
+  if (mode === 'anonymous') {
+    return {
+      creator_mode: 'anonymous',
+      is_official_creator: false,
+      creator_id: anonymousCreatorId,
+      creator_name: payload.custom_author_name || payload.creator_name || 'Anonymous Creator',
+      creator_handle: payload.creator_handle || slugify((payload.custom_author_name || payload.creator_name || 'anonymous creator').toLowerCase()),
+      ...creatorCommon,
+    };
+  }
 
   if (mode === 'official' || !payload.creator_mode) {
     return {
       creator_mode: 'official',
       is_official_creator: true,
-      creator_id: currentUser?._id?.toString() || '',
-      is_demo_creator: false,
+      creator_id: officialCreatorId,
       creator_name: payload.custom_author_name || payload.creator_name || currentUser?.name || 'ALOK Official',
       creator_handle: payload.creator_handle || slugify((payload.custom_author_name || currentUser?.name || 'alokofficial').toLowerCase()),
       creator_avatar: payload.creator_avatar || currentUser?.avatar_url || '',
       follower_count: Number(payload.follower_count) > 0
         ? Number(payload.follower_count)
         : (Number(currentUser?.followers) > 0 ? Number(currentUser.followers) : 12500),
+      is_demo_creator: false,
     };
   }
   
   if (mode === 'male') {
     return {
-      creator_mode: 'auto',
+      creator_mode: 'male',
       is_official_creator: false,
+      creator_id: incomingCreatorId || makeStableCreatorId('male', fallbackIdSeed),
       is_demo_creator: false,
       creator_name: payload.custom_author_name || 'Dencewance Boy',
       creator_handle: slugify((payload.custom_author_name || 'denceboy').toLowerCase()),
@@ -786,8 +827,9 @@ function resolveCreatorIdentity({ payload = {}, currentUser = null, fallbackSeed
 
   if (mode === 'female') {
     return {
-      creator_mode: 'auto',
+      creator_mode: 'female',
       is_official_creator: false,
+      creator_id: incomingCreatorId || makeStableCreatorId('female', fallbackIdSeed),
       is_demo_creator: false,
       creator_name: payload.custom_author_name || 'Dencewance Girl',
       creator_handle: slugify((payload.custom_author_name || 'dencegirl').toLowerCase()),
@@ -800,6 +842,7 @@ function resolveCreatorIdentity({ payload = {}, currentUser = null, fallbackSeed
   return {
     creator_mode: 'auto',
     is_official_creator: false,
+    creator_id: incomingCreatorId || makeStableCreatorId('auto', fallbackIdSeed),
     is_demo_creator: false,
     creator_name: payload.creator_name || autoProfile.name,
     creator_handle: payload.creator_handle || autoProfile.handle,
@@ -972,7 +1015,9 @@ app.post('/api/reels/bulk', requireAuth, async (req, res) => {
     }
 
     const links = Array.isArray(req.body?.links) ? req.body.links : [];
-    const creatorMode = req.body?.creator_mode === 'official' ? 'official' : 'auto';
+    const creatorMode = ['official', 'developer', 'anonymous', 'male', 'female'].includes(req.body?.creator_mode)
+      ? req.body.creator_mode
+      : 'auto';
     if (!links.length) {
       return res.status(400).json({ error: 'links array is required.' });
     }
@@ -1040,6 +1085,7 @@ app.post('/api/reels/bulk', requireAuth, async (req, res) => {
         video_url: videoUrl,
         dedup_key: dedupKey,
         cover_image_url: '',
+        creator_id: creatorIdentity.creator_id,
         creator_name: creatorIdentity.creator_name,
         creator_handle: creatorIdentity.creator_handle,
         creator_avatar: creatorIdentity.creator_avatar,
@@ -1108,21 +1154,39 @@ app.post('/api/reels/:id/like', async (req, res) => {
   }
 });
 
-app.post('/api/reels', requireAuth, async (req, res) => {
-  console.log('DEBUG: POST /api/reels called, adminId=', req.adminId);
-  console.log('DEBUG: body preview=', JSON.stringify(req.body).slice(0, 1000));
-  let currentUser = await Admin.findById(req.adminId);
-  if (!currentUser) {
-    console.log('DEBUG: No local Admin found for id=', req.adminId, ' — proceeding with fallback author identity');
-    currentUser = { _id: req.adminId, role: 'author' };
+app.post('/api/reels', async (req, res) => {
+  const authHeader = req.headers.authorization || '';
+  const rawToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  let currentUser = null;
+
+  if (rawToken) {
+    try {
+      const decoded = jwt.verify(rawToken, JWT_SECRET);
+      const adminId = decoded?.adminId || decoded?.id || '';
+      if (!adminId) {
+        return res.status(401).json({ error: 'Invalid token.' });
+      }
+      currentUser = await Admin.findById(adminId);
+      if (!currentUser) {
+        return res.status(401).json({ error: 'Invalid token.' });
+      }
+    } catch (error) {
+      return res.status(401).json({ error: 'Invalid token.' });
+    }
   }
-  if (!['superadmin', 'superadmin', 'admin', 'editor', 'author'].includes(currentUser.role)) {
+
+  console.log('DEBUG: POST /api/reels called, adminId=', currentUser?._id || '(anonymous)');
+  console.log('DEBUG: body preview=', JSON.stringify(req.body).slice(0, 1000));
+  if (currentUser && !['superadmin', 'admin', 'editor', 'author'].includes(currentUser.role)) {
     return res.status(403).json({ error: 'Permission denied to create reels.' });
   }
 
   const payload = { ...(req.body || {}) };
   if (!payload.video_url) {
     return res.status(400).json({ error: 'video_url required.' });
+  }
+  if (!payload.creator_mode) {
+    payload.creator_mode = currentUser ? 'official' : 'anonymous';
   }
   if (!payload.title || payload.title.trim() === '') {
     payload.title = `Video Story ${new Date().toLocaleDateString('en-IN')}`;
@@ -1160,7 +1224,7 @@ app.post('/api/reels', requireAuth, async (req, res) => {
     video_url: payload.video_url,
     dedup_key: dedupKey,
     cover_image_url: payload.cover_image_url || '',
-    creator_id: currentUser._id.toString(),
+    creator_id: creatorIdentity.creator_id || currentUser?._id?.toString() || '',
     creator_name: creatorIdentity.creator_name,
     creator_handle: creatorIdentity.creator_handle,
     creator_avatar: creatorIdentity.creator_avatar,
@@ -1185,9 +1249,15 @@ app.post('/api/reels/test-create', async (req, res) => {
   try {
     const payload = { ...(req.body || {}) };
     if (!payload.video_url) payload.video_url = payload.url || '';
+    if (!payload.creator_mode) payload.creator_mode = 'anonymous';
     const dedupKey = getVideoDedupKey(payload.video_url || 'test-' + Date.now());
     const baseSlug = slugify(payload.title || `reel-${Date.now()}`) || `reel-${Date.now()}`;
     const slug = await findUniqueReelSlug(baseSlug);
+    const creatorIdentity = resolveCreatorIdentity({
+      payload,
+      currentUser: null,
+      fallbackSeed: `${payload.video_url || 'test'}-${payload.title || 'test'}`,
+    });
 
     const reel = await Reel.create({
       title: payload.title || 'Test Reel',
@@ -1196,8 +1266,10 @@ app.post('/api/reels/test-create', async (req, res) => {
       video_url: payload.video_url || '',
       dedup_key: dedupKey,
       cover_image_url: payload.cover_image_url || '',
-      creator_id: payload.creator_id || '',
-      creator_name: payload.creator_name || 'Test',
+      creator_id: creatorIdentity.creator_id,
+      creator_name: creatorIdentity.creator_name || 'Test',
+      creator_handle: creatorIdentity.creator_handle,
+      creator_mode: creatorIdentity.creator_mode,
       tags: Array.isArray(payload.tags) ? payload.tags : [],
       status: payload.status || 'published',
       is_active: typeof payload.is_active !== 'undefined' ? payload.is_active : true,
@@ -1252,6 +1324,7 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
   const logs = [];
   
   const log = (msg, type = 'info') => {
+
     const timestamp = new Date().toISOString();
     const logMsg = `[${timestamp}] ${msg}`;
     logs.push(logMsg);
@@ -1272,7 +1345,14 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Reel not found.' });
     }
 
-    if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin' && reel.creator_id !== currentUser._id.toString()) {
+    const reelOwnerId = String(reel.creator_id || reel.creatorId || reel.uploaderId || '').trim();
+    const reelOwnerHandle = String(reel.creator_handle || '').trim().toLowerCase();
+    const currentUserId = String(currentUser._id || '').trim();
+    const currentUserHandle = String(currentUser.handle || currentUser.username || currentUser.name || '').trim().toLowerCase();
+    const ownsReel = reelOwnerId && reelOwnerId === currentUserId;
+    const matchesLegacyIdentity = !reelOwnerId && (reelOwnerHandle && reelOwnerHandle === currentUserHandle);
+
+    if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin' && !ownsReel && !matchesLegacyIdentity) {
       return res.status(403).json({ error: 'Permission denied to delete this reel.' });
     }
 
@@ -1354,6 +1434,65 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
       message: error?.message,
       logs: logs.slice(-10),
     });
+  }
+});
+
+app.post('/api/admin/reels/backfill-creator-ids', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || !['admin', 'superadmin'].includes(currentUser.role)) {
+      return res.status(403).json({ error: 'Admin access required.' });
+    }
+
+    const reels = await Reel.find({}).lean();
+    let updated = 0;
+    let alreadyComplete = 0;
+
+    for (const reel of reels || []) {
+      if (reel.creator_id && String(reel.creator_id).trim()) {
+        alreadyComplete += 1;
+        continue;
+      }
+
+      const identity = resolveCreatorIdentity({
+        payload: {
+          creator_mode: reel.creator_mode || 'anonymous',
+          creator_id: reel.creator_id || reel.creatorId || reel.uploaderId || '',
+          creator_name: reel.creator_name || reel.custom_author_name || '',
+          creator_handle: reel.creator_handle || '',
+          creator_avatar: reel.creator_avatar || '',
+          title: reel.title || '',
+          video_url: reel.video_url || '',
+        },
+        currentUser: null,
+        fallbackSeed: `${reel._id || reel.id || reel.slug || reel.title || reel.video_url || 'reel'}`,
+      });
+
+      await Reel.findByIdAndUpdate(reel._id || reel.id, {
+        creator_id: identity.creator_id,
+        creator_name: identity.creator_name,
+        creator_handle: identity.creator_handle,
+        creator_avatar: identity.creator_avatar,
+        creator_mode: identity.creator_mode,
+        is_official_creator: identity.is_official_creator,
+        is_demo_creator: identity.is_demo_creator,
+        follower_count: identity.follower_count,
+      });
+      updated += 1;
+    }
+
+    await clearCache('reels');
+    return res.json({
+      success: true,
+      data: {
+        updated,
+        alreadyComplete,
+        total: reels.length,
+      },
+    });
+  } catch (error) {
+    console.error('Backfill creator IDs error:', error);
+    return res.status(500).json({ error: 'Failed to backfill creator IDs.' });
   }
 });
 
@@ -1492,7 +1631,7 @@ app.post('/api/uploads/cover', requireAuth, upload.single('cover'), async (req, 
   }
 });
 
-app.post('/api/uploads/media', requireAuth, upload.single('media'), async (req, res) => {
+app.post('/api/uploads/media', upload.single('media'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No media file uploaded.' });
 
   try {
@@ -1534,7 +1673,7 @@ app.post('/api/uploads/media', requireAuth, upload.single('media'), async (req, 
 });
 
 // ── Sign a direct R2 upload (browser → R2, bypasses Vercel payload limit) ──
-app.post('/api/uploads/sign', requireAuth, async (req, res) => {
+app.post('/api/uploads/sign', async (req, res) => {
   if (!hasR2Config) {
     return res.status(503).json({ error: 'R2 not configured on this server.' });
   }
@@ -2071,11 +2210,17 @@ app.get('/api/users/:userId/content', async (req, res) => {
 
 
 // --- SYNC MANUAL R2 UPLOADS ---
-app.get('/api/reels/sync-r2', async (req, res) => {
+// Keep this admin-only and explicit so deleted reels do not silently reappear.
+app.post('/api/reels/sync-r2', requireAuth, async (req, res) => {
   try {
     if (!hasR2Config) {
       return res.status(400).json({ error: 'R2 is not configured' });
     }
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || !['admin', 'superadmin'].includes(currentUser.role)) {
+      return res.status(403).json({ error: 'Admin permission required for R2 sync.' });
+    }
+
     const files = await listAllR2Files();
     if (!files || files.length === 0) {
       return res.json({ message: 'No files found in R2' });
@@ -2096,8 +2241,10 @@ app.get('/api/reels/sync-r2', async (req, res) => {
             caption: 'Manual upload from R2',
             is_active: true,
             status: 'published',
+            creator_id: currentUser._id.toString(),
             creator_name: 'Admin',
             creator_handle: 'admin',
+            creator_mode: 'admin',
             published_at: file.lastModified || new Date(),
             created_at: file.lastModified || new Date()
           });

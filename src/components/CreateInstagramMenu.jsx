@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
+import { buildCreatorIdentity, getPreferredCreatorMode } from '../utils/creatorIdentity';
 import SkeletonImage from './SkeletonImage';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -37,11 +38,16 @@ export default function CreateInstagramMenu({ onComplete }) {
     if (e) e.preventDefault();
     if (!postCover) return alert("Please select an image");
     setIsUploading(true);
+    const creatorIdentity = buildCreatorIdentity({
+      mode: uploaderType,
+      seed: postContent || postCover?.name || `post-${Date.now()}`,
+      name: uploaderName,
+    });
     try {
       const imageUrl = await uploadToAppwrite(postCover, 'alok_media');
       const res = await fetch(`${API_URL}/api/news`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           title: postContent ? postContent.slice(0, 30) : 'New Photo Post',
           caption: postContent,
@@ -52,7 +58,8 @@ export default function CreateInstagramMenu({ onComplete }) {
           category: 'social',
           status: 'published',
           creator_mode: uploaderType,
-          custom_author_name: uploaderName
+          custom_author_name: uploaderName,
+          ...creatorIdentity
         })
       });
       if (!res.ok) throw new Error('Failed to create post');
@@ -71,6 +78,11 @@ export default function CreateInstagramMenu({ onComplete }) {
     if (e) e.preventDefault();
     if (!reelVideoFile && !reelVideoUrlInput) return alert("Please select a video file or enter URL!");
     setIsUploading(true);
+    const creatorIdentity = buildCreatorIdentity({
+      mode: uploaderType || getPreferredCreatorMode(),
+      seed: reelCaption || reelVideoUrlInput || reelVideoFile?.name || `reel-${Date.now()}`,
+      name: uploaderName,
+    });
     try {
       let videoUrl = reelVideoUrlInput;
       if (reelVideoFile && !reelVideoUrlInput) {
@@ -78,7 +90,7 @@ export default function CreateInstagramMenu({ onComplete }) {
       }
       const res = await fetch(`${API_URL}/api/reels`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           title: reelCaption.slice(0, 20) || 'Viral Reel',
           caption: reelCaption,
@@ -86,6 +98,7 @@ export default function CreateInstagramMenu({ onComplete }) {
           status: 'published',
           creator_mode: uploaderType,
           custom_author_name: uploaderName,
+          ...creatorIdentity,
           is_active: true
         })
       });
@@ -127,12 +140,13 @@ export default function CreateInstagramMenu({ onComplete }) {
       }
   };
 
-  if (!token) {
-    return <div className="text-center mt-20 text-white font-bold">Please log in via the Profile tab to create content.</div>;
-  }
-
   return (
     <div className="bg-black text-white w-full max-w-2xl mx-auto flex flex-col pb-20 mt-4 h-full">
+      {!token && (
+        <div className="mx-4 mt-4 rounded-xl border border-yellow-700 bg-yellow-950/40 px-4 py-3 text-sm text-yellow-100">
+          Anonymous reel upload is enabled. Login is only required for post publishing.
+        </div>
+      )}
       <div className="flex font-semibold text-lg flex-1 justify-center mb-4">
          New {activeTab === 'post' ? 'Post' : 'Video Story (Reel)'}
       </div>
@@ -149,6 +163,12 @@ export default function CreateInstagramMenu({ onComplete }) {
           <button className={`flex-1 py-3 text-sm font-semibold transition ${uploaderType === 'official' ? 'bg-cyan-600 text-black' : 'text-gray-400 hover:text-white'}`} onClick={() => setUploaderType('official')}>
              Official
           </button>
+         <button className={`flex-1 py-3 text-sm font-semibold transition ${uploaderType === 'developer' ? 'bg-emerald-600 text-black' : 'text-gray-400 hover:text-white'}`} onClick={() => setUploaderType('developer')}>
+           Developer
+         </button>
+         <button className={`flex-1 py-3 text-sm font-semibold transition ${uploaderType === 'anonymous' ? 'bg-zinc-600 text-white' : 'text-gray-400 hover:text-white'}`} onClick={() => setUploaderType('anonymous')}>
+           Anonymous
+         </button>
           <button className={`flex-1 py-3 text-sm font-semibold transition ${uploaderType === 'male' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`} onClick={() => setUploaderType('male')}>
              Male
           </button>
