@@ -75,6 +75,18 @@ export const BellIcon = () => (
   </svg>
 );
 
+const getReelIdFromHash = (hash = window.location.hash) => {
+  const match = hash.match(/^#viewReel=([^&]+)/i);
+  if (!match) return '';
+  try {
+    return decodeURIComponent(match[1]);
+  } catch (err) {
+    return match[1];
+  }
+};
+
+const getItemId = (item) => item?.id || item?._id || item?.$id || '';
+
 // Generic Logo Placeholder expecting a file named "logo.png" in the "public" folder
 export const DenceWanceLogo = ({ width = 120, height = 48, style = {} }) => {
   const [logoUrl, setLogoUrl] = useState('');
@@ -201,6 +213,44 @@ export default function SocialApp() {
   const [trendingNotification, setTrendingNotification] = useState(null);
   const trendingTimeoutRef = useRef(null);
 
+  const openReelById = (reelId) => {
+    if (!reelId) return false;
+
+    const collections = [
+      { type: 'reel', items: reelsFeed },
+      { type: 'recommendation', items: recommendations.reels },
+      { type: 'search', items: searchResults.reels },
+      { type: 'status', items: statuses },
+    ];
+
+    for (const collection of collections) {
+      const index = Array.isArray(collection.items)
+        ? collection.items.findIndex((item) => getItemId(item) === reelId)
+        : -1;
+
+      if (index !== -1) {
+        setViewingMedia(collection.type);
+        setActiveStoryIndex(index);
+        setActiveTab('stories');
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  useEffect(() => {
+    const syncFromHash = () => {
+      const reelId = getReelIdFromHash();
+      if (!reelId) return;
+      openReelById(reelId);
+    };
+
+    syncFromHash();
+    window.addEventListener('hashchange', syncFromHash);
+    return () => window.removeEventListener('hashchange', syncFromHash);
+  }, [reelsFeed, recommendations.reels, searchResults.reels, statuses]);
+
   const handleUploadPanelComplete = async (savedData) => {
     // If it's a Reel, optimistically insert and navigate, then refresh in background
     if (savedData && (savedData.data?.video_url || savedData.video_url)) {
@@ -232,6 +282,9 @@ export default function SocialApp() {
 
         // Navigate to uploaded reel immediately for good UX
         window.location.hash = '#viewReel=' + normalized.id;
+        setViewingMedia('reel');
+        setActiveStoryIndex(0);
+        openReelById(normalized.id);
         setActiveTab('stories');
 
         // Fire-and-forget: refresh full lists in background to reconcile with server
