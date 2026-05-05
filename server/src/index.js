@@ -1762,10 +1762,9 @@ app.post('/api/pyq', requireAuth, async (req, res) => {
           : [req.body.uploaderId].filter(Boolean),
         cover_url: Array.isArray(req.body.cover_url)
           ? req.body.cover_url.filter(Boolean)
-          : [req.body.cover_url].filter(Boolean)
+          : [req.body.cover_url].filter(Boolean),
+        fileType: req.body.fileType || normalizePYQFileType(req.body.mimeType || req.body.contentType || '')
       };
-      // Remove fields that Appwrite doesn't expect
-      delete payload.fileType;
       const result = await appwriteDatabases.createDocument('69d60fe8000c9bd92750', 'pyq', ID.unique(), payload);
       res.json({ success: true, data: normalizePYQDocument(result) });
     } catch (err) {
