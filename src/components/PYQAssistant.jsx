@@ -34,26 +34,41 @@ const PYQAssistant = ({ adminData }) => {
     fetchLibrary();
   }, []);
 
+  const readAppwriteDocs = async () => {
+    const result = await databases.listDocuments(DATABASE_ID, 'pyq', [
+      Query.orderDesc('$createdAt'),
+      Query.limit(100)
+    ]);
+    return result.documents.map(normalizeDocumentShape);
+  };
+
+  const normalizeDocumentShape = (document) => ({
+    ...document,
+    fileId: Array.isArray(document.fileId) ? (document.fileId[0] || '') : (document.fileId || ''),
+    uploaderId: Array.isArray(document.uploaderId) ? (document.uploaderId[0] || '') : (document.uploaderId || ''),
+    cover_url: Array.isArray(document.cover_url) ? (document.cover_url[0] || null) : (document.cover_url || null)
+  });
+
   const fetchLibrary = async () => {
     try {
       setLoading(true);
+      try {
+        const directItems = await readAppwriteDocs();
+        setLibraryItems(directItems);
+        return;
+      } catch (directErr) {
+        console.warn('Direct Appwrite fetch failed, falling back to backend:', directErr);
+      }
+
       const apiUrl = import.meta.env.VITE_API_URL || '';
       const response = await fetch(apiUrl + '/api/pyq');
-      
-      // Check content-type before parsing JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
+      if (!response.ok) {
         const text = await response.text();
-        console.error('Server returned non-JSON response:', text);
-        throw new Error('Server error: Invalid response format. Backend may have issues.');
+        throw new Error(text || 'Failed to fetch library');
       }
-      
       const data = await response.json();
-      if (data.success) {
-        setLibraryItems(data.data);
-      } else {
-        throw new Error(data.error || 'Failed to fetch library');
-      }
+      if (data.success) setLibraryItems((data.data || []).map(normalizeDocumentShape));
+      else throw new Error(data.error || 'Failed to fetch library');
     } catch (err) {
       console.error("Error fetching PYQ library:", err);
       alert('Failed to load PYQ library: ' + err.message);
@@ -65,17 +80,25 @@ const PYQAssistant = ({ adminData }) => {
     if (!window.confirm("Are you sure you want to completely delete this PYQ document?")) return;
     try {
       const token = localStorage.getItem('adminToken') || '';
-      if (!token) throw new Error('Not authenticated');
-
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const url = apiUrl + `/api/pyq/${docId}` + (fileId ? `?fileId=${fileId}` : '');
-      const res = await fetch(url, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Delete failed via API');
+      if (token) {
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        const url = apiUrl + `/api/pyq/${docId}` + (fileId ? `?fileId=${fileId}` : '');
+        const res = await fetch(url, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Delete failed via API');
+      } else {
+        await databases.deleteDocument(DATABASE_ID, 'pyq', docId);
+        if (fileId) {
+          try {
+            await storage.deleteFile(BUCKET_ID, fileId);
+          } catch (storageErr) {
+            console.warn('Failed to delete PYQ storage file:', storageErr);
+          }
+        }
+      }
       
       setLibraryItems(prev => prev.filter(i => i.$id !== docId));
       alert("PYQ document deleted successfully.");
@@ -96,9 +119,6 @@ const PYQAssistant = ({ adminData }) => {
     setUploadProgress(0);
     
     try {
-      const token = localStorage.getItem('adminToken') || '';
-      if (!token) throw new Error('Not authenticated — please login as admin to upload.');
-
       const uploadResult = await uploadMediaToAppwrite(libFile, BUCKET_ID, (progressEvent) => {
         if (progressEvent && typeof progressEvent.progress === 'number') {
           setUploadProgress(Math.round(progressEvent.progress));
@@ -111,41 +131,45 @@ const PYQAssistant = ({ adminData }) => {
       const fileIdValue = (uploadResult && typeof uploadResult === 'object') ? (uploadResult.id || uploadResult.url) : uploadResult;
       const coverUrlFromUpload = (uploadResult && typeof uploadResult === 'object') ? (uploadResult.cover_url || uploadResult.coverUrl || uploadResult.cover) : null;
       const uploaderId = localStorage.getItem('activeUploader') || null;
+      const creatorMode = adminData?.role === 'superadmin' || adminData?.role === 'admin' ? 'official' : 'anonymous';
 
-      const apiUrl = import.meta.env.VITE_API_URL || '';
       const payload = {
         dept: libDept.toUpperCase(),
         course: libCourse.toUpperCase(),
         subject: libKeywords ? `${libSubject} //SEO// ${libKeywords}` : libSubject,
         fileName: libFile.name,
-        fileId: fileIdValue,
-        uploaderId: uploaderId,
-        cover_url: coverUrlFromUpload
+        fileId: [fileIdValue].filter(Boolean),
+        uploaderId: [uploaderId || adminData?._id || adminData?.id || ''].filter(Boolean),
+        cover_url: [coverUrlFromUpload].filter(Boolean),
+        creator_mode: creatorMode,
+        creator_name: adminData?.name || 'Admin',
       };
+      let savedDocument = null;
+      try {
+        savedDocument = await databases.createDocument(DATABASE_ID, 'pyq', ID.unique(), payload);
+      } catch (directErr) {
+        console.warn('Direct Appwrite insert failed, falling back to backend:', directErr);
+        const token = localStorage.getItem('adminToken') || '';
+        if (!token) throw directErr;
 
-      const res = await fetch(apiUrl + '/api/pyq', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        const res = await fetch(apiUrl + '/api/pyq', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
 
-      // Check if response is valid JSON
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await res.text();
-        console.error('Server returned non-JSON response:', text);
-        throw new Error(`Server error: ${res.status}. The backend may have crashed. Check server logs.`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to upload PYQ data');
+        savedDocument = data.data;
       }
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to upload PYQ data');
       
       alert("PYQ Uploaded successfully!");
       setLibDept(''); setLibCourse(''); setLibSubject(''); setLibKeywords(''); setLibFile(null);
-      fetchLibrary();
+      await fetchLibrary();
     } catch (err) {
       console.error("Upload error:", err);
       alert("Upload failed: " + err.message);
