@@ -42,60 +42,6 @@ const buildAppwriteFileViewUrl = (bucketId, fileId) => {
   if (!bucketId || !fileId) return '';
   return `${APPWRITE_ENDPOINT}/storage/buckets/${bucketId}/files/${fileId}/view?project=${APPWRITE_PROJECT_ID}`;
 };
-const extractAppwriteFileId = (value) => {
-  if (!value || typeof value !== 'string' || !value.includes('/storage/buckets/')) return '';
-  try {
-    const parsed = new URL(value);
-    const match = parsed.pathname.match(/\/storage\/buckets\/[^/]+\/files\/([^/]+)\/(?:view|download)/);
-    return match?.[1] || '';
-  } catch {
-    const match = value.match(/\/storage\/buckets\/[^/]+\/files\/([^/]+)\/(?:view|download)/);
-    return match?.[1] || '';
-  }
-};
-const extractR2Key = (value) => {
-  if (!value || typeof value !== 'string') return '';
-  try {
-    const parsed = new URL(value);
-    if (R2_PUBLIC_URL) {
-      const publicBase = new URL(R2_PUBLIC_URL);
-      if (parsed.origin === publicBase.origin && parsed.pathname.startsWith(publicBase.pathname)) {
-        return decodeURIComponent(parsed.pathname.slice(publicBase.pathname.length).replace(/^\/+/, ''));
-      }
-    }
-    if (parsed.hostname.endsWith('.r2.cloudflarestorage.com')) {
-      return decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
-    }
-  } catch {
-    if (R2_PUBLIC_URL && value.startsWith(R2_PUBLIC_URL)) {
-      return decodeURIComponent(value.slice(R2_PUBLIC_URL.length).replace(/^\/+/, ''));
-    }
-  }
-  return '';
-};
-const deleteStoredMedia = async (value) => {
-  const appwriteFileId = extractAppwriteFileId(value);
-  if (appwriteFileId) {
-    try {
-      await appwriteStorage.deleteFile(APPWRITE_BUCKET_ID, appwriteFileId);
-      return { deleted: true, type: 'appwrite', ref: appwriteFileId };
-    } catch (error) {
-      return { deleted: false, type: 'appwrite', ref: appwriteFileId, error: error?.message || String(error) };
-    }
-  }
-
-  const r2Key = extractR2Key(value);
-  if (r2Key) {
-    try {
-      await deleteR2ObjectByKey(r2Key);
-      return { deleted: true, type: 'r2', ref: r2Key };
-    } catch (error) {
-      return { deleted: false, type: 'r2', ref: r2Key, error: error?.message || String(error) };
-    }
-  }
-
-  return { deleted: true, type: 'skipped', ref: value || '' };
-};
 const deleteRelatedReelRows = async (reelId) => {
   const [comments, savedReels] = await Promise.all([
     ReelComment.find({ reel_id: reelId }),
