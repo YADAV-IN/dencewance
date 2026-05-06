@@ -14,7 +14,7 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 export const uploadMediaToAppwrite = async (file, bucketId, onProgress, preferredStorage) => {
     const token = localStorage.getItem('adminToken') || '';
 
-    const pref = preferredStorage || localStorage.getItem('preferredStorage') || (token ? 'auto' : 'backend');
+    const pref = preferredStorage || localStorage.getItem('preferredStorage') || (token ? 'r2' : 'backend');
 
     // Helper: capture a thumbnail from a video file
     const captureVideoThumbnail = (videoFile) => new Promise((resolve, reject) => {

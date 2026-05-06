@@ -256,23 +256,8 @@ app.post('/api/admin/cleanup-all-orphaned', requireAuth, async (req, res) => {
 
     log('🚀 COMPREHENSIVE CLEANUP STARTED');
 
-    // 1. Delete ALL files from Appwrite Storage
-    log('📦 Cleaning Appwrite Storage...');
-    let appwriteDeleted = 0;
-    try {
-      const files = await appwriteStorage.listFiles(APPWRITE_BUCKET_ID);
-      for (const file of files.files) {
-        try {
-          await appwriteStorage.deleteFile(APPWRITE_BUCKET_ID, file.$id);
-          appwriteDeleted++;
-        } catch (e) {
-          log(`  ⚠️ Failed to delete: ${file.name}`);
-        }
-      }
-      log(`  ✓ Deleted ${appwriteDeleted} files from Appwrite Storage`);
-    } catch (e) {
-      log(`  ❌ Error accessing Appwrite Storage: ${e.message}`);
-    }
+    // 1. Appwrite Storage cleanup: DISABLED (migrated to R2)
+    log('📦 Skipping Appwrite Storage cleanup (disabled — using R2 instead)');
 
     // 2. Delete ALL files from R2
     let r2Deleted = 0;
@@ -559,16 +544,19 @@ app.put('/api/profile', requireAuth, async (req, res) => {
 app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
   try {
-    const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `avatar-${Date.now()}.png`);
-    const result = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), fileObj);
-    const viewUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, result.$id);
-    
-    const admin = await Admin.findByIdAndUpdate(
-      req.adminId,
-      { avatar_url: viewUrl },
-      { new: true }
-    );
-    return res.json({ data: admin.toJSON() });
+    // If R2 is enabled multer-s3 already stored the file and provides a public URL
+    if (hasR2Config && (req.file.location || req.file.key)) {
+      const publicUrl = R2_PUBLIC_URL && req.file.key ? `${R2_PUBLIC_URL}/${req.file.key}` : req.file.location;
+      const admin = await Admin.findByIdAndUpdate(
+        req.adminId,
+        { avatar_url: publicUrl },
+        { new: true }
+      );
+      return res.json({ data: admin.toJSON() });
+    }
+
+    // Appwrite storage fallback has been disabled during R2 migration
+    return res.status(503).json({ error: 'Server storage migration: Appwrite storage disabled. Configure R2.' });
   } catch (error) {
     console.error('Appwrite avatar upload error:', error);
     return res.status(500).json({ error: 'Failed to upload avatar' });
@@ -1077,6 +1065,22 @@ app.get('/api/reels', async (req, res) => {
   } catch (error) {
     console.error('Reels list error:', error);
     return res.status(500).json({ error: 'Failed to fetch reels.' });
+  }
+});
+
+app.get('/api/reels/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const reel = await Reel.findById(id).lean();
+    if (!reel) return res.status(404).json({ error: 'Reel not found.' });
+    const deletedUrlSet = await getDeletedReelUrlSet();
+    if (isReelTombstoned(reel, deletedUrlSet)) {
+      return res.status(404).json({ error: 'Reel not found.' });
+    }
+    return res.json({ data: { ...reel, id: reel._id.toString(), _id: undefined, __v: undefined } });
+  } catch (error) {
+    console.error('Reel detail error:', error);
+    return res.status(500).json({ error: 'Failed to fetch reel.' });
   }
 });
 
@@ -1782,11 +1786,8 @@ app.post('/api/uploads/cover', requireAuth, upload.single('cover'), async (req, 
       });
     }
 
-    // Fallback to Appwrite storage for small files
-    const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `cover-${Date.now()}.png`);
-    const result = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), fileObj);
-    const viewUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, result.$id);
-    return res.json({ data: { url: viewUrl } });
+    // Appwrite storage fallback has been disabled during R2 migration
+    return res.status(503).json({ error: 'Server storage migration: Appwrite storage disabled. Configure R2.' });
   } catch (error) {
     console.error('Upload error:', error);
     return res.status(500).json({ error: 'Failed to upload cover image' });
@@ -1809,25 +1810,8 @@ app.post('/api/uploads/media', upload.single('media'), async (req, res) => {
       });
     }
 
-    // Fallback to Appwrite storage (limited to smaller files due to payload limit)
-    const MAX_APPWRITE_SIZE = 25 * 1024 * 1024; // 25MB max for Appwrite
-    if (req.file.size > MAX_APPWRITE_SIZE) {
-      return res.status(413).json({ 
-        error: 'File too large for Appwrite storage. Please ensure R2 is configured or file is < 25MB' 
-      });
-    }
-
-    const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `media-${Date.now()}.mp4`);
-    const result = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), fileObj);
-    const viewUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, result.$id);
-    
-    return res.json({
-      data: {
-        url: viewUrl,
-        original_name: req.file.originalname,
-        size: req.file.size
-      }
-    });
+    // Appwrite storage fallback has been disabled during R2 migration
+    return res.status(503).json({ error: 'Server storage migration: Appwrite storage disabled. Configure R2.' });
   } catch (error) {
     console.error('Upload error:', error);
     return res.status(500).json({ error: 'Failed to upload media file' });
@@ -1948,8 +1932,8 @@ app.post('/api/pyq', requireAuth, async (req, res) => {
 app.post('/api/pyq/upload', requireAuth, packetUpload.single('file'), async (req, res) => {
   try {
     const currentUser = await Admin.findById(req.adminId);
-    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'superadmin')) {
-      return res.status(403).json({ error: 'Only admins can insert PYQ documents.' });
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'superadmin' && currentUser.role !== 'developer')) {
+      return res.status(403).json({ error: 'Only admins and developers can upload PYQ documents.' });
     }
 
     if (!req.file) {
@@ -1962,13 +1946,18 @@ app.post('/api/pyq/upload', requireAuth, packetUpload.single('file'), async (req
       return res.status(400).json({ error: 'Missing required fields: ' + missingFields.join(', ') });
     }
 
-    if (!APPWRITE_BUCKET_ID) {
-      return res.status(503).json({ error: 'Appwrite storage bucket is not configured.' });
+    // Prefer R2 storage. If R2 is configured, upload to R2 via presigned URL.
+    let fileUrl = '';
+    if (hasR2Config) {
+      const timestamp = Date.now();
+      const ext = req.file.originalname ? req.file.originalname.split('.').pop() : 'bin';
+      const key = `alok/pyq/${timestamp}-${Math.round(Math.random() * 1e9)}.${ext}`;
+      const signData = await generatePresignedUrl(key, req.file.mimetype || 'application/octet-stream');
+      await fetch(signData.uploadUrl, { method: 'PUT', body: req.file.buffer, headers: { 'content-type': req.file.mimetype || 'application/octet-stream' } });
+      fileUrl = signData.publicUrl;
+    } else {
+      return res.status(503).json({ error: 'Server storage migration: Appwrite storage disabled. Configure R2.' });
     }
-
-    const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `pyq-${Date.now()}`);
-    const result = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), fileObj);
-    const fileUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, result.$id);
 
     const payload = {
       dept: String(dept).toUpperCase(),
@@ -1977,13 +1966,10 @@ app.post('/api/pyq/upload', requireAuth, packetUpload.single('file'), async (req
       fileName: req.file.originalname,
       fileType: normalizePYQFileType(req.file.mimetype || req.file.contentType || req.file.type || ''),
       fileId: [fileUrl],
-      uploaderId: [currentUser._id.toString()],
-      creator_mode: currentUser.role === 'superadmin' || currentUser.role === 'admin' ? 'official' : 'anonymous',
-      creator_name: currentUser.name || 'Admin',
     };
 
     const doc = await appwriteDatabases.createDocument(APPWRITE_DB_ID, 'pyq', ID.unique(), payload);
-    return res.status(201).json({ success: true, data: normalizePYQDocument(doc), file: { id: result.$id, url: fileUrl } });
+    return res.status(201).json({ success: true, data: doc, file: { id: null, url: fileUrl } });
   } catch (err) {
     console.error('PYQ Multipart Upload Error:', err);
     return res.status(500).json({ error: 'Failed to upload PYQ packet.' });
@@ -2002,7 +1988,8 @@ app.delete('/api/pyq/:id', requireAuth, async (req, res) => {
 
     if (fileId) {
       try {
-        await appwriteStorage.deleteFile(APPWRITE_BUCKET_ID, fileId);
+        const viewUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, fileId);
+        await deleteStoredMedia(viewUrl, { onLog: (m) => console.log(m) });
       } catch(e) {
         console.warn("Could not delete from storage:", e.message);
       }
@@ -2536,10 +2523,12 @@ app.post('/api/status', requireAuth, upload.single('media'), async (req, res) =>
     let type = 'image';
     if (req.file) {
       if (req.file.mimetype && req.file.mimetype.startsWith('video')) type = 'video';
-      
-      const fileObj = InputFile.fromBuffer(req.file.buffer, req.file.originalname || `status-${Date.now()}.${type === 'video' ? 'mp4' : 'png'}`);
-      const result = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), fileObj);
-      mediaUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, result.$id);
+
+      if (hasR2Config && (req.file.location || req.file.key)) {
+        mediaUrl = R2_PUBLIC_URL && req.file.key ? `${R2_PUBLIC_URL}/${req.file.key}` : req.file.location;
+      } else {
+        return res.status(503).json({ error: 'Server storage migration: Appwrite storage disabled. Configure R2.' });
+      }
     } else {
       return res.status(400).json({ error: 'Media file is required' });
     }

@@ -3,8 +3,8 @@
  * Appwrite DB, Appwrite Storage, R2, MongoDB
  */
 
-import { storage as appwriteStorage } from './appwrite.js';
-import { deleteR2ObjectByKey } from './r2.js';
+import { storage as appwriteStorage } from '../appwrite.js';
+import { deleteR2ObjectByKey } from '../r2.js';
 
 const APPWRITE_BUCKET_ID = process.env.APPWRITE_BUCKET_ID || 'alok_media';
 const APPWRITE_ENDPOINT = process.env.APPWRITE_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1';
@@ -108,24 +108,7 @@ export const deleteStoredMedia = async (value, options = {}) => {
   }
 
   // Try Appwrite
-  const appwriteId = extractAppwriteFileId(value);
-  if (appwriteId) {
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      try {
-        await appwriteStorage.deleteFile(APPWRITE_BUCKET_ID, appwriteId);
-        onLog(`✓ Appwrite file deleted: ${appwriteId}`);
-        return { deleted: true, type: 'appwrite', ref: appwriteId, attempts: attempt + 1 };
-      } catch (error) {
-        onLog(`✗ Appwrite attempt ${attempt + 1} failed: ${error.message}`);
-        if (attempt < retries) {
-          await new Promise(r => setTimeout(r, delay * (attempt + 1)));
-        }
-      }
-    }
-    return { deleted: false, type: 'appwrite', ref: appwriteId, error: 'Failed after retries' };
-  }
-
-  // Try R2
+  // Prefer R2 deletion first (Cloudflare R2)
   const r2Key = extractR2Key(value);
   if (r2Key) {
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -141,6 +124,24 @@ export const deleteStoredMedia = async (value, options = {}) => {
       }
     }
     return { deleted: false, type: 'r2', ref: r2Key, error: 'Failed after retries' };
+  }
+
+  // Fallback to Appwrite storage deletion
+  const appwriteId = extractAppwriteFileId(value);
+  if (appwriteId) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        await appwriteStorage.deleteFile(APPWRITE_BUCKET_ID, appwriteId);
+        onLog(`✓ Appwrite file deleted: ${appwriteId}`);
+        return { deleted: true, type: 'appwrite', ref: appwriteId, attempts: attempt + 1 };
+      } catch (error) {
+        onLog(`✗ Appwrite attempt ${attempt + 1} failed: ${error.message}`);
+        if (attempt < retries) {
+          await new Promise(r => setTimeout(r, delay * (attempt + 1)));
+        }
+      }
+    }
+    return { deleted: false, type: 'appwrite', ref: appwriteId, error: 'Failed after retries' };
   }
 
   // Could not identify

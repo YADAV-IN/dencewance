@@ -20,6 +20,7 @@ const config = {
     accessKeyId: process.env.R2_ACCESS_KEY_ID?.trim() || '',
     secretKey: process.env.R2_SECRET_ACCESS_KEY?.trim() || '',
     bucketName: process.env.R2_BUCKET_NAME?.trim() || '',
+    publicUrl: process.env.R2_PUBLIC_URL?.trim() || '',
   },
 };
 
@@ -138,8 +139,10 @@ async function testDeletionModule() {
       log.error(`Appwrite extraction failed: got "${fileId}"`);
     }
 
-    // Test R2 extraction
-    const r2Url = `https://media.example.com/reels/video123.mp4`;
+    // Test R2 extraction using the configured public URL or the canonical R2 host
+    const r2Url = config.r2.publicUrl
+      ? `${config.r2.publicUrl.replace(/\/$/, '')}/reels/video123.mp4`
+      : `https://${config.r2.accountId}.r2.cloudflarestorage.com/reels/video123.mp4`;
     const key = extractR2Key(r2Url);
     if (key === 'reels/video123.mp4') {
       log.success(`✓ R2 key extraction working`);

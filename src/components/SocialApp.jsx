@@ -203,6 +203,14 @@ const readJsonSafely = async (response) => {
   }
 };
 
+const fetchReelById = async (reelId) => {
+  if (!reelId) return null;
+  const res = await fetch(`${API_URL}/api/reels/${encodeURIComponent(reelId)}?_t=${Date.now()}`, {
+    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
+  });
+  return readJsonSafely(res);
+};
+
 export default function SocialApp() {
   const [activeTab, setActiveTab] = useState(() => new URLSearchParams(window.location.search).get('tab') || 'home');
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
@@ -224,7 +232,7 @@ export default function SocialApp() {
   const [trendingNotification, setTrendingNotification] = useState(null);
   const trendingTimeoutRef = useRef(null);
 
-  const openReelById = (reelId) => {
+  const openReelById = async (reelId) => {
     if (!reelId) return false;
 
     const collections = [
@@ -247,14 +255,35 @@ export default function SocialApp() {
       }
     }
 
-    return false;
+    const hydrated = await fetchReelById(reelId);
+    const reel = hydrated?.data;
+    if (!reel) return false;
+
+    const normalized = normalizeReelData({
+      ...reel,
+      id: reelId,
+      _id: reelId,
+    });
+
+    setReelsFeed(prev => {
+      const filtered = prev.filter((item) => getItemId(item) !== reelId);
+      return [normalized, ...filtered].slice(0, 200);
+    });
+    setStatuses(prev => {
+      const filtered = prev.filter((item) => getItemId(item) !== reelId);
+      return [normalized, ...filtered].slice(0, 50);
+    });
+    setViewingMedia('reel');
+    setActiveStoryIndex(0);
+    setActiveTab('stories');
+    return true;
   };
 
   useEffect(() => {
     const syncFromHash = () => {
       const reelId = getReelIdFromHash();
       if (!reelId) return;
-      openReelById(reelId);
+      openReelById(reelId).catch((err) => console.warn('Hash reel sync failed', err));
     };
 
     syncFromHash();
@@ -271,17 +300,21 @@ export default function SocialApp() {
         // Ensure ID is always a string for proper matching
         const reelId = String(savedReel.id || savedReel._id || savedReel.$id || Date.now());
         console.log('📤 Upload Complete - Received Reel:', { savedData, savedReel, reelId });
+
+        const hydratedData = await fetchReelById(reelId);
+        const hydratedReel = hydratedData?.data || null;
         
         const normalized = {
           _id: reelId,
           id: reelId,
-          video_url: savedReel.video_url || savedReel.videoUrl || savedReel.url || '',
-          cover_image_url: savedReel.cover_image_url || savedReel.coverUrl || savedReel.cover || '',
-          title: savedReel.title || savedReel.caption || '',
-          creator_id: savedReel.creator_id || savedReel.creatorId || '',
-          creator_name: savedReel.creator_name || savedReel.creatorName || 'You',
-          is_active: typeof savedReel.is_active !== 'undefined' ? savedReel.is_active : true,
-          created_at: savedReel.created_at || new Date().toISOString()
+          video_url: hydratedReel?.video_url || savedReel.video_url || savedReel.videoUrl || savedReel.url || '',
+          cover_image_url: hydratedReel?.cover_image_url || savedReel.cover_image_url || savedReel.coverUrl || savedReel.cover || '',
+          title: hydratedReel?.title || savedReel.title || savedReel.caption || '',
+          creator_id: hydratedReel?.creator_id || savedReel.creator_id || savedReel.creatorId || '',
+          creator_name: hydratedReel?.creator_name || savedReel.creator_name || savedReel.creatorName || 'You',
+          is_active: typeof (hydratedReel?.is_active ?? savedReel.is_active) !== 'undefined' ? (hydratedReel?.is_active ?? savedReel.is_active) : true,
+          created_at: hydratedReel?.created_at || savedReel.created_at || new Date().toISOString(),
+          ...hydratedReel,
         };
 
         // Merge all fields from server response to ensure nothing is lost
@@ -336,7 +369,7 @@ export default function SocialApp() {
         return;
       } catch (err) {
         console.error('Error refreshing after upload:', err);
-        setTimeout(() => window.location.reload(), 1000);
+        window.location.hash = '#viewReel=' + (savedData?.data?.id || savedData?.data?._id || savedData?.id || savedData?._id || '');
         return;
       }
     }

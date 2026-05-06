@@ -286,18 +286,29 @@ export default function ProfileDashboard() {
       
       if (!reelRes.ok) throw new Error('Failed to create video story row');
       const savedReel = await reelRes.json();
+      const reelId = String(savedReel.data?.id || savedReel.data?._id || savedReel.id || savedReel._id || '');
+      if (reelId) {
+        const hydratedRes = await fetch(`${API_URL}/api/reels/${encodeURIComponent(reelId)}?_t=${Date.now()}`, {
+          headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+        });
+        if (hydratedRes.ok) {
+          const hydrated = await hydratedRes.json();
+          const hydratedReel = hydrated?.data || savedReel.data || {};
+          setMyReels(prev => {
+            const normalized = { ...hydratedReel, id: reelId, _id: reelId };
+            const filtered = prev.filter(r => String(r.id || r._id || '') !== reelId);
+            return [normalized, ...filtered];
+          });
+        }
+        window.location.hash = '#viewReel=' + reelId;
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      }
       
       setUploadStatusText('Success!');
       setIsUploadingReel(false);
       setUploadProgress(0);
-      
-      // Auto-Redirect to play the exact newly minted video
-      if(savedReel.data && savedReel.data.id) {
-         window.location.hash = '#viewReel=' + savedReel.data.id;
-      }
-      
-      // Refresh page to show new story in feed
-      setTimeout(() => window.location.reload(), 500);
+
+      loadProfileData();
       
     } catch (err) {
       console.error(err);

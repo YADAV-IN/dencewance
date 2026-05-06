@@ -170,6 +170,26 @@ const readJsonSafely = async (response) => {
   }
 };
 
+const getReelIdFromHash = (hash = window.location.hash) => {
+  const match = hash.match(/^#viewReel=([^&]+)/i);
+  if (!match) return '';
+  try {
+    return decodeURIComponent(match[1]);
+  } catch (err) {
+    return match[1];
+  }
+};
+
+const getItemId = (item) => item?.id || item?._id || item?.$id || '';
+
+const fetchReelById = async (reelId) => {
+  if (!reelId) return null;
+  const res = await fetch(`${API_URL}/api/reels/${encodeURIComponent(reelId)}?_t=${Date.now()}`, {
+    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
+  });
+  return readJsonSafely(res);
+};
+
 export default function SocialApp() {
   const [activeTab, setActiveTab] = useState(() => new URLSearchParams(window.location.search).get('tab') || 'home');
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
@@ -198,18 +218,80 @@ export default function SocialApp() {
     return () => window.removeEventListener('resize', updateViewport);
   }, []);
 
+  const openReelById = async (reelId) => {
+    if (!reelId) return false;
+
+    const collections = [
+      { type: 'reel', items: reelsFeed },
+      { type: 'recommendation', items: recommendations.reels },
+      { type: 'search', items: searchResults.reels },
+      { type: 'status', items: statuses },
+    ];
+
+    for (const collection of collections) {
+      const index = Array.isArray(collection.items)
+        ? collection.items.findIndex((item) => getItemId(item) === reelId)
+        : -1;
+
+      if (index !== -1) {
+        setViewingMedia(collection.type);
+        setActiveStoryIndex(index);
+        setActiveTab('stories');
+        return true;
+      }
+    }
+
+    const hydrated = await fetchReelById(reelId);
+    const reel = hydrated?.data;
+    if (!reel) return false;
+
+    const normalized = normalizeReelData({
+      ...reel,
+      id: reelId,
+      _id: reelId,
+    });
+
+    setReelsFeed(prev => {
+      const filtered = prev.filter((item) => getItemId(item) !== reelId);
+      return [normalized, ...filtered].slice(0, 200);
+    });
+    setStatuses(prev => {
+      const filtered = prev.filter((item) => getItemId(item) !== reelId);
+      return [normalized, ...filtered].slice(0, 50);
+    });
+    setViewingMedia('reel');
+    setActiveStoryIndex(0);
+    setActiveTab('stories');
+    return true;
+  };
+
+  useEffect(() => {
+    const syncFromHash = () => {
+      const reelId = getReelIdFromHash();
+      if (!reelId) return;
+      openReelById(reelId).catch((err) => console.warn('Hash reel sync failed', err));
+    };
+
+    syncFromHash();
+    window.addEventListener('hashchange', syncFromHash);
+    return () => window.removeEventListener('hashchange', syncFromHash);
+  }, [reelsFeed, recommendations.reels, searchResults.reels, statuses]);
+
   const handleUploadPanelComplete = async (savedData) => {
     // If it's a Reel, optimistically insert and navigate, then refresh from server
     if (savedData && savedData.data && savedData.data.video_url) {
       try {
         const savedReel = savedData.data;
         const reelId = String(savedReel._id || savedReel.id || savedReel.$id || Date.now());
+        const hydratedData = await fetchReelById(reelId);
+        const hydratedReel = hydratedData?.data || null;
         const normalized = normalizeReelData({
           ...savedReel,
           _id: reelId,
           id: reelId,
-          created_at: savedReel.created_at || new Date().toISOString(),
-          is_active: typeof savedReel.is_active !== 'undefined' ? savedReel.is_active : true,
+          created_at: hydratedReel?.created_at || savedReel.created_at || new Date().toISOString(),
+          is_active: typeof (hydratedReel?.is_active ?? savedReel.is_active) !== 'undefined' ? (hydratedReel?.is_active ?? savedReel.is_active) : true,
+          ...hydratedReel,
         });
 
         setStatuses(prev => {

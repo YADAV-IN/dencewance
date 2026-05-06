@@ -86,41 +86,17 @@ const deleteFromAppwriteDB = async (docId, collectionId = 'reels') => {
 };
 
 // 2. Delete all files from Appwrite Storage
+// NOTE: Appwrite Storage deletion is disabled — storage migration to R2 in effect.
 const deleteAllFromAppwriteStorage = async () => {
-  try {
-    const files = await appwriteStorage.listFiles(APPWRITE_BUCKET_ID);
-    if (files.total === 0) {
-      log('No files in Appwrite Storage', 'info');
-      return 0;
-    }
-
-    let deleted = 0;
-    for (const file of files.files) {
-      try {
-        await appwriteStorage.deleteFile(APPWRITE_BUCKET_ID, file.$id);
-        deleted++;
-        log(`Deleted from Appwrite Storage: ${file.name}`, 'success');
-      } catch (e) {
-        log(`Failed to delete file ${file.$id} from Appwrite Storage: ${e.message}`, 'warn');
-      }
-    }
-    return deleted;
-  } catch (error) {
-    log(`Failed to list/delete from Appwrite Storage: ${error.message}`, 'error');
-    return 0;
-  }
+  log('Appwrite Storage operations are disabled by configuration (using R2).', 'warn');
+  return 0;
 };
 
 // 3. Delete file by ID from Appwrite Storage
+// NOTE: Appwrite Storage deletion is disabled — prefer R2 or centralized deletion utilities.
 const deleteFromAppwriteStorage = async (fileId) => {
-  try {
-    await appwriteStorage.deleteFile(APPWRITE_BUCKET_ID, fileId);
-    log(`Deleted from Appwrite Storage: ${fileId}`, 'success');
-    return true;
-  } catch (error) {
-    log(`Failed to delete ${fileId} from Appwrite Storage: ${error.message}`, 'error');
-    return false;
-  }
+  log(`Appwrite Storage delete disabled for fileId=${fileId}`, 'warn');
+  return false;
 };
 
 // 4. Delete all from R2
