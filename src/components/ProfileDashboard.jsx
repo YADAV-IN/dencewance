@@ -280,13 +280,15 @@ export default function ProfileDashboard() {
         setUploadStatusText(`Uploading Video ${Math.round(progress.progress)}%...`);
       });
 
+      const authToken = localStorage.getItem('adminToken') || '';
+
       // 3. Create Video Story with the resolved public URL
       setUploadStatusText('Finalizing inside DenceWance...');
       const reelRes = await fetch(`${API_URL}/api/reels`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
         },
         body: JSON.stringify({ video_url: fileUrl, caption: 'My Latest Profile Story', ...creatorIdentity })
       });

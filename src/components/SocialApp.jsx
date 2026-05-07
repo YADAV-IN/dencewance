@@ -397,6 +397,7 @@ export default function SocialApp() {
       const videoUrlValue = (videoUploadResult && typeof videoUploadResult === 'object') ? (videoUploadResult.url || videoUploadResult) : videoUploadResult;
       const coverUrl = (videoUploadResult && typeof videoUploadResult === 'object') ? (videoUploadResult.cover_url || videoUploadResult.coverUrl || null) : null;
       const uploaderId = localStorage.getItem('activeUploader') || null;
+      const authToken = localStorage.getItem('adminToken') || '';
 
       // 2. Post the Reel (Video Story)
       const reelBody = {
@@ -411,7 +412,7 @@ export default function SocialApp() {
 
       const reelRes = await fetch(`${API_URL}/api/reels`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
         body: JSON.stringify(reelBody)
       });
       

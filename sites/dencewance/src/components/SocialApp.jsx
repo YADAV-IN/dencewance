@@ -350,11 +350,12 @@ export default function SocialApp() {
       let videoUrl = await uploadMediaToAppwrite(file, 'alok_media', (progressData) => {
         setStatusUploadProgress(Math.round(progressData.progress));
       });
+      const authToken = localStorage.getItem('adminToken') || '';
 
       // 2. Post the Reel (Video Story)
       const reelRes = await fetch(`${API_URL}/api/reels`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
         body: JSON.stringify({
           title: 'My Video Story',
           caption: 'Uploaded from Video Stories Bar',
