@@ -211,6 +211,12 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+app.options('*', cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 app.use((req,res,next)=>{console.log(req.method, req.url); next();});
@@ -481,7 +487,19 @@ app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req
       return res.json({ data: admin.toJSON() });
     }
 
-    return res.status(503).json({ error: 'Server storage migration: Appwrite storage disabled. Configure R2.' });
+    const appwriteFile = await appwriteStorage.createFile(
+      APPWRITE_BUCKET_ID,
+      ID.unique(),
+      InputFile.fromBuffer(req.file.buffer, req.file.originalname || 'cover-file')
+    );
+    const publicUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, appwriteFile.$id);
+    return res.json({ 
+      data: { 
+        url: publicUrl,
+        original_name: req.file.originalname,
+        size: req.file.size
+      } 
+    });
   } catch (error) {
     console.error('Appwrite avatar upload error:', error);
     return res.status(500).json({ error: 'Failed to upload avatar' });
@@ -1582,7 +1600,19 @@ app.post('/api/uploads/cover', upload.single('cover'), async (req, res) => {
       });
     }
 
-    return res.status(503).json({ error: 'Server storage migration: Appwrite storage disabled. Configure R2.' });
+    const appwriteFile = await appwriteStorage.createFile(
+      APPWRITE_BUCKET_ID,
+      ID.unique(),
+      InputFile.fromBuffer(req.file.buffer, req.file.originalname || 'media-file')
+    );
+    const publicUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, appwriteFile.$id);
+    return res.json({
+      data: {
+        url: publicUrl,
+        original_name: req.file.originalname,
+        size: req.file.size
+      }
+    });
   } catch (error) {
     console.error('Upload error:', error);
     return res.status(500).json({ error: 'Failed to upload cover image' });
