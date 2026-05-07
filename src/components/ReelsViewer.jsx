@@ -726,9 +726,9 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                   <button
                     className={`reel-mode-btn ${reelCreatorMode === 'official' ? 'active' : ''}`}
                     onClick={() => setReelCreatorMode('official')}
-                    title="Official admin ID"
+                    title="Dencewance demo ID"
                   >
-                    Official ID
+                    Demo ID
                   </button>
                 </div>
               )}

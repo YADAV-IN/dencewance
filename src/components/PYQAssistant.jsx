@@ -60,7 +60,7 @@ const PYQAssistant = ({ adminData }) => {
         console.warn('Direct Appwrite fetch failed, falling back to backend:', directErr);
       }
 
-      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
       const response = await fetch(apiUrl + '/api/pyq');
       if (!response.ok) {
         const text = await response.text();
@@ -81,7 +81,7 @@ const PYQAssistant = ({ adminData }) => {
     try {
       const token = localStorage.getItem('adminToken') || '';
       if (token) {
-        const apiUrl = import.meta.env.VITE_API_URL || '';
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
         const url = apiUrl + `/api/pyq/${docId}` + (fileId ? `?fileId=${fileId}` : '');
         const res = await fetch(url, {
           method: 'DELETE',
@@ -127,9 +127,6 @@ const PYQAssistant = ({ adminData }) => {
       formData.append('keywords', libKeywords);
 
       await apiClient.post('/api/pyq/upload', formData, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken') || ''}`,
-        },
         onUploadProgress: (progressEvent) => {
           if (progressEvent?.total) {
             setUploadProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total));
@@ -144,6 +141,10 @@ const PYQAssistant = ({ adminData }) => {
       await fetchLibrary();
     } catch (err) {
       console.error("Upload error:", err);
+      if (err?.response?.status === 401) {
+        alert('Session expired or invalid. Please log in again and retry the PYQ upload.');
+        return;
+      }
       alert("Upload failed: " + getApiErrorMessage(err, 'Failed to upload PYQ packet'));
     } finally {
       setLibLoading(false);

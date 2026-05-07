@@ -85,13 +85,13 @@ export const buildCreatorIdentity = ({
       };
     }
 
-    const displayName = name || 'ALOK Official';
+    const displayName = name || 'Dencewance Demo';
     return {
       ...base,
       creator_mode: 'official',
       creator_id: officialId,
       creator_name: displayName,
-      creator_handle: handle || slugify(displayName, 'alokofficial'),
+      creator_handle: handle || slugify(displayName, 'dencewance-demo'),
       is_official_creator: true,
     };
   }

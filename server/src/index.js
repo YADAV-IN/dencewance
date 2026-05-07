@@ -44,6 +44,23 @@ const buildAppwriteFileViewUrl = (bucketId, fileId) => {
   if (!bucketId || !fileId) return '';
   return `${APPWRITE_ENDPOINT}/storage/buckets/${bucketId}/files/${fileId}/view?project=${APPWRITE_PROJECT_ID}`;
 };
+const uploadPyqToAppwrite = async (buffer, originalName, mimeType) => {
+  if (!APPWRITE_BUCKET_ID) {
+    throw new Error('Appwrite bucket is not configured.');
+  }
+
+  const file = await appwriteStorage.createFile(
+    APPWRITE_BUCKET_ID,
+    ID.unique(),
+    InputFile.fromBuffer(buffer, originalName || 'pyq-file')
+  );
+
+  return {
+    id: file.$id,
+    url: buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, file.$id),
+    mimeType: mimeType || 'application/octet-stream',
+  };
+};
 const deleteRelatedReelRows = async (reelId) => {
   const [comments, savedReels] = await Promise.all([
     ReelComment.find({ reel_id: reelId }),
@@ -891,8 +908,8 @@ function resolveCreatorIdentity({ payload = {}, currentUser = null, fallbackSeed
       creator_mode: 'official',
       is_official_creator: true,
       creator_id: officialCreatorId,
-      creator_name: payload.custom_author_name || payload.creator_name || currentUser?.name || 'ALOK Official',
-      creator_handle: payload.creator_handle || slugify((payload.custom_author_name || currentUser?.name || 'alokofficial').toLowerCase()),
+      creator_name: payload.custom_author_name || payload.creator_name || currentUser?.name || 'Dencewance Demo',
+      creator_handle: payload.creator_handle || slugify((payload.custom_author_name || currentUser?.name || 'dencewance-demo').toLowerCase()),
       creator_avatar: payload.creator_avatar || currentUser?.avatar_url || '',
       follower_count: Number(payload.follower_count) > 0
         ? Number(payload.follower_count)
@@ -1946,17 +1963,27 @@ app.post('/api/pyq/upload', requireAuth, packetUpload.single('file'), async (req
       return res.status(400).json({ error: 'Missing required fields: ' + missingFields.join(', ') });
     }
 
-    // Prefer R2 storage. If R2 is configured, upload to R2 via presigned URL.
+    // Prefer R2 storage. Fall back to Appwrite storage so uploads still work
+    // when R2 is not configured or temporarily unavailable.
     let fileUrl = '';
+    let storedFileId = '';
     if (hasR2Config) {
-      const timestamp = Date.now();
-      const ext = req.file.originalname ? req.file.originalname.split('.').pop() : 'bin';
-      const key = `alok/pyq/${timestamp}-${Math.round(Math.random() * 1e9)}.${ext}`;
-      const signData = await generatePresignedUrl(key, req.file.mimetype || 'application/octet-stream');
-      await fetch(signData.uploadUrl, { method: 'PUT', body: req.file.buffer, headers: { 'content-type': req.file.mimetype || 'application/octet-stream' } });
-      fileUrl = signData.publicUrl;
-    } else {
-      return res.status(503).json({ error: 'Server storage migration: Appwrite storage disabled. Configure R2.' });
+      try {
+        const timestamp = Date.now();
+        const ext = req.file.originalname ? req.file.originalname.split('.').pop() : 'bin';
+        const key = `alok/pyq/${timestamp}-${Math.round(Math.random() * 1e9)}.${ext}`;
+        const signData = await generatePresignedUrl(key, req.file.mimetype || 'application/octet-stream');
+        await fetch(signData.uploadUrl, { method: 'PUT', body: req.file.buffer, headers: { 'content-type': req.file.mimetype || 'application/octet-stream' } });
+        fileUrl = signData.publicUrl;
+      } catch (uploadErr) {
+        console.warn('PYQ R2 upload failed, falling back to Appwrite:', uploadErr?.message || uploadErr);
+      }
+    }
+
+    if (!fileUrl) {
+      const appwriteFile = await uploadPyqToAppwrite(req.file.buffer, req.file.originalname, req.file.mimetype || req.file.contentType || req.file.type || 'application/octet-stream');
+      fileUrl = appwriteFile.url;
+      storedFileId = appwriteFile.id;
     }
 
     const payload = {
@@ -1965,7 +1992,7 @@ app.post('/api/pyq/upload', requireAuth, packetUpload.single('file'), async (req
       subject: keywords ? `${subject} //SEO// ${keywords}` : subject,
       fileName: req.file.originalname,
       fileType: normalizePYQFileType(req.file.mimetype || req.file.contentType || req.file.type || ''),
-      fileId: [fileUrl],
+      fileId: [storedFileId || fileUrl],
     };
 
     const doc = await appwriteDatabases.createDocument(APPWRITE_DB_ID, 'pyq', ID.unique(), payload);

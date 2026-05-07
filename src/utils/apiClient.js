@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 export const apiClient = axios.create({
   baseURL: API_URL,
@@ -13,12 +13,17 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('adminToken') || '';
-  if (token && !config.headers?.Authorization) {
-    config.headers = {
-      ...(config.headers || {}),
-      Authorization: `Bearer ${token}`,
-    };
+  const headers = { ...(config.headers || {}) };
+
+  if (!headers.Authorization || !String(headers.Authorization).trim()) {
+    delete headers.Authorization;
   }
+
+  if (token && !headers.Authorization) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  config.headers = headers;
   return config;
 });
 

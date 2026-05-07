@@ -9,7 +9,7 @@ export const appwriteStorage = new Storage(client);
 export { ID };
 
 // Use backend API endpoint for uploads (avoids CORS & Appwrite limitations)
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 export const uploadMediaToAppwrite = async (file, bucketId, onProgress) => {
     const token = localStorage.getItem('adminToken') || '';

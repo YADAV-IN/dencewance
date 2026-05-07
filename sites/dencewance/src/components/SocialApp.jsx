@@ -442,28 +442,38 @@ export default function SocialApp() {
 
   // Sync URL path to internal tab state and keep the URL tidy/simple
   useEffect(() => {
-    const path = (window.location.pathname || '/').replace(/^\/+/, '').toLowerCase();
-    const map = {
-      '': 'home',
-      'home': 'home',
-      'stories': 'stories',
-      'videos': 'stories',
-      'search': 'search',
-      'create': 'add',
-      'add': 'add',
-      'profile': 'profile',
-      'pyq': 'pyq',
-      'messages': 'messages'
+    const tabFromPath = (pathname = '/') => {
+      const path = String(pathname || '/').replace(/^\/+/, '').toLowerCase();
+      const map = {
+        '': 'home',
+        'home': 'home',
+        'stories': 'stories',
+        'videos': 'stories',
+        'search': 'search',
+        'create': 'add',
+        'add': 'add',
+        'profile': 'profile',
+        'pyq': 'pyq',
+        'messages': 'messages'
+      };
+      return map[path] || 'home';
     };
-    const target = map[path] || 'home';
-    if (target !== activeTab) setActiveTab(target);
+
+    const syncTabFromLocation = () => {
+      const target = tabFromPath(window.location.pathname);
+      setActiveTab((current) => (current === target ? current : target));
+    };
+
+    syncTabFromLocation();
+    window.addEventListener('popstate', syncTabFromLocation);
+    return () => window.removeEventListener('popstate', syncTabFromLocation);
   }, []);
 
   useEffect(() => {
     try {
       const path = activeTab === 'home' ? '/' : `/${activeTab}`;
       if (window.location.pathname !== path) {
-        window.history.replaceState(null, '', path);
+        window.history.pushState(null, '', path);
       }
     } catch (e) {}
   }, [activeTab]);
