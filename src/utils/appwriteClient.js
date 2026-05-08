@@ -20,7 +20,7 @@ export const uploadMediaToAppwrite = async (file, bucketId, onProgress, preferre
         const result = await appwriteStorage.createFile(targetBucket, ID.unique(), file);
         const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/${targetBucket}/files/${result.$id}/view?project=69d60fbe002bae1e32d5`;
         if (onProgress) onProgress({ progress: 100 });
-        return { id: result.$id, url: viewUrl, cover_url: null };
+        return viewUrl;
     } catch (appwriteErr) {
         console.warn('Direct Appwrite upload failed:', appwriteErr.message || appwriteErr);
     }
@@ -40,7 +40,7 @@ export const uploadMediaToAppwrite = async (file, bucketId, onProgress, preferre
             try {
                 const response = JSON.parse(xhr.responseText);
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    if (response.data?.url) resolve({ url: response.data.url, cover_url: response.data.cover_url || coverUrl });
+                    if (response.data?.url) resolve(response.data.url);
                     else reject(new Error('Invalid response from server'));
                 } else if (xhr.status === 401) {
                     reject(new Error('Your login session expired. Please login again and retry.'));

@@ -2025,6 +2025,8 @@ app.post('/api/pyq/upload', requireAuth, packetUpload.single('file'), async (req
       storedFileId = appwriteFile.id;
     }
 
+    const uploaderId = String(currentUser._id || req.adminId || '').trim();
+
     const payload = {
       dept: String(dept).toUpperCase(),
       course: String(course).toUpperCase(),
@@ -2032,6 +2034,8 @@ app.post('/api/pyq/upload', requireAuth, packetUpload.single('file'), async (req
       fileName: req.file.originalname,
       fileType: normalizePYQFileType(req.file.mimetype || req.file.contentType || req.file.type || ''),
       fileId: [storedFileId || fileUrl],
+      uploaderId: uploaderId ? [uploaderId] : [],
+      cover_url: fileUrl ? [fileUrl] : [],
     };
 
     const doc = await appwriteDatabases.createDocument(APPWRITE_DB_ID, 'pyq', ID.unique(), payload);
