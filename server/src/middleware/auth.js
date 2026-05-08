@@ -1,8 +1,10 @@
 import jwt from 'jsonwebtoken';
+import { users as appwriteUsers } from '../appwrite.js';
+import { Admin } from '../db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
 
-export const requireAuth = (req, res, next) => {
+export const requireAuth = async (req, res, next) => {
   const header = req.headers.authorization || '';
   const token = header.replace('Bearer ', '');
   console.log('DEBUG: requireAuth header preview=', header ? header.slice(0, 40) + '...' : '(none)');
@@ -22,6 +24,23 @@ export const requireAuth = (req, res, next) => {
       // Accept common id fields from various token issuers (server JWT, Appwrite JWT etc.)
       const possibleId = decoded.adminId || decoded.id || decoded.userId || decoded.$id;
       if (possibleId) {
+        // If this looks like an Appwrite userId, try to resolve Admin by Appwrite email
+        if (decoded.userId) {
+          try {
+            const appUser = await appwriteUsers.get(decoded.userId);
+            const email = appUser?.email;
+            if (email) {
+              const admin = await Admin.findOne({ email }).select('_id').lean();
+              if (admin && admin._id) {
+                req.adminId = String(admin._id);
+                console.log('DEBUG: requireAuth mapped Appwrite user to Admin id=', req.adminId);
+                return next();
+              }
+            }
+          } catch (e) {
+            console.log('DEBUG: requireAuth Appwrite users.get failed', e.message || e);
+          }
+        }
         req.adminId = possibleId;
         console.log('DEBUG: requireAuth fallback accepted token with id=', req.adminId);
         return next();
