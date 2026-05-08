@@ -30,7 +30,7 @@ export const requireAuth = async (req, res, next) => {
             const appUser = await appwriteUsers.get(decoded.userId);
             const email = appUser?.email;
             if (email) {
-              const admin = await Admin.findOne({ email }).select('_id').lean();
+              const admin = await Admin.findOne({ email });
               if (admin && admin._id) {
                 req.adminId = String(admin._id);
                 console.log('DEBUG: requireAuth mapped Appwrite user to Admin id=', req.adminId);
