@@ -1,11 +1,12 @@
-# Video Upload Fix Guide
+# Upload Fix Guide (Video & PYQ)
 
 ## Problem
-Video upload was not working on the site because the backend API URL (`VITE_API_URL`) was not configured in the production environment.
+Video and PYQ uploads were not working on the site because the backend API URL (`VITE_API_URL`) was not configured in the production environment.
 
 ## Root Cause
-1. **Missing API URL**: The `.env.production` file had an empty `VITE_API_URL`, so the frontend couldn't connect to the backend
-2. **Upload Logic**: The code was trying direct Appwrite upload first, which may fail due to permission/CORS issues
+**Missing API URL**: The `.env.production` file had an empty `VITE_API_URL`, so the frontend couldn't connect to the backend API for:
+- Video uploads (Profile Dashboard)
+- PYQ document uploads (PYQ Assistant)
 
 ## Solution Applied
 
@@ -14,7 +15,11 @@ Video upload was not working on the site because the backend API URL (`VITE_API_
 - Falls back to direct Appwrite upload if backend fails
 - Provides better error messages to help debug issues
 
-### 2. What You Need to Do
+### 2. Updated PYQ Assistant (`src/components/PYQAssistant.jsx`)
+- Added logging to help debug API connection issues
+- Warns if `VITE_API_URL` is not configured
+
+### 3. What You Need to Do
 
 #### Step 1: Configure Backend API URL
 Edit `sites/dencewance/.env.production` and set your backend URL:

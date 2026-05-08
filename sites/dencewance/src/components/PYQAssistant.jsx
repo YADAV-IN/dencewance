@@ -30,15 +30,22 @@ const PYQAssistant = ({ adminData }) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
+  // Check API URL configuration on mount
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+  
   useEffect(() => {
+    console.log('PYQ Assistant: API_URL =', API_URL);
+    if (!import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL === '') {
+      console.warn('PYQ: VITE_API_URL is not configured. Uploads may fail. Set it in .env.production');
+    }
     fetchLibrary();
   }, []);
 
   const fetchLibrary = async () => {
     try {
       setLoading(true);
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-      const response = await fetch(apiUrl + '/api/pyq');
+      console.log('PYQ: Fetching from', API_URL + '/api/pyq');
+      const response = await fetch(API_URL + '/api/pyq');
       
       // Check content-type before parsing JSON
       const contentType = response.headers.get('content-type');
