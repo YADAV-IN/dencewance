@@ -19,8 +19,10 @@ export const requireAuth = (req, res, next) => {
     // Development-friendly fallback: try decode without verification to accept Appwrite-issued tokens
     try {
       const decoded = jwt.decode(token) || {};
-      if (decoded && (decoded.adminId || decoded.id)) {
-        req.adminId = decoded.adminId || decoded.id;
+      // Accept common id fields from various token issuers (server JWT, Appwrite JWT etc.)
+      const possibleId = decoded.adminId || decoded.id || decoded.userId || decoded.$id;
+      if (possibleId) {
+        req.adminId = possibleId;
         console.log('DEBUG: requireAuth fallback accepted token with id=', req.adminId);
         return next();
       }
