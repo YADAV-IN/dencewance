@@ -64,11 +64,7 @@ export const uploadMediaToAppwrite = async (file, bucketId, onProgress, preferre
 
     const uploadViaAppwrite = async () => {
         const targetBucket = bucketId || 'alok_media';
-        const result = await appwriteStorage.createFile({
-            bucketId: targetBucket,
-            fileId: ID.unique(),
-            file
-        });
+        const result = await appwriteStorage.createFile(targetBucket, ID.unique(), file);
         const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/${targetBucket}/files/${result.$id}/view?project=69d60fbe002bae1e32d5`;
         if (onProgress) onProgress({ progress: 100 });
         return viewUrl;

@@ -34,7 +34,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "deploy:render": "node deploy-render.js",
-    "deploy:appwrite": "appwrite push functions --all --force && appwrite push sites --all --force && appwrite push tables --all --force && appwrite push buckets --all --force",
+    "deploy:appwrite": "appwrite push all --all --force",
     "deploy:both": "npm run deploy:appwrite && npm run deploy:render"
   },
   "eslintConfig": {

@@ -16,7 +16,7 @@
 
 4. Deploy Render + Appwrite CLI:
 ```bash
-npm run deploy:appwrite   # push Appwrite functions/sites/tables/buckets
+npm run deploy:appwrite   # appwrite push all --all --force
 npm run deploy:render     # trigger Render deploys (requires RENDER_API_KEY)
 ```
 
