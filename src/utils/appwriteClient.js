@@ -1,5 +1,4 @@
 import { Client, Storage, ID } from 'appwrite';
-import { uploadFileWithProgress } from './xhrUpload.js';
 
 const client = new Client()
     .setEndpoint('https://nyc.cloud.appwrite.io/v1')
@@ -8,25 +7,23 @@ const client = new Client()
 export const appwriteStorage = new Storage(client);
 export { ID };
 
-// Use backend API endpoint for uploads (avoids CORS & Appwrite limitations)
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const resolveApiBase = () => {
+    const configured = String(import.meta.env.VITE_API_URL || '').trim();
+    if (configured) return configured.replace(/\/+$/, '');
+    if (typeof window !== 'undefined' && window.location && !/^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)) {
+        return '';
+    }
+    return 'http://localhost:4000';
+};
+
+const API_URL = resolveApiBase();
+const UPLOAD_ENDPOINT = API_URL ? `${API_URL}/api/uploads/media` : '/api/uploads/media';
 
 export const uploadMediaToAppwrite = async (file, bucketId, onProgress, preferredStorage) => {
     const token = localStorage.getItem('adminToken') || '';
+    const storagePreference = preferredStorage || localStorage.getItem('preferredStorage') || 'auto';
 
-    // Try direct Appwrite upload first so browser-side R2 CORS never blocks upload.
-    try {
-        const targetBucket = bucketId || 'alok_media';
-        const result = await appwriteStorage.createFile(targetBucket, ID.unique(), file);
-        const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/${targetBucket}/files/${result.$id}/view?project=69d60fbe002bae1e32d5`;
-        if (onProgress) onProgress({ progress: 100 });
-        return viewUrl;
-    } catch (appwriteErr) {
-        console.warn('Direct Appwrite upload failed:', appwriteErr.message || appwriteErr);
-    }
-
-    // Fallback to backend upload (XHR for progress)
-    return new Promise((resolve, reject) => {
+    const uploadViaBackend = () => new Promise((resolve, reject) => {
         const formData = new FormData();
         formData.append('media', file);
 
@@ -52,8 +49,36 @@ export const uploadMediaToAppwrite = async (file, bucketId, onProgress, preferre
         xhr.addEventListener('error', () => reject(new Error('Network error during upload.')));
         xhr.addEventListener('abort', () => reject(new Error('Upload was cancelled.')));
 
-        xhr.open('POST', `${API_URL}/api/uploads/media`);
+        xhr.open('POST', UPLOAD_ENDPOINT);
         if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.send(formData);
     });
+
+    const uploadViaAppwrite = async () => {
+        const targetBucket = bucketId || 'alok_media';
+        const result = await appwriteStorage.createFile({
+            bucketId: targetBucket,
+            fileId: ID.unique(),
+            file
+        });
+        const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/${targetBucket}/files/${result.$id}/view?project=69d60fbe002bae1e32d5`;
+        if (onProgress) onProgress({ progress: 100 });
+        return viewUrl;
+    };
+
+    const tryBackendFirst = storagePreference !== 'appwrite';
+    const attempts = tryBackendFirst
+        ? [uploadViaBackend, uploadViaAppwrite]
+        : [uploadViaAppwrite, uploadViaBackend];
+
+    let lastError = null;
+    for (const attempt of attempts) {
+        try {
+            return await attempt();
+        } catch (error) {
+            lastError = error;
+            console.warn('Upload attempt failed:', error?.message || error);
+        }
+    }
+    throw (lastError || new Error('Upload failed.'));
 };
