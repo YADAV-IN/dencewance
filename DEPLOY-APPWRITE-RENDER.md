@@ -2,7 +2,8 @@
 - Host frontend on Render; host backend on Appwrite (Functions + Databases).
 
 **What I changed**
-- `render.yaml`: removed `alok-backend` and set frontend `VITE_API_URL` to Appwrite endpoint.
+- `render.yaml`: frontend `VITE_API_URL` is wired to backend service URL (not Appwrite endpoint).
+- Frontend upload client now ignores Appwrite endpoint values in `VITE_API_URL` to avoid `/api/uploads/media` unauthorized errors.
 
 **Render (Frontend) — steps**
 1. Push this repo to your Git provider (Render watches the repo). `render.yaml` already configures the static site.
@@ -10,7 +11,14 @@
 3. Set these Env Vars in Render (Service → Environment):
    - `VITE_APPWRITE_ENDPOINT` = `https://nyc.cloud.appwrite.io/v1` (or your Appwrite endpoint)
    - `VITE_APPWRITE_PROJECT_ID` = your project id
-   - (Optional) `VITE_API_URL` — already set in `render.yaml` to Appwrite endpoint; you may override if needed.
+   - `VITE_API_URL` = your backend base URL (example: `https://alok-backend-xxx.onrender.com`)
+   - **Do not** set `VITE_API_URL` to `https://<region>.cloud.appwrite.io/v1`.
+
+4. Deploy Render + Appwrite CLI:
+```bash
+npm run deploy:appwrite   # appwrite push all --all --force
+npm run deploy:render     # trigger Render deploys (requires RENDER_API_KEY)
+```
 
 **Appwrite (Backend) — steps**
 Goal: run server endpoints as Appwrite Functions and use Appwrite Databases/Storage. The repo contains server code under `/server` — convert routes into Appwrite Functions.
