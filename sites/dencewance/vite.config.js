@@ -7,6 +7,7 @@ const getAppVersion = () => {
   const baseMinor = 1;
   const baseVersionCommit = "25bbd5f";
   try {
+    if (!/^[a-f0-9]{7,40}$/i.test(baseVersionCommit)) return "6388.01";
     const commitDelta = Number(execSync(`git rev-list --count ${baseVersionCommit}..HEAD`).toString().trim());
     const minor = baseMinor + Math.max(commitDelta, 0);
     return `${major}.${String(minor).padStart(2, "0")}`;
