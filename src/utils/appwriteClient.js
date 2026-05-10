@@ -9,7 +9,15 @@ export { ID };
 
 const resolveApiBase = () => {
     const configured = String(import.meta.env.VITE_API_URL || '').trim();
-    if (configured) return configured.replace(/\/+$/, '');
+    if (configured) {
+        const normalized = configured.replace(/\/+$/, '');
+        const lower = normalized.toLowerCase();
+        if (lower.includes('cloud.appwrite.io/v1') || /\/v1$/.test(lower)) {
+            console.warn('VITE_API_URL points to Appwrite endpoint. Skipping backend upload URL and using Appwrite SDK upload fallback.');
+            return '';
+        }
+        return normalized;
+    }
     if (typeof window !== 'undefined' && window.location && !/^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)) {
         return '';
     }

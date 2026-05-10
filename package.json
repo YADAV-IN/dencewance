@@ -32,7 +32,10 @@
     "start": "BROWSER=none WDS_SOCKET_PORT=0 vite --port 3000",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "deploy:render": "node deploy-render.js",
+    "deploy:appwrite": "appwrite push functions --all --force && appwrite push sites --all --force && appwrite push tables --all --force && appwrite push buckets --all --force",
+    "deploy:both": "npm run deploy:appwrite && npm run deploy:render"
   },
   "eslintConfig": {
     "extends": [

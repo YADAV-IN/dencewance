@@ -202,7 +202,7 @@ export default function ProfileDashboard() {
     setUploadStatusText('Uploading Site Logo...');
     try {
       const fileUrl = await uploadMediaToAppwrite(file, 'alok_media', (progress) => {
-        setUploadProgress(Math.round(progress));
+        setUploadProgress(Math.round(progress.progress || 0));
       });
       // Save logo to SiteSettings
       const res = await fetch(`${API_URL}/api/settings`, {
@@ -234,7 +234,7 @@ export default function ProfileDashboard() {
     setUploadStatusText('Uploading Admin Avatar (also used as Logo)...');
     try {
       const fileUrl = await uploadMediaToAppwrite(file, 'alok_media', (progress) => {
-        setUploadProgress(Math.round(progress));
+        setUploadProgress(Math.round(progress.progress || 0));
       });
       // Update Admin avatar_url
       const res = await fetch(`${API_URL}/api/profile`, {
