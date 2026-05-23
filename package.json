@@ -7,9 +7,6 @@
     "@aws-sdk/client-s3": "^3.1043.0",
     "@aws-sdk/s3-request-presigner": "^3.1043.0",
     "@google/generative-ai": "^0.24.1",
-    "@testing-library/jest-dom": "^5.16.5",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^14.4.3",
     "appwrite": "^24.2.0",
     "axios": "^1.16.0",
     "dotenv": "^17.4.2",
@@ -24,12 +21,10 @@
     "web-vitals": "^3.1.0"
   },
   "overrides": {
-    "@svgr/webpack": "^8.0.1",
-    "@adobe/css-tools": "^4.3.1",
     "postcss": "^8.4.31"
   },
   "scripts": {
-    "start": "BROWSER=none WDS_SOCKET_PORT=0 vite --port 3000",
+    "start": "vite --port 3000",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest"
@@ -56,11 +51,7 @@
     "@tailwindcss/postcss": "^4.2.2",
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.27",
-    "jsdom": "^26.1.0",
-    "playwright": "^1.59.1",
-    "playwright-core": "^1.59.1",
     "tailwindcss": "^4.2.2",
-    "vite": "^6.3.6",
-    "vitest": "^3.0.7"
+    "vite": "^6.3.6"
   }
 }

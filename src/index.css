@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -27,8 +27,8 @@
   --mobile-nav-border: rgba(255, 255, 255, 0.12);
   --mobile-nav-active-bg: rgba(245, 158, 11, 0.2);
   --mobile-nav-active-text: #fbbf24;
-  --font-primary: 'Plus Jakarta Sans', sans-serif;
-  --font-display: 'Outfit', sans-serif;
+  --font-primary: 'Montserrat', sans-serif;
+  --font-display: 'Montserrat', 'Outfit', sans-serif;
 }
 
 :root[data-theme='light'] {

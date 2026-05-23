@@ -18,7 +18,7 @@ const TrashIcon = () => (
   </svg>
 );
 
-export default function CommentsSection({ reelId, userId }) {
+export default function CommentsSection({ reelId, userId, onNavigateToProfile }) {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState('');
@@ -48,16 +48,31 @@ export default function CommentsSection({ reelId, userId }) {
     e.preventDefault();
     if (!newComment.trim()) return;
 
+    const activeUserId = userId || localStorage.getItem('adminId');
+    let anonId = '';
+    if (!activeUserId) {
+      anonId = localStorage.getItem('dwAnonymousCreatorId');
+      if (!anonId) {
+        anonId = 'anon_' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem('dwAnonymousCreatorId', anonId);
+      }
+    }
+
+    const finalUserId = activeUserId || anonId;
+    const finalName = localStorage.getItem('userName') || (activeUserId ? 'Scholarly Creator' : 'Anonymous');
+    const finalHandle = localStorage.getItem('userHandle') || (activeUserId ? 'user' : 'anon-' + finalUserId.substring(5));
+    const finalAvatar = localStorage.getItem('userAvatar') || '';
+
     setPosting(true);
     try {
       const res = await fetch(`${API_URL}/api/reels/${reelId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: userId || 'anonymous',
-          author_name: localStorage.getItem('userName') || 'Anonymous',
-          author_handle: '@' + (localStorage.getItem('userHandle') || 'user'),
-          author_avatar: localStorage.getItem('userAvatar') || '',
+          user_id: finalUserId,
+          author_name: finalName,
+          author_handle: '@' + finalHandle.replace(/^@/, ''),
+          author_avatar: finalAvatar,
           text: newComment.trim()
         })
       });
@@ -165,15 +180,27 @@ export default function CommentsSection({ reelId, userId }) {
             }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'} onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}>
               {/* Comment Header */}
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <img
-                  src={comment.author_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.author_name)}&background=0b0b0b&color=fff&size=32`}
-                  alt={comment.author_name}
-                  style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }}
-                />
+                <button 
+                  onClick={() => onNavigateToProfile && onNavigateToProfile(comment.user_id)}
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                >
+                  <img
+                    src={comment.author_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.author_name || 'User')}&background=0b0b0b&color=fff&size=32`}
+                    alt={comment.author_name}
+                    style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.author_name || 'User')}&background=0b0b0b&color=fff&size=32`;
+                    }}
+                  />
+                </button>
                 <div style={{ flex: 1 }}>
-                  <p style={{ margin: '0 0 2px 0', color: '#fff', fontSize: 13, fontWeight: 700 }}>
+                  <button 
+                    onClick={() => onNavigateToProfile && onNavigateToProfile(comment.user_id)}
+                    style={{ margin: '0 0 2px 0', color: '#fff', fontSize: 13, fontWeight: 700, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+                  >
                     {comment.author_name}
-                  </p>
+                  </button>
                   <p style={{ margin: 0, color: '#00BFFF', fontSize: 11 }}>
                     {comment.author_handle}
                   </p>

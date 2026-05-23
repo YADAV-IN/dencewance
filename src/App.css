@@ -4541,6 +4541,53 @@ body.standalone-mode .reel-top-overlay {
   justify-content: center;
 }
 
+/* Comments bottom sheet inside the reel frame */
+.reel-comments-sheet {
+  position: absolute !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 65% !important;
+  width: 100% !important;
+  background: rgba(13, 17, 28, 0.98) !important;
+  backdrop-filter: blur(12px) !important;
+  border-top: 1.5px solid rgba(0, 255, 255, 0.2) !important;
+  border-radius: 20px 20px 0 0 !important;
+  z-index: 100 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  animation: slideUpSheet 0.3s cubic-bezier(0.25, 1, 0.5, 1) forwards !important;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8) !important;
+}
+
+.reel-comments-close-btn {
+  position: absolute !important;
+  top: 14px !important;
+  right: 14px !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #fff !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  font-size: 16px !important;
+  z-index: 101 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s !important;
+}
+.reel-comments-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  transform: scale(1.05) !important;
+}
+
+@keyframes slideUpSheet {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
 /* Video layer fills the frame */
 .reel-video-wrap {
   position: absolute !important;
@@ -4966,7 +5013,7 @@ body.standalone-mode .reel-top-overlay {
   content: "";
   position: absolute;
   inset: 0;
-  border: 2px solid rgba(254, 44, 85, 0.3);
+  border: none;
   pointer-events: none;
   z-index: 20;
 }
@@ -5624,4 +5671,264 @@ body.standalone-mode .reel-top-overlay {
   outline: none;
   border-color: var(--accent);
 }
+
+/* ========================================================
+   PREMIUM MOBILE DEVICE FRAME & AMBIENT SCREEN BACKDROP
+   ======================================================== */
+
+/* Desktop wrapper layout */
+@media (min-width: 501px) {
+  body.body-phone-mode {
+    background: #050505 !important;
+    background-image: 
+      radial-gradient(circle at 10% 20%, rgba(197, 151, 21, 0.12), transparent 45%),
+      radial-gradient(circle at 90% 80%, rgba(2, 132, 199, 0.08), transparent 45%),
+      radial-gradient(circle at 50% 50%, #020202, #050505) !important;
+    overflow: hidden !important;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .device-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100vh;
+    position: relative;
+    z-index: 10;
+  }
+
+  /* Ambient glowing backdrop behind the phone */
+  .device-ambient-glow {
+    position: absolute;
+    width: 650px;
+    height: 650px;
+    background: radial-gradient(circle, rgba(197, 151, 21, 0.16) 0%, rgba(2, 132, 199, 0.08) 50%, transparent 100%);
+    filter: blur(90px);
+    pointer-events: none;
+    z-index: 1;
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  /* The actual smartphone chassis */
+  .phone-frame {
+    position: relative;
+    width: 420px;
+    height: 880px;
+    max-height: 92vh;
+    background: #080a0f;
+    border: 12px solid #1c1f26;
+    border-radius: 48px;
+    box-shadow: 
+      0 25px 60px -15px rgba(0, 0, 0, 0.85),
+      0 0 0 3px #2d333f,
+      0 0 30px rgba(197, 151, 21, 0.12);
+    z-index: 2;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    transition: all 0.3s ease;
+  }
+
+  /* Phone screen container */
+  .phone-screen {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+    border-radius: 36px;
+    background: #000000;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Notch (Dynamic Island style) */
+  .phone-notch {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 110px;
+    height: 26px;
+    background: #000000;
+    border-radius: 15px;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+  }
+
+  .phone-notch::after {
+    content: '';
+    width: 7px;
+    height: 7px;
+    background: #050b14;
+    border-radius: 50%;
+    border: 1px solid #111a2e;
+    box-shadow: inset 0 1px 2px rgba(0, 255, 255, 0.5);
+    margin-left: 60px;
+  }
+
+  /* Home gesture pill at bottom */
+  .phone-home-indicator {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 130px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.35);
+    border-radius: 10px;
+    z-index: 99999;
+    pointer-events: none;
+  }
+
+  /* Ambient reflection gloss effect on screen */
+  .phone-reflection {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.005) 50%, transparent 50.1%);
+    z-index: 99998;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+}
+
+/* Mobile-only mode (overrides frame to occupy full screen) */
+@media (max-width: 500px) {
+  .device-wrapper {
+    width: 100vw;
+    height: 100dvh;
+    padding: 0;
+    margin: 0;
+  }
+  .phone-frame {
+    width: 100%;
+    height: 100%;
+    max-height: 100% !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .phone-screen {
+    border-radius: 0 !important;
+  }
+  .phone-notch, .phone-home-indicator, .phone-reflection, .device-ambient-glow {
+    display: none !important;
+  }
+}
+
+/* ========================================================
+   PC VIEW REELS CENTERING & SCALE CORRECTION (NO ZOOM)
+   ======================================================== */
+@media (min-width: 501px) {
+  /* Desktop Mode Reels Layout (centered 9:16 vertical player) */
+  .app-root-container.use-desktop-layout .reels-container {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 9999 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    background: #020306 !important;
+    background-image: 
+      radial-gradient(circle at 50% 10%, rgba(197, 151, 21, 0.06), transparent 50%),
+      radial-gradient(circle at 50% 90%, rgba(2, 132, 199, 0.06), transparent 50%) !important;
+  }
+
+  .app-root-container.use-desktop-layout .reel-frame {
+    height: 90vh !important;
+    width: calc(90vh * 9 / 16) !important;
+    max-height: 900px !important;
+    max-width: 506px !important;
+    margin: 5vh auto !important;
+    border-radius: 24px !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 
+      0 20px 60px rgba(0, 0, 0, 0.9),
+      0 0 35px rgba(197, 151, 21, 0.04) !important;
+    scroll-snap-align: center !important;
+    flex-shrink: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* All sub-components stay inside the reel frame */
+  .app-root-container.use-desktop-layout .reel-actions-col {
+    right: 8px !important;
+    bottom: 90px !important;
+  }
+
+  .app-root-container.use-desktop-layout .reel-bottom-info {
+    padding: 20px 16px 14px 16px !important;
+    right: 60px !important;
+  }
+
+  .app-root-container.use-desktop-layout .reel-top-overlay {
+    top: 12px !important;
+    left: 12px !important;
+    right: 12px !important;
+  }
+
+  .app-root-container.use-desktop-layout .reel-counter {
+    top: 14px !important;
+    right: 14px !important;
+  }
+
+  .app-root-container.use-desktop-layout .reel-nav-btn {
+    z-index: 30 !important;
+  }
+
+  /* Phone Mode Reels Layout (fill the chassis screen mockup) */
+  .phone-screen .reels-container {
+    width: 100% !important;
+    height: 100% !important;
+    position: absolute !important;
+    inset: 0 !important;
+  }
+  
+  .phone-screen .reel-frame {
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 0 !important;
+    border: none !important;
+    margin: 0 !important;
+  }
+
+  /* Global scale and aspect-ratio fix for high resolution (no stretch) */
+  .reel-iframe {
+    transform: scale(1.0) !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+  
+  .reel-video-el {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+  
+  .reel-video-wrap {
+    background: #000000 !important;
+  }
+}
+
+
 

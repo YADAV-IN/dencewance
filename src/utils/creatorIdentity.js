@@ -85,13 +85,16 @@ export const buildCreatorIdentity = ({
       };
     }
 
-    const displayName = name || 'Dencewance Demo';
+    const displayName = name || safeStorage.get('userName') || 'Dencewance Demo';
+    const displayAvatar = avatar || safeStorage.get('userAvatar') || '';
+    const displayHandle = handle || safeStorage.get('userHandle') || slugify(displayName, 'dencewance-demo');
     return {
       ...base,
+      creator_avatar: displayAvatar,
       creator_mode: 'official',
       creator_id: officialId,
       creator_name: displayName,
-      creator_handle: handle || slugify(displayName, 'dencewance-demo'),
+      creator_handle: displayHandle,
       is_official_creator: true,
     };
   }
@@ -115,7 +118,7 @@ export const buildCreatorIdentity = ({
       creator_id: genericId,
       creator_name: displayName,
       creator_handle: handle || slugify(displayName, 'denceboy'),
-      creator_avatar: avatar || 'https://i.pravatar.cc/150?img=11',
+      creator_avatar: avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`,
     };
   }
 
@@ -127,7 +130,7 @@ export const buildCreatorIdentity = ({
       creator_id: genericId,
       creator_name: displayName,
       creator_handle: handle || slugify(displayName, 'dencegirl'),
-      creator_avatar: avatar || 'https://i.pravatar.cc/150?img=5',
+      creator_avatar: avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`,
     };
   }
 

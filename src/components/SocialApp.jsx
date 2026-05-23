@@ -211,7 +211,7 @@ const fetchReelById = async (reelId) => {
   return readJsonSafely(res);
 };
 
-export default function SocialApp() {
+export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
   const [activeTab, setActiveTab] = useState(() => new URLSearchParams(window.location.search).get('tab') || 'home');
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
   const [statuses, setStatuses] = useState([]);
@@ -231,6 +231,14 @@ export default function SocialApp() {
   const [statusUploadProgress, setStatusUploadProgress] = useState(0);
   const [trendingNotification, setTrendingNotification] = useState(null);
   const trendingTimeoutRef = useRef(null);
+  const [selectedProfileId, setSelectedProfileId] = useState(null);
+
+  const navigateToProfile = (userId) => {
+    if (userId) {
+      setSelectedProfileId(userId);
+      setActiveTab('profile');
+    }
+  };
 
   const openReelById = async (reelId) => {
     if (!reelId) return false;
@@ -525,6 +533,7 @@ export default function SocialApp() {
         'home': 'home',
         'stories': 'stories',
         'videos': 'stories',
+        'clips': 'stories',
         'search': 'search',
         'create': 'add',
         'add': 'add',
@@ -547,7 +556,7 @@ export default function SocialApp() {
 
   useEffect(() => {
     try {
-      const path = activeTab === 'home' ? '/' : `/${activeTab}`;
+      const path = activeTab === 'home' ? '/' : `/${activeTab === 'stories' ? 'clips' : activeTab}`;
       if (window.location.pathname !== path) {
         window.history.pushState(null, '', path);
       }
@@ -560,7 +569,12 @@ export default function SocialApp() {
         .then(r => r.json())
         .then(data => {
           const me = data.data?.find(a => a._id === adminId || a.id === adminId) || (Array.isArray(data) ? data : []).find(a => a._id === adminId || a.id === adminId);
-          if (me) setAdminData(me);
+          if (me) {
+            setAdminData(me);
+            localStorage.setItem('userName', me.name || '');
+            localStorage.setItem('userHandle', me.email?.split('@')[0] || '');
+            localStorage.setItem('userAvatar', me.avatar_url || '');
+          }
         }).catch(err => console.error(err));
     }
   }, [token, adminId]);
@@ -760,9 +774,10 @@ export default function SocialApp() {
           onClose={() => setActiveTab('home')}
           onDelete={handleDeleteReel}
           adminData={adminData}
+          onNavigateToProfile={navigateToProfile}
         />
       ) : (
-        <div className="social-app-container historical-theme">
+        <div className={`social-app-container historical-theme ${viewMode === 'desktop' ? 'mode-desktop' : 'mode-phone'}`}>
           
           {/* Universal Top Navigation Bar (One Line) */}
           <header className="top-nav-bar">
@@ -772,6 +787,15 @@ export default function SocialApp() {
         
         {/* Opposite side Notification Bell */}
         <div className="top-nav-actions" style={{ position: 'relative' }}>
+          {setViewMode && (
+            <button 
+              onClick={() => setViewMode(viewMode === 'desktop' ? 'phone' : 'desktop')} 
+              className="view-mode-toggle-btn"
+            >
+              {viewMode === 'desktop' ? '📱 Phone view' : '💻 PC view'}
+            </button>
+          )}
+
           <button className="icon-btn notification-btn" onClick={() => setActiveTab('messages')}>
             <ScrollIcon />
             <span className="notification-badge" style={{ backgroundColor: 'blue' }}>1</span>
@@ -783,7 +807,7 @@ export default function SocialApp() {
           
           <button onClick={() => setActiveTab('pyq')} style={{ background: 'linear-gradient(45deg, #B4A05D, #D4AF37)', color: 'black', fontWeight: 'bold', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 10px rgba(180, 160, 93, 0.3)' }}>🎓 PYQ</button>
           
-          {/* Storage Manager - ADMIN ONLY */}
+          {/* Storage Manager & Admin Settings - ADMIN ONLY */}
           {adminData && (adminData.role === 'admin' || adminData.role === 'superadmin') && (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
               <button onClick={() => setShowStorageManager(true)} title="Manage storage" style={{ marginLeft: 8, padding: '6px 10px', borderRadius: 10, background: '#111', color: '#fff', border: '1px solid #333' }}>Storage</button>
@@ -814,18 +838,18 @@ export default function SocialApp() {
         <nav className="desktop-sidebar">
           <ul className="nav-links">
             <li className={activeTab === 'home' ? 'active' : ''} onClick={() => setActiveTab('home')}>
-              <HomeIcon /> <span>Sanctuary</span>
+              <HomeIcon /> <span>Home</span>
             </li>
             <li className={activeTab === 'stories' ? 'active' : ''} onClick={() => { setActiveStoryIndex(0); setViewingMedia('reel'); setActiveTab('stories'); }}>
-              <VideoStoriesIcon /> <span>Stories</span>
+              <VideoStoriesIcon /> <span>Clips</span>
             </li>
             <li className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}>
-              <MapIcon /> <span>Atlas</span>
+              <MapIcon /> <span>Search</span>
             </li>
             <li className={activeTab === 'add' ? 'active' : ''} onClick={() => setActiveTab('add')}>
               <QuillIcon /> <span>Create</span>
             </li>
-            <li className={activeTab === 'profile' ? 'active' : ''} onClick={() => setActiveTab('profile')}>
+            <li className={activeTab === 'profile' ? 'active' : ''} onClick={() => { setSelectedProfileId(null); setActiveTab('profile'); }}>
               <EyeIcon /> <span>Profile</span>
             </li>
           </ul>
@@ -841,7 +865,7 @@ export default function SocialApp() {
             backdropFilter: 'blur(10px)', color: '#fff'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
-               <span style={{ fontWeight: 'bold' }}>Uploading Video Story...</span>
+               <span style={{ fontWeight: 'bold' }}>Uploading Clip...</span>
                <span style={{ fontWeight: 'bold', color: '#00FF00' }}>{Math.round(statusUploadProgress)}%</span>
             </div>
             <div style={{ width: '100%', height: '4px', background: '#333', borderRadius: '4px', overflow: 'hidden' }}>
@@ -899,7 +923,7 @@ export default function SocialApp() {
             backdropFilter: 'blur(10px)', color: '#fff'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
-               <span style={{ fontWeight: 'bold' }}>Uploading Video Story...</span>
+               <span style={{ fontWeight: 'bold' }}>Uploading Clip...</span>
                <span style={{ fontWeight: 'bold', color: '#00FF00' }}>{Math.round(statusUploadProgress)}%</span>
             </div>
             <div style={{ width: '100%', height: '4px', background: '#333', borderRadius: '4px', overflow: 'hidden' }}>
@@ -922,7 +946,7 @@ export default function SocialApp() {
                     className="search-input"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search Users, Video Stories, ID, Tags..."
+                    placeholder="Search Users, Clips, ID, Tags..."
                     style={{ paddingLeft: '50px' }}
                   />
                 </div>
@@ -957,7 +981,7 @@ export default function SocialApp() {
                   {/* Recommended Reels */}
                   {recommendations.reels && recommendations.reels.length > 0 && (
                     <div>
-                      <h3 className="search-section-title">Recommended Stories</h3>
+                      <h3 className="search-section-title">Recommended Clips</h3>
                       <div className="search-reels-grid">
                         {recommendations.reels.map((r, i) => (
                           <div key={`rec-${i}`} className="search-reel-card" onClick={() => { setActiveStoryIndex(i); setViewingMedia('recommendation'); setActiveTab('stories'); }}>
@@ -974,7 +998,7 @@ export default function SocialApp() {
                               <div style={{width:'100%', height:'100%', background:'#222', display:'flex', alignItems:'center', justifyContent:'center'}}>▶</div>
                             )}
                             <div className="search-reel-overlay">
-                               <div className="search-reel-title">{r.title || 'Video Story'}</div>
+                               <div className="search-reel-title">{r.title || 'Clip'}</div>
                                <div className="search-reel-meta">
                                  <span>@{r.creator_name || 'DenceWance'}</span>
                                </div>
@@ -996,17 +1020,22 @@ export default function SocialApp() {
                   </h3>
                   <div className="search-users-grid">
                     {searchResults.users.map((u, i) => (
-                      <div key={`u-${i}`} className="search-user-card">
+                      <div 
+                        key={`u-${i}`} 
+                        className="search-user-card" 
+                        onClick={() => navigateToProfile(u.id || u._id)}
+                        style={{ cursor: 'pointer' }}
+                      >
                         <SkeletonImage
                           src={resolveMediaUrl(u.avatar_url)}
-                          fallbackSrc={`https://i.pravatar.cc/150?img=${i}`}
+                          fallbackSrc={`https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'User')}&background=random`}
                           alt={u.name}
                           className="search-user-avatar"
                           wrapperStyle={{ width: 80, height: 80, borderRadius: '50%', margin: '0 auto 12px auto', display: 'block' }}
                           circle={true}
                         />
                         <div className="search-user-name">{u.name}</div>
-                        <div className="search-user-id">ID: {u.id.substring(0, 8)}..</div>
+                        <div className="search-user-id">ID: {(u.id || u._id || '').substring(0, 8)}..</div>
                       </div>
                     ))}
                   </div>
@@ -1017,7 +1046,7 @@ export default function SocialApp() {
               {searchResults.reels.length > 0 && (
                 <div style={{ marginBottom: '40px' }}>
                   <h3 className="search-section-title">
-                    Reels (Video Stories) <span className="search-count">{searchResults.reels.length}</span>
+                    Clips <span className="search-count">{searchResults.reels.length}</span>
                   </h3>
                   <div className="search-reels-grid">
                     {searchResults.reels.map((r, i) => (
@@ -1069,7 +1098,13 @@ export default function SocialApp() {
                           <h4 className="search-post-title">{p.title}</h4>
                           <p className="search-post-excerpt">{p.excerpt ? p.excerpt : 'No snippet available...'}</p>
                           <div className="search-post-meta">
-                            <span className="search-post-author">✍️ {p.author_name || 'DenceWance Scribe'}</span>
+                            <span 
+                              className="search-post-author"
+                              onClick={() => navigateToProfile(p.author_id || p.creator_id || 'anonymous')}
+                              style={{ cursor: 'pointer', color: '#00FFFF' }}
+                            >
+                              ✍️ {p.author_name || 'DenceWance Scribe'}
+                            </span>
                             <span className="search-post-id">ID: {p.author_id ? p.author_id.substring(0, 8) : '...'}</span>
                             <span>{new Date(p.published_at || Date.now()).toLocaleDateString()}</span>
                           </div>
@@ -1083,7 +1118,7 @@ export default function SocialApp() {
               {!isSearching && searchQuery && searchResults.users.length === 0 && searchResults.posts.length === 0 && searchResults.reels.length === 0 && (
                 <div style={{ textAlign: 'center', marginTop: '60px', opacity: 0.5 }}>
                   <MapIcon />
-                  <p style={{ marginTop: '10px' }}>No users, tags or video stories found in the Database.</p>
+                  <p style={{ marginTop: '10px' }}>No users, tags or clips found in the Database.</p>
                 </div>
               )}
                 </div>
@@ -1092,7 +1127,7 @@ export default function SocialApp() {
           ) : activeTab === 'messages' ? (
             <div style={{ padding: '20px', color: '#fff', textAlign: 'center' }}><h2>Scrolls (Messages)</h2><p>No new scrolls received from the archivists...</p></div>
           ) : activeTab === 'profile' ? (
-             <ProfileDashboard /> ) : activeTab === 'add' ? ( <CreateInstagramMenu onComplete={handleUploadPanelComplete} />
+             <ProfileDashboard targetUserId={selectedProfileId} onBack={() => { setSelectedProfileId(null); setActiveTab('home'); }} /> ) : activeTab === 'add' ? ( <CreateInstagramMenu onComplete={handleUploadPanelComplete} />
           ) : isLoading ? (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#fff', flexDirection: 'column' }}>
               <DenceWanceLogo width={80} height={80} />
@@ -1114,7 +1149,7 @@ export default function SocialApp() {
                   zIndex: 30, filter: 'drop-shadow(2px 4px 6px rgba(0,0,0,0.7))', 
                   letterSpacing: '0.5px', whiteSpace: 'nowrap' 
                 }}>
-                  GLOBAL TRENDING STATUS
+                  GLOBAL TRENDING CLIPS
                   {/* Pointer / Tail of the message bubble */}
                   <div style={{
                     position: 'absolute', bottom: '-7px', left: '0',
@@ -1140,7 +1175,7 @@ export default function SocialApp() {
                   <strong style={{ fontSize: '30px', color: '#f5d742' }}>+</strong>
                 )}
               </StatusRing>
-              <span style={{ fontSize: '12px', marginTop: '5px', display: 'block', color: '#fff' }}>{isStatusUploading ? 'Uploading...' : 'New Reel'}</span>
+              <span style={{ fontSize: '12px', marginTop: '5px', display: 'block', color: '#fff' }}>{isStatusUploading ? 'Uploading...' : 'New Clip'}</span>
               <input type="file" ref={statusUploadRef} style={{ display: 'none' }} accept="video/*" onChange={handleStatusUpload} />
             </div>
                 {statuses.length > 0 ? (
@@ -1174,7 +1209,7 @@ export default function SocialApp() {
                           )}
                           {/* small profile overlay */}
                           <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                            <SkeletonImage src={resolveMediaUrl(story.creator_avatar || story.avatar_url)} fallbackSrc={`https://i.pravatar.cc/40?img=${i + 10}`} alt={story.creator_name || 'Creator'} wrapperStyle={{ width: 34, height: 34, borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.9)', boxShadow: '0 2px 4px rgba(0,0,0,0.5)' }} circle={true} />
+                            <SkeletonImage src={resolveMediaUrl(story.creator_avatar || story.avatar_url)} fallbackSrc={`https://ui-avatars.com/api/?name=${encodeURIComponent(story.creator_name || 'User')}&background=random`} alt={story.creator_name || 'Creator'} wrapperStyle={{ width: 34, height: 34, borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.9)', boxShadow: '0 2px 4px rgba(0,0,0,0.5)' }} circle={true} />
                           </div>
                         </div>
                         <div style={{ color: '#cbd5e1', fontSize: 11, textAlign: 'center', maxWidth: 84, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: '500' }}>{(story.creator_name || story.title || 'Anon').substring(0, 12)}</div>
@@ -1188,27 +1223,41 @@ export default function SocialApp() {
           {/* Feed Section */}
           <section className="feed-container">
             {feed.length > 0 ? (
-              feed.map((post, i) => (
-                <div className="post" key={post._id || i}>
-                  <div className="post-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                    <div style={{display: 'flex', alignItems: 'center'}}>
-                      <SkeletonImage
-                        src={post.source}
-                        fallbackSrc={`https://i.pravatar.cc/150?img=${10 + i}`}
-                        alt="Avatar"
-                        className="avatar"
-                        wrapperStyle={{ width: 48, height: 48, borderRadius: '50%', display: 'block' }}
-                        circle={true}
-                      />
-                      <div className="post-user-info">
-                        <strong style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          {post.author_name || 'DenceWance User'}
-                          {(post.author_id && post.author_id.includes('69d6')) && (
-                            <svg viewBox="0 0 24 24" fill="#00FFFF" width="16" height="16" style={{ filter: 'drop-shadow(0 0 2px rgba(0, 255, 255, 0.4))' }}>
-                              <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1.8 14.8L6.4 13l1.4-1.4 2.4 2.4 6-6L17.6 9l-7.4 7.8z"/>
-                            </svg>
-                          )}
-                        </strong>
+              feed.map((post, i) => {
+                const postAuthorId = post.author_id || post.creator_id || 'anonymous';
+                return (
+                  <div className="post" key={post._id || i}>
+                    <div className="post-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                      <div style={{display: 'flex', alignItems: 'center'}}>
+                        <button
+                          onClick={() => navigateToProfile(postAuthorId)}
+                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'block', outline: 'none' }}
+                          title="View Profile"
+                        >
+                          <SkeletonImage
+                            src={post.source}
+                            fallbackSrc={`https://ui-avatars.com/api/?name=${encodeURIComponent(post.author_name || 'User')}&background=random`}
+                            alt="Avatar"
+                            className="avatar"
+                            wrapperStyle={{ width: 48, height: 48, borderRadius: '50%', display: 'block' }}
+                            circle={true}
+                          />
+                        </button>
+                        <div className="post-user-info">
+                          <button
+                            onClick={() => navigateToProfile(postAuthorId)}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', color: 'inherit', font: 'inherit', outline: 'none' }}
+                            title="View Profile"
+                          >
+                            <strong style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              {post.author_name || 'DenceWance User'}
+                              {(postAuthorId && postAuthorId.includes('69d6')) && (
+                                <svg viewBox="0 0 24 24" fill="#00FFFF" width="16" height="16" style={{ filter: 'drop-shadow(0 0 2px rgba(0, 255, 255, 0.4))' }}>
+                                  <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1.8 14.8L6.4 13l1.4-1.4 2.4 2.4 6-6L17.6 9l-7.4 7.8z"/>
+                                </svg>
+                              )}
+                            </strong>
+                          </button>
                         <small>{new Date(post.published_at || Date.now()).toLocaleDateString()} • Recorded</small>
                       </div>
                     </div>
@@ -1258,7 +1307,7 @@ export default function SocialApp() {
                     </div>
                   )}
                 </div>
-              ))
+              )})
             ) : (
               <div style={{ textAlign: 'center', padding: '40px 20px', color: '#cbd5e1', border: '1px dashed rgba(255,255,255,0.12)', borderRadius: '18px', background: 'rgba(255,255,255,0.02)' }}>
                 <h3 style={{ marginBottom: '8px', color: '#fff' }}>No posts yet</h3>
@@ -1274,9 +1323,59 @@ export default function SocialApp() {
 
         {/* Right Sidebar for Suggestions / Messaging (Desktop) */}
         <aside className="suggestion-sidebar">
-          <h3>Fellow Scholars</h3>
-          <div style={{ padding: '16px 0', color: '#cbd5e1', fontSize: '14px', lineHeight: 1.5 }}>
-            <p style={{ margin: 0 }}>Suggested profiles will appear here after real activity starts.</p>
+          <div className="sidebar-section-title">
+            <span className="pulsing-neon-dot"></span>
+            <h3>Fellow Scholars</h3>
+          </div>
+          
+          <div className="cyber-suggestions-list">
+            {[
+              { name: 'Dr. Preetam Alok', role: 'Chief Archivist', avatar: 'https://ui-avatars.com/api/?name=Dr.+Preetam+Alok&background=random', status: 'Active' },
+              { name: 'Scribe Yadav', role: 'DenceWance Scriptor', avatar: 'https://ui-avatars.com/api/?name=Scribe+Yadav&background=random', status: 'Syncing' }
+            ].map((scholar, idx) => (
+              <div key={idx} className="cyber-profile-card">
+                <img src={scholar.avatar} alt={scholar.name} className="cyber-avatar" />
+                <div className="cyber-profile-info">
+                  <strong>{scholar.name}</strong>
+                  <span className="cyber-role">{scholar.role}</span>
+                </div>
+                <span className={`cyber-status-badge ${scholar.status.toLowerCase()}`}>{scholar.status}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="sidebar-section-divider"></div>
+
+          <div className="cyber-metrics-widget">
+            <div className="sidebar-section-title">
+              <span className="pulsing-neon-dot" style={{ backgroundColor: '#f59e0b', boxShadow: '0 0 10px #f59e0b' }}></span>
+              <h3>System Metrics</h3>
+            </div>
+            
+            <div className="metric-item">
+              <div className="metric-label">
+                <span>Archival Integrity</span>
+                <span style={{ color: '#00f0ff' }}>98.4%</span>
+              </div>
+              <div className="cyber-progress-bar">
+                <div className="cyber-progress-fill cyan-glow" style={{ width: '98.4%' }}></div>
+              </div>
+            </div>
+
+            <div className="metric-item">
+              <div className="metric-label">
+                <span>R2 Cloud Sync</span>
+                <span style={{ color: '#f59e0b' }}>74.2%</span>
+              </div>
+              <div className="cyber-progress-bar">
+                <div className="cyber-progress-fill gold-glow" style={{ width: '74.2%' }}></div>
+              </div>
+            </div>
+
+            <div className="cyber-status-uplink">
+              <span className="pulsing-green-dot"></span>
+              <span className="uplink-text">UPLINK SECURED // PROTOCOL 6.4.2</span>
+            </div>
           </div>
         </aside>
       </div>
@@ -1287,7 +1386,7 @@ export default function SocialApp() {
         <button className={activeTab === 'stories' ? 'active' : ''} onClick={() => { setActiveStoryIndex(0); setViewingMedia('reel'); setActiveTab('stories'); }}><VideoStoriesIcon /></button>
         <button className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}><MapIcon /></button>
         <button className={activeTab === 'add' ? 'active' : ''} onClick={() => setActiveTab('add')}><QuillIcon /></button>
-        <button className={activeTab === 'profile' ? 'active' : ''} onClick={() => setActiveTab('profile')}><EyeIcon /></button>
+        <button className={activeTab === 'profile' ? 'active' : ''} onClick={() => { setSelectedProfileId(null); setActiveTab('profile'); }}><EyeIcon /></button>
       </nav>
 
       

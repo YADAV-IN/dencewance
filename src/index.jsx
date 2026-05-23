@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { initAnalytics } from './utils/analyticsTracker';
+
+// Initialize analytics (error tracking, feature usage, crash detection)
+initAnalytics();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 

@@ -5,10 +5,11 @@ import SkeletonImage from './SkeletonImage';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-export default function ProfileDashboard() {
+export default function ProfileDashboard({ targetUserId, onBack }) {
   const [token, setToken] = useState(localStorage.getItem('adminToken') || '');
   const [adminId, setAdminId] = useState(localStorage.getItem('adminId') || '');
   const [profile, setProfile] = useState(null);
+  const isPublicView = targetUserId && targetUserId !== adminId;
 
   // Authentication UI
   const [email, setEmail] = useState('');
@@ -38,40 +39,88 @@ export default function ProfileDashboard() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (token) {
-      loadProfileData();
-    }
-  }, [token]);
+    loadProfileData();
+  }, [token, targetUserId]);
 
   const loadProfileData = async () => {
     setIsLoading(true);
     try {
-      // Fetch Profile
-      const pRes = await fetch(`${API_URL}/api/profile`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (pRes.ok) {
-        const pData = await pRes.json();
-        setProfile(pData.data);
-        const myId = pData.data.id || pData.data._id;
-        
-        // Fetch Reels
-        const rRes = await fetch(`${API_URL}/api/reels?creator_id=${myId}`);
-        if(rRes.ok) {
-          const rData = await rRes.json();
-          setMyReels(rData.data || []);
-        }
+      let targetId = targetUserId || adminId;
+      if (!targetId) {
+        setIsLoading(false);
+        return;
+      }
 
-        // Fetch Posts
-        const nRes = await fetch(`${API_URL}/api/news?author_id=${myId}`);
-        if(nRes.ok) {
-          const nData = await nRes.json();
-          setMyPosts(Array.isArray(nData.data) ? nData.data : []);
-        }
+      if (isPublicView) {
+         // Fetch public profile info
+         const uRes = await fetch(`${API_URL}/api/users/${targetId}`);
+         if (uRes.ok) {
+           const userData = await uRes.json();
+           setProfile(userData);
+         } else {
+           // Fallback if user profile doesn't exist yet as Admin document
+           setProfile({
+             name: 'User ' + targetId.substring(0, 8),
+             id: targetId,
+             bio: 'Creator on DenceWance'
+           });
+         }
 
-        // Fetch Site Settings
+         // Fetch Content (Reels and Posts)
+         const cRes = await fetch(`${API_URL}/api/users/${targetId}/content`);
+         if (cRes.ok) {
+           const cData = await cRes.json();
+           setMyReels(cData.reels || []);
+           setMyPosts(cData.posts || []);
+         } else {
+           // Naive fallback
+           const rRes = await fetch(`${API_URL}/api/reels?creator_id=${targetId}`);
+           if (rRes.ok) {
+             const rData = await rRes.json();
+             setMyReels(rData.data || []);
+           }
+           const nRes = await fetch(`${API_URL}/api/news?author_id=${targetId}`);
+           if (nRes.ok) {
+             const nData = await nRes.json();
+             setMyPosts(Array.isArray(nData.data) ? nData.data : []);
+           }
+         }
+      } else if (token) {
+        // Fetch Private Profile (Current User)
+        const pRes = await fetch(`${API_URL}/api/profile`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (pRes.ok) {
+          const pData = await pRes.json();
+          setProfile(pData.data);
+          const currentId = pData.data.id || pData.data._id;
+          
+          // Fetch Content
+          const cRes = await fetch(`${API_URL}/api/users/${currentId}/content`);
+          if (cRes.ok) {
+            const cData = await cRes.json();
+            setMyReels(cData.reels || []);
+            setMyPosts(cData.posts || []);
+          } else {
+            // Fallback
+            const rRes = await fetch(`${API_URL}/api/reels?creator_id=${currentId}`);
+            if (rRes.ok) {
+              const rData = await rRes.json();
+              setMyReels(rData.data || []);
+            }
+            const nRes = await fetch(`${API_URL}/api/news?author_id=${currentId}`);
+            if (nRes.ok) {
+              const nData = await nRes.json();
+              setMyPosts(Array.isArray(nData.data) ? nData.data : []);
+            }
+          }
+        }
+      }
+
+      // Fetch Site Settings
+      if (!isPublicView) {
         const sRes = await fetch(`${API_URL}/api/settings`);
-        if(sRes.ok) {
+        if (sRes.ok) {
           const sData = await sRes.json();
           setSiteSettings(sData?.data || {});
         }
@@ -96,8 +145,12 @@ export default function ProfileDashboard() {
       if (res.ok && data.data && data.data.token) {
         localStorage.setItem('adminToken', data.data.token);
         localStorage.setItem('adminId', data.data.profile.id || data.data.profile._id);
+        localStorage.setItem('userName', data.data.profile.name || '');
+        localStorage.setItem('userHandle', data.data.profile.email?.split('@')[0] || '');
+        localStorage.setItem('userAvatar', data.data.profile.avatar_url || '');
         setToken(data.data.token);
         setAdminId(data.data.profile.id || data.data.profile._id);
+        window.location.reload();
       } else {
         alert(data.error || 'Login failed');
       }
@@ -111,11 +164,15 @@ export default function ProfileDashboard() {
   const handleLogout = () => {
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminId');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('userHandle');
+    localStorage.removeItem('userAvatar');
     setToken('');
     setAdminId('');
     setProfile(null);
     setMyReels([]);
     setMyPosts([]);
+    window.location.reload();
   };
 
   const handleDeleteReel = async (id) => {
@@ -334,22 +391,9 @@ export default function ProfileDashboard() {
     setIsEditing(true);
   };
 
-  if (!token) {
+  if (!token && !isPublicView) {
     return (
-    <>
-      {isUploadingReel && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
-           <div className="w-20 h-20 mb-4 animate-bounce">
-              <svg viewBox="0 0 24 24" fill="none" className="text-pink-500 w-full h-full" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="4"></rect><path d="M10 8v8l6-4-6-4z"></path></svg>
-           </div>
-           <h2 className="text-xl font-bold text-white mb-2">{uploadStatusText}</h2>
-           <div className="w-full max-w-sm bg-gray-800 rounded-full h-4 overflow-hidden outline outline-1 outline-gray-600 mb-2">
-              <div className="bg-gradient-to-r from-purple-500 via-pink-500 to-yellow-500 h-full transition-all duration-300 ease-out" style={{width: `${uploadProgress}%`}}></div>
-           </div>
-           <p className="text-gray-400 font-semibold">{uploadProgress}%</p>
-        </div>
-      )}
-      <div className="flex items-center justify-center min-h-[80vh] bg-black text-white p-4">
+      <div className="flex items-center justify-center h-full w-full bg-black text-white historical-theme p-4">
         <form onSubmit={handleLogin} className="w-full max-w-sm bg-gray-900 border border-gray-800 p-8 rounded-xl flex flex-col gap-4 shadow-2xl">
           <div className="flex justify-center mb-4">
             <h1 className="text-3xl font-serif tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">DenceWance</h1>
@@ -361,7 +405,6 @@ export default function ProfileDashboard() {
           </button>
         </form>
       </div>
-      </>
     );
   }
 
@@ -373,12 +416,15 @@ export default function ProfileDashboard() {
     <div className="bg-black min-h-[100vh] text-white w-full max-w-2xl mx-auto overflow-y-auto pb-20">
       
       {/* Top Bar */}
-      <div className="flex justify-between items-center px-4 py-3 border-b border-gray-800 sticky top-0 bg-black z-10">
-        <div className="font-bold text-lg flex items-center gap-1">
-          {profile?.name || 'dencewance_user'} <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+      <div className="sticky top-0 z-10 bg-black/80 backdrop-blur border-b border-gray-800 flex justify-between items-center p-3">
+        <div className="flex items-center gap-3">
+          {onBack && (
+             <button onClick={onBack} className="text-white hover:text-gray-300 font-bold p-1">← Back</button>
+          )}
+          <h1 className="text-lg font-bold">{profile?.name || 'Profile'}</h1>
         </div>
         <div className="flex gap-4">
-          <button onClick={handleLogout} className="text-red-500 text-sm font-semibold p-1">Log out</button>
+          {!isPublicView && <button onClick={handleLogout} className="text-red-500 text-sm font-semibold p-1">Log out</button>}
         </div>
       </div>
 
@@ -398,7 +444,7 @@ export default function ProfileDashboard() {
               onClick={() => avatarInputRef.current && avatarInputRef.current.click()}
             />
             <input type="hidden" placeholder="Avatar URL (Optional)" className="bg-gray-900 border border-gray-800 w-full rounded p-2 text-sm text-center" value={editAvatar} onChange={e=>setEditAvatar(e.target.value)} />
-            <button className="text-blue-500 text-sm font-semibold" onClick={() => avatarInputRef.current && avatarInputRef.current.click()}>Change Admin Logo</button>
+            <button className="text-blue-500 text-sm font-semibold" onClick={() => avatarInputRef.current && avatarInputRef.current.click()}>Change Profile DP / Photo</button>
           </div>
           <input type="text" placeholder="Name" className="bg-gray-900 border border-gray-800 rounded p-3 text-sm focus:border-gray-500" value={editName} onChange={e=>setEditName(e.target.value)} />
           <textarea placeholder="Bio" className="bg-gray-900 border border-gray-800 rounded p-3 text-sm focus:border-gray-500 min-h-[100px]" value={editBio} onChange={e=>setEditBio(e.target.value)} />
@@ -446,31 +492,28 @@ export default function ProfileDashboard() {
           </div>
 
           <div className="px-4 pb-4 flex flex-col gap-3">
-            <div className="flex gap-2">
-              <button onClick={startEditing} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg py-1.5 transition">Edit profile</button>
-              <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg py-1.5 transition">Share profile</button>
-            </div>
-            <button onClick={() => logoInputRef.current && logoInputRef.current.click()} className="w-full bg-gray-900 border border-gray-800 hover:bg-gray-800 text-blue-400 text-sm font-semibold rounded-lg py-2 transition flex items-center justify-center gap-2">
-               <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-               Update Main Website Logo
-            </button>
+            {!isPublicView ? (
+              <div className="flex gap-2">
+                <button onClick={startEditing} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg py-1.5 transition">Edit profile</button>
+                <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg py-1.5 transition">Share profile</button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <button className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-lg py-1.5 transition" onClick={() => alert('Follow feature coming soon!')}>Follow</button>
+              </div>
+            )}
+            {!isPublicView && (
+              <button onClick={() => logoInputRef.current && logoInputRef.current.click()} className="w-full bg-gray-900 border border-gray-800 hover:bg-gray-800 text-blue-400 text-sm font-semibold rounded-lg py-2 transition flex items-center justify-center gap-2">
+                 <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                 Update Main Website Logo
+              </button>
+            )}
           </div>
-
-          {/* Highlights/Status Archieves Simulation */}
-          <div className="px-4 pb-4 flex gap-4 overflow-x-auto no-scrollbar">
-             <div className="flex flex-col items-center gap-1 min-w-max">
-               <div className="w-16 h-16 rounded-full border border-gray-600 p-[2px]">
-                 <div className="w-full h-full rounded-full bg-gray-800 flex items-center justify-center text-2xl font-bold">+</div>
-               </div>
-               <span className="text-xs">New</span>
-             </div>
-          </div>
-
           {/* Grid Tabs */}
           <div className="flex border-t border-gray-800">
             <button onClick={()=>setActiveTab('reels')} className={`flex-1 flex justify-center items-center py-3 border-b-2 gap-2 ${activeTab==='reels'?'border-white text-white':'border-transparent text-gray-500'}`}>
                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>
-               <span className="text-xs uppercase tracking-widest font-semibold hidden md:block">VIDEO STORIES</span>
+               <span className="text-xs uppercase tracking-widest font-semibold hidden md:block">CLIPS</span>
             </button>
             <button onClick={()=>setActiveTab('posts')} className={`flex-1 flex justify-center items-center py-3 border-b-2 gap-2 ${activeTab==='posts'?'border-white text-white':'border-transparent text-gray-500'}`}>
                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
@@ -478,45 +521,53 @@ export default function ProfileDashboard() {
             </button>
           </div>
 
-          {/* Grids */}
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto">
           {activeTab === 'reels' && (
-            <div className="grid grid-cols-3 gap-0.5 mt-0.5">
-              
-              {/* Naya Add Video Story button list format mein beautifully stylized */}
-              <div 
-                className="relative aspect-[9/16] bg-gradient-to-br from-gray-900 to-black hover:from-gray-800 hover:to-gray-900 transition border border-gray-700 border-dashed group cursor-pointer flex flex-col items-center justify-center overflow-hidden"
-                onClick={() => fileInputRef.current.click()}
-              >
+            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1 p-1">
+              {!isPublicView && (
+                <div 
+                  className="aspect-[9/16] bg-gray-900 border border-gray-800 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-800 transition rounded-md overflow-hidden relative"
+                  onClick={() => fileInputRef.current.click()}
+                >
                   <svg className="w-12 h-12 text-pink-500 mb-3 ml-1 group-hover:scale-110 transition shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5"><rect x="2" y="2" width="20" height="20" rx="4" /><path d="M10 8v8l6-4-6-4z" /></svg>
-                  <span className="text-xs font-bold text-gray-300 uppercase tracking-widest text-center px-1 leading-tight shrink-0">Upload <br/>Story</span>
+                  <span className="text-xs font-bold text-gray-300 uppercase tracking-widest text-center px-1 leading-tight shrink-0">Upload <br/>Clip</span>
                   <input type="file" ref={fileInputRef} className="hidden" accept="video/*" onChange={handleGridReelUpload} />
-              </div>
-              {myReels.length === 0 && <div className="col-span-2 text-center py-10 flex items-center justify-center text-gray-500 text-sm px-2">No videos yet. Tap to add!</div>}
-              {myReels.map(reel => (
-                <div key={reel.id} className="relative aspect-[9/16] bg-gray-900 group cursor-pointer">
-                  <video src={reel.video_url} className="w-full h-full object-cover" muted playsInline />
-                  
-                  {/* Delete Button overlay on hover or top right always */}
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleDeleteReel(reel.id || reel._id); }}
-                    className="absolute top-2 right-2 bg-red-600/80 hover:bg-red-700 text-white rounded-full p-1.5 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                    title="Delete Reel"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinelinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  </button>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handlePurgeReel(reel); }}
-                    className="absolute top-2 right-10 bg-orange-600/80 hover:bg-orange-700 text-white rounded-full px-2 py-1 text-[10px] font-bold shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                    title="Permanent Purge"
-                  >
-                    PURGE
-                  </button>
-
-                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition opacity-0 group-hover:opacity-100 flex items-center justify-center pointer-events-none">
-                     <div className="flex gap-2 font-bold"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M10 8v8l6-4-6-4z"/></svg> {reel.views||0}</div>
-                  </div>
                 </div>
-              ))}
+              )}
+              {myReels.length === 0 && isPublicView && <div className="col-span-3 md:col-span-4 lg:col-span-5 text-center py-10 flex items-center justify-center text-gray-500 text-sm px-2">No clips found for this user.</div>}
+              {myReels.length === 0 && !isPublicView && <div className="col-span-2 md:col-span-3 lg:col-span-4 text-center py-10 flex items-center justify-center text-gray-500 text-sm px-2">No clips yet. Tap to add!</div>}
+              {myReels.map((reel) => {
+                const thumb = reel.cover_image_url || reel.media_url || reel.thumbnail;
+                return (
+                  <div key={reel.id || reel._id} className="aspect-[9/16] bg-gray-900 relative group cursor-pointer rounded-md overflow-hidden" onClick={() => window.location.hash = `#viewReel=${reel.id || reel._id}`}>
+                    <video src={reel.video_url} className="w-full h-full object-cover" muted playsInline />
+                    
+                    {!isPublicView && (
+                      <>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleDeleteReel(reel.id || reel._id); }}
+                          className="absolute top-2 right-2 bg-red-600/80 hover:bg-red-700 text-white rounded-full p-1.5 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                          title="Delete Reel"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinelinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handlePurgeReel(reel); }}
+                          className="absolute top-2 right-10 bg-orange-600/80 hover:bg-orange-700 text-white rounded-full px-2 py-1 text-[10px] font-bold shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                          title="Permanent Purge"
+                        >
+                          PURGE
+                        </button>
+                      </>
+                    )}
+
+                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition opacity-0 group-hover:opacity-100 flex items-center justify-center pointer-events-none">
+                       <div className="flex gap-2 font-bold"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M10 8v8l6-4-6-4z"/></svg> {reel.views||0}</div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -544,6 +595,7 @@ export default function ProfileDashboard() {
               ))}
             </div>
           )}
+        </div>
         </>
       )}
       

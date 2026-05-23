@@ -12,7 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel } from './db.js';
+import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel, Report, AnalyticsEvent, AnalyticsError, DeveloperReport } from './db.js';
 import { storage as appwriteStorage, databases as appwriteDatabases, APPWRITE_DB_ID, ID, Query } from './appwrite.js';
 import { InputFile } from 'node-appwrite/file';
 import { requireAuth, signToken } from './middleware/auth.js';
@@ -23,6 +23,36 @@ import { deleteStoredMedia, deleteMultipleFiles } from './utils/deletion.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const populateCreatorDetails = async (items, idField, nameField, avatarField, handleField) => {
+  if (!items) return items;
+  const isArray = Array.isArray(items);
+  const list = isArray ? items : [items];
+  if (list.length === 0) return items;
+  
+  try {
+    const adminDocs = await Admin.find().limit(100);
+    const adminMap = new Map();
+    adminDocs.forEach(a => {
+      const id = a.id || a._id || a.$id;
+      if (id) adminMap.set(id.toString(), a);
+    });
+    
+    list.forEach(item => {
+      if (!item) return;
+      const authorId = item[idField];
+      if (authorId && adminMap.has(authorId.toString())) {
+        const admin = adminMap.get(authorId.toString());
+        if (admin.name && nameField) item[nameField] = admin.name;
+        if (admin.avatar_url && avatarField) item[avatarField] = admin.avatar_url;
+        if (admin.email && handleField) item[handleField] = admin.email.split('@')[0];
+      }
+    });
+  } catch (err) {
+    console.error('Failed to populate creator details:', err);
+  }
+  return isArray ? list : list[0];
+};
 
 const app = express();
 export const server = http.createServer(app);
@@ -700,7 +730,8 @@ app.get('/api/posts', cacheRoute(30, 'news'), async (req, res) => {
       .limit(Math.min(Number(limit) || 12, 100))
       .lean();
 
-    return res.json({ data: news.map(n => ({ ...n, id: n._id.toString(), _id: undefined, __v: undefined })) });
+    const populated = await populateCreatorDetails(news, 'author_id', 'author_name', 'source');
+    return res.json({ data: populated.map(n => ({ ...n, id: n._id.toString(), _id: undefined, __v: undefined })) });
   } catch (error) {
     console.error('Posts list error:', error);
     return res.status(500).json({ error: 'Failed to fetch posts.' });
@@ -745,7 +776,8 @@ app.get('/api/news', cacheRoute(30, 'news'), async (req, res) => {
       .limit(Math.min(Number(limit) || 12, 100))
       .lean();
 
-    return res.json({ data: news.map(n => ({ ...n, id: n._id.toString(), _id: undefined, __v: undefined })) });
+    const populated = await populateCreatorDetails(news, 'author_id', 'author_name', 'source');
+    return res.json({ data: populated.map(n => ({ ...n, id: n._id.toString(), _id: undefined, __v: undefined })) });
   } catch (error) {
     console.error('News list error:', error);
     return res.status(500).json({ error: 'Failed to fetch news.' });
@@ -936,27 +968,29 @@ function resolveCreatorIdentity({ payload = {}, currentUser = null, fallbackSeed
   }
   
   if (mode === 'male') {
+    const name = payload.custom_author_name || 'Dencewance Boy';
     return {
       creator_mode: 'male',
       is_official_creator: false,
       creator_id: incomingCreatorId || makeStableCreatorId('male', fallbackIdSeed),
       is_demo_creator: false,
-      creator_name: payload.custom_author_name || 'Dencewance Boy',
-      creator_handle: slugify((payload.custom_author_name || 'denceboy').toLowerCase()),
-      creator_avatar: 'https://i.pravatar.cc/150?img=11',
+      creator_name: name,
+      creator_handle: slugify((name).toLowerCase()),
+      creator_avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
       follower_count: Math.floor(Math.random() * 5000) + 100,
     };
   }
 
   if (mode === 'female') {
+    const name = payload.custom_author_name || 'Dencewance Girl';
     return {
       creator_mode: 'female',
       is_official_creator: false,
       creator_id: incomingCreatorId || makeStableCreatorId('female', fallbackIdSeed),
       is_demo_creator: false,
-      creator_name: payload.custom_author_name || 'Dencewance Girl',
-      creator_handle: slugify((payload.custom_author_name || 'dencegirl').toLowerCase()),
-      creator_avatar: 'https://i.pravatar.cc/150?img=5',
+      creator_name: name,
+      creator_handle: slugify((name).toLowerCase()),
+      creator_avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
       follower_count: Math.floor(Math.random() * 15000) + 1000,
     };
   }
@@ -1089,13 +1123,14 @@ app.get('/api/reels', async (req, res) => {
       .lean();
     const deletedUrlSet = await getDeletedReelUrlSet();
     const visibleReels = reels.filter((reel) => !isReelTombstoned(reel, deletedUrlSet));
+    const populated = await populateCreatorDetails(visibleReels, 'creator_id', 'creator_name', 'creator_avatar', 'creator_handle');
 
     // Disable all caching for reels - always fresh data
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate, private');
     res.set('Pragma', 'no-cache');
     res.set('Expires', '0');
 
-    return res.json({ data: visibleReels.map((item) => ({ ...item, id: item._id.toString(), _id: undefined, __v: undefined })) });
+    return res.json({ data: populated.map((item) => ({ ...item, id: item._id.toString(), _id: undefined, __v: undefined })) });
   } catch (error) {
     console.error('Reels list error:', error);
     return res.status(500).json({ error: 'Failed to fetch reels.' });
@@ -1111,7 +1146,8 @@ app.get('/api/reels/:id', async (req, res) => {
     if (isReelTombstoned(reel, deletedUrlSet)) {
       return res.status(404).json({ error: 'Reel not found.' });
     }
-    return res.json({ data: { ...reel, id: reel._id.toString(), _id: undefined, __v: undefined } });
+    const populatedReel = await populateCreatorDetails(reel, 'creator_id', 'creator_name', 'creator_avatar', 'creator_handle');
+    return res.json({ data: { ...populatedReel, id: populatedReel._id.toString(), _id: undefined, __v: undefined } });
   } catch (error) {
     console.error('Reel detail error:', error);
     return res.status(500).json({ error: 'Failed to fetch reel.' });
@@ -1717,15 +1753,23 @@ app.post('/api/news', requireAuth, async (req, res) => {
   if (payload.creator_mode === 'official' || !payload.creator_mode) {
     payload.author_id = currentUser._id.toString();
     payload.author_name = payload.custom_author_name || currentUser.name;
-    payload.source = currentUser.avatar_url || 'https://i.pravatar.cc/150?img=11'; // official icon/avatar
+    payload.source = currentUser.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.author_name)}&background=random`; // official icon/avatar
+  } else if (payload.creator_mode === 'developer') {
+    payload.author_id = payload.creator_id || `dev_${Date.now()}`;
+    payload.author_name = payload.custom_author_name || payload.creator_name || 'Developer';
+    payload.source = payload.creator_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.author_name)}&background=random`;
+  } else if (payload.creator_mode === 'anonymous') {
+    payload.author_id = payload.creator_id || `anon_${Date.now()}`;
+    payload.author_name = payload.custom_author_name || payload.creator_name || 'Anonymous Scriptor';
+    payload.source = `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.author_name)}&background=random`;
   } else if (payload.creator_mode === 'male') {
-    payload.author_id = `male_${Date.now()}`;
+    payload.author_id = payload.creator_id || `male_${Date.now()}`;
     payload.author_name = payload.custom_author_name || 'Dencewance User';
-    payload.source = 'https://i.pravatar.cc/150?img=11';
+    payload.source = payload.creator_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.author_name)}&background=random`;
   } else if (payload.creator_mode === 'female') {
-    payload.author_id = `female_${Date.now()}`;
+    payload.author_id = payload.creator_id || `female_${Date.now()}`;
     payload.author_name = payload.custom_author_name || 'Dencewance User';
-    payload.source = 'https://i.pravatar.cc/150?img=5';
+    payload.source = payload.creator_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.author_name)}&background=random`;
   }
 
   const baseSlug = slugify(payload.title);
@@ -2419,15 +2463,18 @@ app.get('/api/users/:userHandle', async (req, res) => {
       user = await Admin.findOne({ email: handle });
     }
     if (!user) {
-      // Try to find from custom user_handle field
-      const reels = await Reel.find({ creator_handle: handle }).limit(1);
+      // Try to find from custom creator_id or creator_handle field
+      let reels = await Reel.find({ creator_id: handle }).limit(1);
+      if (reels.length === 0) {
+        reels = await Reel.find({ creator_handle: handle }).limit(1);
+      }
       if (reels.length > 0) {
         return res.json({
-          id: handle,
+          id: reels[0].creator_id || handle,
           name: reels[0].creator_name || 'User',
-          handle: handle,
-          avatar_url: reels[0].creator_avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(handle),
-          bio: `Creator: ${reels[0].creator_name}`,
+          handle: reels[0].creator_handle || handle,
+          avatar_url: reels[0].creator_avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(reels[0].creator_name || handle),
+          bio: `Creator on DenceWance`,
           followers: 0,
           following: 0,
           verified: false
@@ -2539,10 +2586,11 @@ app.get('/api/global-status', async (req, res) => {
     const reels = await Reel.find({ is_active: true }).lean();
     const deletedUrlSet = await getDeletedReelUrlSet();
     const visibleReels = reels.filter((reel) => !isReelTombstoned(reel, deletedUrlSet));
+    const populated = await populateCreatorDetails(visibleReels, 'creator_id', 'creator_name', 'creator_avatar', 'creator_handle');
     const now = Date.now();
     
     // Process and sort by viral algorithm
-    const scoredStatuses = visibleReels.map(reel => {
+    const scoredStatuses = populated.map(reel => {
       const likes = reel.likes || 0;
       const views = reel.views || 0;
       const shares = reel.shares || 0;
@@ -2662,6 +2710,151 @@ if (!IS_VERCEL) {
   } else if (hasR2Config) {
     console.log('[R2 Sync] Startup sync skipped (AUTO_SYNC_R2_ON_START is not true)');
   }
+
+
+// ─── CONTENT REPORTS ───
+app.post('/api/reports', async (req, res) => {
+  try {
+    const { reel_id, report_type, reason, details, reporter_device, reporter_url, timestamp, session_id } = req.body || {};
+    if (!report_type || !reason) {
+      return res.status(400).json({ error: 'report_type and reason are required.' });
+    }
+    const report = await Report.create({
+      reel_id: reel_id || '',
+      report_type,
+      reason,
+      details: details || '',
+      reporter_device: reporter_device || '',
+      reporter_url: reporter_url || '',
+      session_id: session_id || '',
+      status: 'pending',
+    });
+    return res.json({ success: true, id: report?.id || report?._id || '' });
+  } catch (err) {
+    console.error('Report create error:', err);
+    return res.status(500).json({ error: 'Failed to create report.' });
+  }
+});
+
+// ─── ANALYTICS: BATCH EVENTS ───
+app.post('/api/analytics/events', async (req, res) => {
+  try {
+    const { events } = req.body || {};
+    if (!Array.isArray(events) || events.length === 0) {
+      return res.status(400).json({ error: 'events array is required.' });
+    }
+    let count = 0;
+    for (const evt of events.slice(0, 50)) {
+      try {
+        await AnalyticsEvent.create({
+          action: evt.action || 'unknown',
+          target: evt.target || '',
+          timestamp: evt.timestamp || new Date().toISOString(),
+          session_id: evt.session_id || '',
+        });
+        count++;
+      } catch (e) {
+        console.error('Analytics event create error:', e.message);
+      }
+    }
+    return res.json({ success: true, count });
+  } catch (err) {
+    console.error('Analytics events error:', err);
+    return res.status(500).json({ error: 'Failed to store events.' });
+  }
+});
+
+// ─── ANALYTICS: ERROR TRACKING ───
+app.post('/api/analytics/errors', async (req, res) => {
+  try {
+    const { error_message, stack_trace, url, user_agent, timestamp, session_id } = req.body || {};
+    if (!error_message) {
+      return res.status(400).json({ error: 'error_message is required.' });
+    }
+    const errorDoc = await AnalyticsError.create({
+      error_message: (error_message || '').slice(0, 1000),
+      stack_trace: (stack_trace || '').slice(0, 5000),
+      url: url || '',
+      user_agent: (user_agent || '').slice(0, 500),
+      session_id: session_id || '',
+    });
+    return res.json({ success: true, id: errorDoc?.id || errorDoc?._id || '' });
+  } catch (err) {
+    console.error('Analytics error tracking error:', err);
+    return res.status(500).json({ error: 'Failed to store error.' });
+  }
+});
+
+// ─── ANALYTICS: ADMIN DASHBOARD ───
+app.get('/api/analytics/dashboard', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'superadmin')) {
+      return res.status(403).json({ error: 'Admin access required.' });
+    }
+
+    const [recentEvents, recentErrors, recentReports, recentDevReports] = await Promise.all([
+      AnalyticsEvent.find().sort({ created_at: -1 }).limit(100).lean(),
+      AnalyticsError.find().sort({ created_at: -1 }).limit(50).lean(),
+      Report.find().sort({ created_at: -1 }).limit(50).lean(),
+      DeveloperReport.find().sort({ created_at: -1 }).limit(20).lean(),
+    ]);
+
+    // Aggregate top features
+    const featureCounts = {};
+    for (const evt of recentEvents) {
+      const key = evt.action || 'unknown';
+      featureCounts[key] = (featureCounts[key] || 0) + 1;
+    }
+    const topFeatures = Object.entries(featureCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20)
+      .map(([action, count]) => ({ action, count }));
+
+    return res.json({
+      success: true,
+      data: {
+        features: topFeatures,
+        errors: recentErrors.map(e => ({ id: e.id || e._id, error_message: e.error_message, url: e.url, created_at: e.created_at })),
+        reports: recentReports.map(r => ({ id: r.id || r._id, report_type: r.report_type, reason: r.reason, reel_id: r.reel_id, status: r.status, created_at: r.created_at })),
+        developer_reports: recentDevReports.map(d => ({ id: d.id || d._id, type: d.type, description: d.description, created_at: d.created_at })),
+        stats: {
+          totalEvents: recentEvents.length,
+          totalErrors: recentErrors.length,
+          totalReports: recentReports.length,
+          totalDevReports: recentDevReports.length,
+        },
+      },
+    });
+  } catch (err) {
+    console.error('Analytics dashboard error:', err);
+    return res.status(500).json({ error: 'Failed to fetch analytics.' });
+  }
+});
+
+// ─── DEVELOPER REPORTS ───
+app.post('/api/developer-reports', async (req, res) => {
+  try {
+    const { type, description, device_info, browser_info, video_id, timestamp, logs, session_id } = req.body || {};
+    if (!type || !description) {
+      return res.status(400).json({ error: 'type and description are required.' });
+    }
+    const report = await DeveloperReport.create({
+      type,
+      description: (description || '').slice(0, 5000),
+      device_info: typeof device_info === 'object' ? JSON.stringify(device_info) : (device_info || ''),
+      browser_info: (browser_info || '').slice(0, 500),
+      video_id: video_id || '',
+      session_id: session_id || '',
+      logs: typeof logs === 'object' ? JSON.stringify(logs) : (logs || ''),
+      status: 'new',
+    });
+    return res.json({ success: true, id: report?.id || report?._id || '' });
+  } catch (err) {
+    console.error('Developer report create error:', err);
+    return res.status(500).json({ error: 'Failed to create developer report.' });
+  }
+});
 
   server.listen(PORT, () => {
     console.log(`🚀 API Server running on port ${PORT}`);

@@ -431,6 +431,10 @@ export const SiteSettings = new Model('settings');
 export const ReelComment = new Model('comments');
 export const SavedReel = new Model('saved_reels');
 export const UserProfile = new Model('profiles');
+export const Report = new Model('reports');
+export const AnalyticsEvent = new Model('analytics_events');
+export const AnalyticsError = new Model('analytics_errors');
+export const DeveloperReport = new Model('developer_reports');
 
 export const initDb = async () => {
   console.log('🚀 Appwrite DB Wrapper initialized. Overridden successfully!');

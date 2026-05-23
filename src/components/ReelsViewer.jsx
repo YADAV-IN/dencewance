@@ -6,6 +6,7 @@ import { translations as tAll } from '../translations';
 import UserProfileView from './UserProfileView';
 import CommentsSection from './CommentsSection';
 import LikeButton from './LikeButton';
+import { trackEvent, sendContentReport, sendDeveloperReport } from '../utils/analyticsTracker';
 
 const REEL_PRELOAD_AHEAD = 1; // Kam kiya gaya hai taaki data kam consume ho
 
@@ -56,7 +57,7 @@ const syncYouTubeAudioState = (iframe, shouldMute) => {
 const enableVideoImmersiveMode = () => {};
 const disableVideoImmersiveMode = () => {};
 
-export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0, onClose, onDelete, adminData }) {
+export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0, onClose, onDelete, adminData, onNavigateToProfile }) {
   const language = localStorage.getItem('socialAppLanguage') || 'en';
   const t = (key, lang) => {
      const translation = tAll[key];
@@ -109,7 +110,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
     const item = reels[activeReelIndex];
     if (!item) return;
     const reelId = item.id || item._id;
-    if (!window.confirm('Delete this reel permanently?')) return;
+    if (!window.confirm('Delete this clip permanently?')) return;
     onDelete(reelId);
   };
   const formatCompactNumber = (n) => {
@@ -139,6 +140,12 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [showComments, setShowComments] = useState(false);
   const [selectedReelForComments, setSelectedReelForComments] = useState(null);
+  const [showReportSheet, setShowReportSheet] = useState(false);
+  const [reportReelId, setReportReelId] = useState(null);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDetails, setReportDetails] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportSuccess, setReportSuccess] = useState(false);
 
   const reelsContainerRef = useRef(null);
   const reelVideoRefs = useRef({});
@@ -494,14 +501,27 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       {/* Creator avatar + follow pill */}
                       <button
                         className="reel-creator-pill"
-                        onClick={(e) => { e.stopPropagation(); setSelectedUserId(item.creator_id || item.creator_name); }}
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          if (onNavigateToProfile && item.creator_id) {
+                            onNavigateToProfile(item.creator_id);
+                          } else {
+                            setSelectedUserId(item.creator_id || item.creator_name); 
+                          }
+                        }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                       >
-                        {creatorAvatar ? (
-                          <img loading="lazy" src={resolveMediaUrl(creatorAvatar)} alt="creator" className="reel-creator-avatar-sm" style={{ objectFit: 'cover' }} />
-                        ) : (
-                          <div className="reel-creator-avatar-sm">{creatorInitial}</div>
-                        )}
+                        <img 
+                          loading="lazy" 
+                          src={creatorAvatar ? resolveMediaUrl(creatorAvatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(item.creator_name || 'User')}&background=random`} 
+                          alt="creator" 
+                          className="reel-creator-avatar-sm" 
+                          style={{ objectFit: 'cover', background: '#333' }} 
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.creator_name || 'User')}&background=random`;
+                          }}
+                        />
                         <button
                           className="reel-follow-fab-btn"
                           onClick={(e) => { e.stopPropagation(); toggleFollowCreator(item); }}
@@ -575,6 +595,30 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                         <span className="reel-action-count">{reelsMuted ? 'Off' : 'On'}</span>
                       </div>
 
+                      {/* Report */}
+                      <div className="reel-action-item">
+                        <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); trackEvent('report_open', item._id); setReportReelId(item._id); setShowReportSheet(true); setReportSuccess(false); setReportReason(''); setReportDetails(''); }}>
+                          <span className="reel-action-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+                              <path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/>
+                            </svg>
+                          </span>
+                        </button>
+                        <span className="reel-action-count">Report</span>
+                      </div>
+
+                      {/* Dev Report */}
+                      <div className="reel-action-item">
+                        <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); trackEvent('dev_report', item._id); sendDeveloperReport('user_feedback', `Clip ${item._id} issue reported by user`, { video_id: item._id }); alert('Bug report sent to developer! 🛠️'); }}>
+                          <span className="reel-action-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+                              <path d="M20 8h-2.81c-.45-.78-1.07-1.45-1.82-1.96L17 4.41 15.59 3l-2.17 2.17C12.96 5.06 12.49 5 12 5c-.49 0-.96.06-1.41.17L8.41 3 7 4.41l1.62 1.63C7.88 6.55 7.26 7.22 6.81 8H4v2h2.09c-.05.33-.09.66-.09 1v1H4v2h2v1c0 .34.04.67.09 1H4v2h2.81c1.04 1.79 2.97 3 5.19 3s4.15-1.21 5.19-3H20v-2h-2.09c.05-.33.09-.66.09-1v-1h2v-2h-2v-1c0-.34-.04-.67-.09-1H20V8zm-6 8h-4v-2h4v2zm0-4h-4v-2h4v2z"/>
+                            </svg>
+                          </span>
+                        </button>
+                        <span className="reel-action-count">Bug</span>
+                      </div>
+
                       {/* Admin: Delete */}
                       {adminToken && onDelete && (
                         <div className="reel-action-item">
@@ -597,14 +641,23 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     
                     <div className="reel-bottom-info">
                       <div className="reel-creator-line">
-                        <strong className="reel-creator-handle" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <button 
+                          className="reel-creator-handle" 
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onNavigateToProfile && item.creator_id) {
+                              onNavigateToProfile(item.creator_id);
+                            }
+                          }}
+                        >
                           @{item.creator_handle || slugifyText(item.creator_name || 'creator').replace(/-/g, '')}
                           {item.is_official_creator && (
                             <svg viewBox="0 0 24 24" fill="#00FFFF" width="16" height="16" style={{ filter: 'drop-shadow(0 0 2px rgba(0, 255, 255, 0.4))' }}>
                               <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1.8 14.8L6.4 13l1.4-1.4 2.4 2.4 6-6L17.6 9l-7.4 7.8z"/>
                             </svg>
                           )}
-                        </strong>
+                        </button>
                         {item.is_demo_creator && <span className="reel-category-badge">Demo</span>}
                         {item.category && <span className="reel-category-badge">{item.category}</span>}
                       </div>
@@ -648,7 +701,120 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                         }}
                       >↓</button>
                     )}
-                  </div>
+
+                    {/* Comments Panel inside the reel frame */}
+                    {showComments && selectedReelForComments === item._id && (
+                      <div
+                        className="reel-comments-sheet"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <CommentsSection
+                          reelId={selectedReelForComments}
+                          userId={localStorage.getItem('adminId')}
+                          onNavigateToProfile={onNavigateToProfile}
+                        />
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setShowComments(false); }}
+                          className="reel-comments-close-btn"
+                          aria-label="Close comments"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Report Sheet inside the reel frame */}
+                    {showReportSheet && reportReelId === item._id && (
+                      <div
+                        className="reel-comments-sheet"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ zIndex: 110 }}
+                      >
+                        <div style={{ padding: '20px', flex: 1, overflowY: 'auto' }}>
+                          <h3 style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700, fontSize: '18px', marginBottom: '16px', color: '#fff' }}>
+                            {reportSuccess ? '✅ Report Submitted!' : '🚩 Report this Clip'}
+                          </h3>
+                          {reportSuccess ? (
+                            <p style={{ color: '#a3a3a3', fontSize: '14px' }}>Thank you for reporting. Our team will review this clip.</p>
+                          ) : (
+                            <>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                                {['Inappropriate Content', 'Spam', 'Copyright Violation', 'Misinformation', 'Harassment', 'Other'].map(reason => (
+                                  <button
+                                    key={reason}
+                                    onClick={() => setReportReason(reason)}
+                                    style={{
+                                      padding: '12px 16px',
+                                      borderRadius: '12px',
+                                      border: reportReason === reason ? '1.5px solid #00FFFF' : '1px solid rgba(255,255,255,0.1)',
+                                      background: reportReason === reason ? 'rgba(0, 255, 255, 0.1)' : 'rgba(255,255,255,0.05)',
+                                      color: '#fff',
+                                      textAlign: 'left',
+                                      cursor: 'pointer',
+                                      fontFamily: 'Montserrat, sans-serif',
+                                      fontSize: '13px',
+                                      fontWeight: reportReason === reason ? 600 : 400,
+                                      transition: 'all 0.2s',
+                                    }}
+                                  >{reason}</button>
+                                ))}
+                              </div>
+                              <textarea
+                                placeholder="Additional details (optional)..."
+                                value={reportDetails}
+                                onChange={(e) => setReportDetails(e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  minHeight: '60px',
+                                  padding: '12px',
+                                  borderRadius: '12px',
+                                  border: '1px solid rgba(255,255,255,0.1)',
+                                  background: 'rgba(255,255,255,0.05)',
+                                  color: '#fff',
+                                  fontSize: '13px',
+                                  fontFamily: 'Montserrat, sans-serif',
+                                  resize: 'vertical',
+                                  outline: 'none',
+                                  marginBottom: '12px',
+                                }}
+                              />
+                              <button
+                                disabled={!reportReason || reportSubmitting}
+                                onClick={async () => {
+                                  setReportSubmitting(true);
+                                  trackEvent('report_submit', item._id);
+                                  await sendContentReport(item._id, 'clip', reportReason, reportDetails);
+                                  setReportSubmitting(false);
+                                  setReportSuccess(true);
+                                  setTimeout(() => setShowReportSheet(false), 2000);
+                                }}
+                                style={{
+                                  width: '100%',
+                                  padding: '14px',
+                                  borderRadius: '14px',
+                                  border: 'none',
+                                  background: reportReason ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'rgba(255,255,255,0.1)',
+                                  color: '#fff',
+                                  fontWeight: 700,
+                                  fontSize: '14px',
+                                  fontFamily: 'Montserrat, sans-serif',
+                                  cursor: reportReason ? 'pointer' : 'not-allowed',
+                                  opacity: reportReason ? 1 : 0.5,
+                                  transition: 'all 0.2s',
+                                }}
+                              >
+                                {reportSubmitting ? 'Submitting...' : 'Submit Report'}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setShowReportSheet(false); }}
+                          className="reel-comments-close-btn"
+                          aria-label="Close report"
+                        >✕</button>
+                      </div>
+                    )}                  </div>
                 );
               })}
 
@@ -658,52 +824,6 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                   userId={selectedUserId}
                   onClose={() => setSelectedUserId(null)}
                 />
-              )}
-
-              {/* Comments Panel Modal */}
-              {showComments && selectedReelForComments && (
-                <div
-                  style={{
-                    position: 'fixed',
-                    top: 0,
-                    right: 0,
-                    width: isMobile ? '100%' : '380px',
-                    height: '100%',
-                    background: 'rgba(0,0,0,0.95)',
-                    borderLeft: '1px solid rgba(255,255,255,0.1)',
-                    zIndex: 10000,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    animation: 'slideInRight 0.3s ease-out'
-                  }}
-                >
-                  <CommentsSection
-                    reelId={selectedReelForComments}
-                    userId={localStorage.getItem('adminId')}
-                  />
-                  <button
-                    onClick={() => setShowComments(false)}
-                    style={{
-                      position: 'absolute',
-                      top: 12,
-                      right: 12,
-                      background: 'rgba(255,255,255,0.1)',
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      color: '#fff',
-                      width: 32,
-                      height: 32,
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                      fontSize: 18,
-                      zIndex: 10001,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
               )}
 
               <style>{`
@@ -737,7 +857,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                 <button
                   className="reel-upload-fab"
                   onClick={() => reelUploadInputRef.current?.click()}
-                  title="Upload New Reel"
+                  title="Upload New Clip"
                 >
                   <span className="reel-upload-fab-icon">＋</span>
                   <span className="reel-upload-fab-label">Upload</span>
@@ -755,7 +875,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
               {videoUploadState.state === 'loading' && (
                 <div className="reel-upload-toast">
                   <div className="reel-upload-toast-header">
-                    <span className="reel-upload-toast-label">📤 Uploading reel...</span>
+                    <span className="reel-upload-toast-label">📤 Uploading clip...</span>
                     <strong className="reel-upload-toast-pct">{reelUploadProgress}%</strong>
                   </div>
                   <div className="reel-upload-progress-track">
