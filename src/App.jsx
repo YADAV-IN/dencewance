@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import SocialApp from './components/SocialApp';
+import PixelPerfectSocialApp from './components/PixelPerfectSocialApp';
 
 function App() {
   const [viewMode, setViewMode] = useState(() => {
@@ -31,17 +31,18 @@ function App() {
           <div className="phone-frame">
             <div className="phone-notch" />
             <div className="phone-screen">
-              <SocialApp viewMode={viewMode} setViewMode={handleToggleViewMode} />
+              <PixelPerfectSocialApp viewMode={viewMode} setViewMode={handleToggleViewMode} />
             </div>
             <div className="phone-home-indicator" />
             <div className="phone-reflection" />
           </div>
         </div>
       ) : (
-        <SocialApp viewMode={viewMode} setViewMode={handleToggleViewMode} />
+        <PixelPerfectSocialApp viewMode={viewMode} setViewMode={handleToggleViewMode} />
       )}
     </div>
   );
 }
 
 export default App;
+

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SkeletonImage from './SkeletonImage';
+import { getAvatarUrl } from '../utils/avatar';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -88,7 +89,7 @@ export default function UserProfileView({ userId, onClose }) {
           {/* Avatar */}
           <div style={{ marginBottom: 20 }}>
             <img
-              src={profile.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=1a1a2e&color=fff&size=128`}
+              src={profile.avatar_url || getAvatarUrl(profile._id || profile.id, profile.name)}
               alt={profile.name}
               style={{
                 width: 120,

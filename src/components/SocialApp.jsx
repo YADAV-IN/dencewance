@@ -127,7 +127,7 @@ export const DenceWanceLogo = ({ width = 120, height = 48, style = {} }) => {
       onError={(e) => {
          // Fallback if image is broken
          e.target.onerror = null;
-         e.target.src = '/logo192.png';
+         e.target.src = '/dencewance-logo.jpg';
       }}
     />
   );
@@ -393,7 +393,9 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
     const creatorIdentity = buildCreatorIdentity({
       mode: getPreferredCreatorMode(),
       seed: file.name || `status-${Date.now()}`,
-      name: adminData?.name || 'You',
+      name: adminData?.name || localStorage.getItem('userName') || 'You',
+      handle: adminData?.email?.split('@')[0] || localStorage.getItem('userHandle') || '',
+      avatar: adminData?.avatar_url || localStorage.getItem('userAvatar') || '',
     });
     
     try {
@@ -796,16 +798,23 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
             </button>
           )}
 
-          <button className="icon-btn notification-btn" onClick={() => setActiveTab('messages')}>
-            <ScrollIcon />
-            <span className="notification-badge" style={{ backgroundColor: 'blue' }}>1</span>
+          <button className="icon-btn notification-btn" onClick={() => setActiveTab('messages')} style={{ border: '1px solid var(--accent)', color: 'var(--accent)', background: 'transparent' }}>
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            <span className="notification-badge">1</span>
           </button>
-          <button className="icon-btn notification-btn">
+          <button className="icon-btn notification-btn" style={{ border: '1px solid var(--accent)', color: 'var(--accent)', background: 'transparent' }}>
             <BellIcon />
             <span className="notification-badge">3</span>
           </button>
           
-          <button onClick={() => setActiveTab('pyq')} style={{ background: 'linear-gradient(45deg, #B4A05D, #D4AF37)', color: 'black', fontWeight: 'bold', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 10px rgba(180, 160, 93, 0.3)' }}>🎓 PYQ</button>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', cursor: 'pointer', border: '1px solid var(--accent)', borderRadius: '50%' }}>
+             <svg viewBox="0 0 24 24" width="20" height="20" fill="var(--accent)" stroke="none">
+               <path d="M12 2l2.4 2.8 3.7-.5.9 3.6 3.4 1.5-1.5 3.4.9 3.6-3.7-.5-2.4 2.8L12 18l-3.7.8-2.4-2.8-3.7.5.9-3.6-3.4-1.5 1.5-3.4-.9-3.6 3.7.5 2.4-2.8L12 2z"/>
+               <path d="M9 12l2 2 4-4" stroke="var(--header-bg)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+             </svg>
+          </div>
+
+          <button onClick={() => setActiveTab('pyq')} style={{ background: 'var(--accent)', color: 'var(--primary-dark)', fontWeight: 'bold', padding: '6px 16px', borderRadius: '8px', fontSize: '14px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-primary)' }}>PYQ</button>
           
           {/* Storage Manager & Admin Settings - ADMIN ONLY */}
           {adminData && (adminData.role === 'admin' || adminData.role === 'superadmin') && (
@@ -1138,86 +1147,60 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
               {/* Stories Section Wrapper */}
               <div style={{ position: 'relative', width: '100%', marginTop: '22px' }}>
                 {/* Left Corner branding (Message Bubble Style) */}
-                <div className="stories-branding" style={{ 
-                  position: 'absolute', left: '8px', top: '-22px', 
-                  background: 'linear-gradient(180deg, #4a4a4a 0%, #1a1a1a 40%, #000000 100%)', 
-                  color: '#ffffff', 
-                  borderTop: '1px solid rgba(255,255,255,0.3)',
-                  boxShadow: 'inset 0 1px 3px rgba(255,255,255,0.2)',
-                  fontFamily: "'Cinzel', Georgia, serif", fontWeight: 800, fontSize: '11px', 
-                  padding: '6px 14px', borderRadius: '10px 10px 10px 0', 
-                  zIndex: 30, filter: 'drop-shadow(2px 4px 6px rgba(0,0,0,0.7))', 
-                  letterSpacing: '0.5px', whiteSpace: 'nowrap' 
-                }}>
-                  GLOBAL TRENDING CLIPS
-                  {/* Pointer / Tail of the message bubble */}
-                  <div style={{
-                    position: 'absolute', bottom: '-7px', left: '0',
-                    width: 0, height: 0,
-                    borderTop: '8px solid #000000',
-                    borderRight: '10px solid transparent'
-                  }} />
-                </div>
-                
-                {/* Stories Section Dropdown top */}
-                <section className="stories-container" style={{ position: 'relative', display: 'flex', overflowX: 'auto', gap: '12px', padding: '12px 18px', alignItems: 'center', alignSelf: 'flex-start' }}>
-
-                <div className="story status-add" style={{ cursor: 'pointer', textAlign: 'center', minWidth: '70px' }} onClick={() => statusUploadRef.current && statusUploadRef.current.click()}>
-              <StatusRing isUploading={isStatusUploading}>
-                {isStatusUploading ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', borderRadius: '50%' }}>
-                     <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#fff' }}>{Math.round(statusUploadProgress)}%</span>
-                     <div style={{ width: '70%', height: '3px', background: '#333', marginTop: '4px', borderRadius: '2px', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', background: '#00cc44', width: `${Math.round(statusUploadProgress)}%`, transition: 'width 0.2s' }}></div>
-                     </div>
-                  </div>
-                ) : (
-                  <strong style={{ fontSize: '30px', color: '#f5d742' }}>+</strong>
-                )}
-              </StatusRing>
-              <span style={{ fontSize: '12px', marginTop: '5px', display: 'block', color: '#fff' }}>{isStatusUploading ? 'Uploading...' : 'New Clip'}</span>
-              <input type="file" ref={statusUploadRef} style={{ display: 'none' }} accept="video/*" onChange={handleStatusUpload} />
-            </div>
-                {statuses.length > 0 ? (
-                  statuses.map((story, i) => {
-                    const thumb = story.cover_image_url || story.media_url || story.thumbnail || '';
-                    return (
-                      <div key={story._id || i} onClick={() => { markStatusSeen(story.id || story._id); setActiveStoryIndex(i); setViewingMedia('status'); setActiveTab('stories'); }} style={{ cursor: 'pointer', minWidth: 84, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div style={{ width: 84, height: 150, borderRadius: 12, overflow: 'hidden', position: 'relative', boxShadow: '0 6px 18px rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                          {thumb ? (
-                            (/(\.mp4|\.mov|\.webm|\.m3u8)(\?|$)/i.test(thumb) || (story.video_url && !story.cover_image_url)) ? (
-                              <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                                <video src={resolveMediaUrl(story.video_url || thumb)} muted loop playsInline autoPlay style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                                  <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '700', fontSize: '20px' }}>▶</div>
-                                </div>
-                              </div>
-                            ) : (
-                              <SkeletonImage src={resolveMediaUrl(thumb)} alt={story.title || 'Preview'} wrapperStyle={{ width: '100%', height: '100%', display: 'block' }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            )
-                          ) : (
-                            story.video_url ? (
-                              <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                                <video src={resolveMediaUrl(story.video_url)} muted loop playsInline autoPlay style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                                  <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '700', fontSize: '20px' }}>▶</div>
-                                </div>
-                              </div>
-                            ) : (
-                              <div style={{ width: '100%', height: '100%', background: '#222', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>▶</div>
-                            )
-                          )}
-                          {/* small profile overlay */}
-                          <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                            <SkeletonImage src={resolveMediaUrl(story.creator_avatar || story.avatar_url)} fallbackSrc={`https://ui-avatars.com/api/?name=${encodeURIComponent(story.creator_name || 'User')}&background=random`} alt={story.creator_name || 'Creator'} wrapperStyle={{ width: 34, height: 34, borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.9)', boxShadow: '0 2px 4px rgba(0,0,0,0.5)' }} circle={true} />
+                <div style={{ background: 'var(--bg-card)', borderRadius: '16px', padding: '16px', boxShadow: '0 8px 30px rgba(58, 18, 94, 0.08)', position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.03, pointerEvents: 'none', background: 'radial-gradient(circle at 50% 50%, rgba(58, 18, 94, 0.2) 0%, transparent 100%)' }}></div>
+                  <h2 style={{ margin: '0 0 16px 8px', fontSize: '15px', fontWeight: '800', color: 'var(--primary-dark)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>GLOBAL TRENDING STATUS</h2>
+                  
+                  <section className="stories-container" style={{ display: 'flex', overflowX: 'auto', gap: '16px', padding: '4px 8px', margin: 0, background: 'transparent', boxShadow: 'none', border: 'none', scrollbarWidth: 'none', MsOverflowStyle: 'none' }}>
+                    <div className="story status-add" style={{ cursor: 'pointer', textAlign: 'center', minWidth: '84px', position: 'relative' }} onClick={() => statusUploadRef.current && statusUploadRef.current.click()}>
+                      <div style={{ width: '84px', height: '140px', borderRadius: '16px', border: '2px dashed var(--accent)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(255, 215, 0, 0.05)' }}>
+                        {isStatusUploading ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', borderRadius: '14px' }}>
+                             <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff' }}>{Math.round(statusUploadProgress)}%</span>
+                             <div style={{ width: '70%', height: '4px', background: '#333', marginTop: '6px', borderRadius: '2px', overflow: 'hidden' }}>
+                                <div style={{ height: '100%', background: 'var(--accent)', width: `${Math.round(statusUploadProgress)}%`, transition: 'width 0.2s' }}></div>
+                             </div>
                           </div>
-                        </div>
-                        <div style={{ color: '#cbd5e1', fontSize: 11, textAlign: 'center', maxWidth: 84, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: '500' }}>{(story.creator_name || story.title || 'Anon').substring(0, 12)}</div>
+                        ) : (
+                          <strong style={{ fontSize: '32px', color: 'var(--accent)' }}>+</strong>
+                        )}
                       </div>
-                    );
-                  })
-                ) : null}
-              </section>
+                      <span style={{ fontSize: '12px', marginTop: '10px', display: 'block', color: 'var(--text-muted)', fontWeight: '600' }}>{isStatusUploading ? 'Uploading...' : 'New Status'}</span>
+                      <input type="file" ref={statusUploadRef} style={{ display: 'none' }} accept="video/*" onChange={handleStatusUpload} />
+                    </div>
+                    
+                    {statuses.length > 0 ? (
+                      statuses.map((story, i) => {
+                        const thumb = story.cover_image_url || story.media_url || story.thumbnail || '';
+                        return (
+                          <div key={story._id || i} onClick={() => { markStatusSeen(story.id || story._id); setActiveStoryIndex(i); setViewingMedia('status'); setActiveTab('stories'); }} style={{ cursor: 'pointer', minWidth: '84px', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                            <div style={{ width: '84px', height: '140px', borderRadius: '16px', overflow: 'hidden', position: 'relative', border: '1px solid var(--accent)', boxShadow: '0 4px 15px rgba(255, 215, 0, 0.15)' }}>
+                              {thumb ? (
+                                <SkeletonImage src={resolveMediaUrl(thumb)} alt={story.title || 'Preview'} wrapperStyle={{ width: '100%', height: '100%', display: 'block' }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', background: '#222' }}></div>
+                              )}
+                              
+                              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.15)', pointerEvents: 'none' }}></div>
+                              
+                              {/* Large circular play button in the center */}
+                              <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)', width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255, 215, 0, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)' }}>
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                              </div>
+                            </div>
+                            
+                            {/* Avatar overlapping bottom border */}
+                            <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', width: '36px', height: '36px', borderRadius: '50%', border: '2px solid #fff', overflow: 'hidden', zIndex: 2, background: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>
+                               <SkeletonImage src={resolveMediaUrl(story.creator_avatar || story.avatar_url)} fallbackSrc={`https://ui-avatars.com/api/?name=${encodeURIComponent(story.creator_name || 'User')}&background=random`} alt={story.creator_name || 'Creator'} wrapperStyle={{ width: '100%', height: '100%', display: 'block' }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} circle={true} />
+                            </div>
+                            
+                            <span style={{ color: 'var(--text-primary)', fontSize: '11px', textAlign: 'center', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: '500', marginTop: '12px' }}>{(story.creator_name || story.title || 'Anon').substring(0, 12)}</span>
+                          </div>
+                        );
+                      })
+                    ) : null}
+                  </section>
+                </div>
             </div>
 
           {/* Feed Section */}
@@ -1228,7 +1211,7 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
                 return (
                   <div className="post" key={post._id || i}>
                     <div className="post-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                      <div style={{display: 'flex', alignItems: 'center'}}>
+                      <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
                         <button
                           onClick={() => navigateToProfile(postAuthorId)}
                           style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'block', outline: 'none' }}
@@ -1239,7 +1222,7 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
                             fallbackSrc={`https://ui-avatars.com/api/?name=${encodeURIComponent(post.author_name || 'User')}&background=random`}
                             alt="Avatar"
                             className="avatar"
-                            wrapperStyle={{ width: 48, height: 48, borderRadius: '50%', display: 'block' }}
+                            wrapperStyle={{ width: 56, height: 56, borderRadius: '50%', display: 'block' }}
                             circle={true}
                           />
                         </button>
@@ -1249,35 +1232,34 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
                             style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', color: 'inherit', font: 'inherit', outline: 'none' }}
                             title="View Profile"
                           >
-                            <strong style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               {post.author_name || 'DenceWance User'}
-                              {(postAuthorId && postAuthorId.includes('69d6')) && (
-                                <svg viewBox="0 0 24 24" fill="#00FFFF" width="16" height="16" style={{ filter: 'drop-shadow(0 0 2px rgba(0, 255, 255, 0.4))' }}>
-                                  <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1.8 14.8L6.4 13l1.4-1.4 2.4 2.4 6-6L17.6 9l-7.4 7.8z"/>
-                                </svg>
-                              )}
+                              <svg viewBox="0 0 24 24" fill="var(--accent)" width="18" height="18" style={{ marginTop: '2px' }}>
+                                <path d="M12 2l2.4 2.8 3.7-.5.9 3.6 3.4 1.5-1.5 3.4.9 3.6-3.7-.5-2.4 2.8L12 18l-3.7.8-2.4-2.8-3.7.5.9-3.6-3.4-1.5 1.5-3.4-.9-3.6 3.7.5 2.4-2.8L12 2z"/>
+                                <path d="M9 12l2 2 4-4" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
                             </strong>
                           </button>
                         <small>{new Date(post.published_at || Date.now()).toLocaleDateString()} • Recorded</small>
                       </div>
                     </div>
-                    {/* More menu (three-dot) - shows Delete only to admins/owners */}
+                    {/* More menu (three-dot) */}
                     <div style={{ position: 'relative' }}>
                       <button
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenMenuFor(openMenuFor === (post._id || post.id) ? null : (post._id || post.id)); }}
-                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px' }}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--primary-dark)' }}
                         aria-label="More"
                       >
                         <MoreVerticalIcon />
                       </button>
 
                       {openMenuFor === (post._id || post.id) && (
-                        <div className="more-menu" style={{ position: 'absolute', right: 0, top: '32px', background: '#111', border: '1px solid #333', borderRadius: '8px', padding: '6px', zIndex: 9999, minWidth: 140 }} onClick={(e)=>e.stopPropagation()}>
-                          <button className="more-menu-item" onClick={(e) => { e.stopPropagation(); try { if (navigator.share) { navigator.share({ title: post.title || 'DenceWance', text: post.excerpt || '', url: window.location.href }); } else { alert('Share not supported'); } } catch(_){} setOpenMenuFor(null); }} style={{ display: 'block', width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}>Share</button>
+                        <div className="more-menu" style={{ position: 'absolute', right: 0, top: '32px', background: '#fff', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '6px', zIndex: 9999, minWidth: 140, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }} onClick={(e)=>e.stopPropagation()}>
+                          <button className="more-menu-item" onClick={(e) => { e.stopPropagation(); try { if (navigator.share) { navigator.share({ title: post.title || 'DenceWance', text: post.excerpt || '', url: window.location.href }); } else { alert('Share not supported'); } } catch(_){} setOpenMenuFor(null); }} style={{ display: 'block', width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', color: 'var(--primary-dark)', cursor: 'pointer' }}>Share</button>
                           {((adminData?.role === 'admin') || (adminData?.role === 'superadmin') || (post.author_id === adminId) || (adminData && (post.author_id === adminData._id || post.author_name === adminData.name)) || adminId) ? (
-                            <button className="more-menu-item" onClick={(e) => { e.stopPropagation(); setOpenMenuFor(null); handleDeletePost(post.id || post._id); }} style={{ display: 'block', width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer' }}>{'Delete'}</button>
+                            <button className="more-menu-item" onClick={(e) => { e.stopPropagation(); setOpenMenuFor(null); handleDeletePost(post.id || post._id); }} style={{ display: 'block', width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer' }}>Delete</button>
                           ) : null}
-                          <button className="more-menu-item" onClick={(e) => { e.stopPropagation(); alert('Reported.'); setOpenMenuFor(null); }} style={{ display: 'block', width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}>Report</button>
+                          <button className="more-menu-item" onClick={(e) => { e.stopPropagation(); alert('Reported.'); setOpenMenuFor(null); }} style={{ display: 'block', width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', color: 'var(--primary-dark)', cursor: 'pointer' }}>Report</button>
                         </div>
                       )}
                     </div>
