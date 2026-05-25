@@ -343,7 +343,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                       }}
                       className="flex flex-col items-center shrink-0 cursor-pointer"
                     >
-                      <div className="w-[78px] h-[124px] rounded-[16px] overflow-hidden relative border-2 border-[#FFD700] shadow-[0_4px_12px_rgba(255,215,0,0.15)] bg-slate-900 group">
+                      <div className="w-[96px] h-[154px] rounded-[18px] overflow-hidden relative border-2 border-[#FFD700] shadow-[0_4px_16px_rgba(255,215,0,0.2)] bg-slate-900 group">
                         {story.cover_image_url && !(story.cover_image_url.toLowerCase().endsWith('.mp4') || story.cover_image_url.toLowerCase().includes('/video')) ? (
                           <img 
                             src={resolveMediaUrl(story.cover_image_url)} 
@@ -366,7 +366,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                           />
                         ) : (
                           <div className="w-full h-full bg-[#3A125E]/20 flex items-center justify-center">
-                            <Music size={20} className="text-white/30" />
+                            <Music size={24} className="text-white/30" />
                           </div>
                         )}
                         <div className="absolute inset-0 bg-black/15"></div>
@@ -374,13 +374,13 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                         
                         {/* Play Button Overlay */}
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="w-9 h-9 rounded-full bg-black/35 border border-[#FFD700]/60 backdrop-blur-xs flex items-center justify-center text-[#FFD700]">
-                            <Play size={14} fill="#FFD700" className="ml-0.5" />
+                          <div className="w-10 h-10 rounded-full bg-black/35 border border-[#FFD700]/60 backdrop-blur-xs flex items-center justify-center text-[#FFD700]">
+                            <Play size={16} fill="#FFD700" className="ml-0.5" />
                           </div>
                         </div>
 
                         {/* Creator Avatar Overlapping Bottom Edge */}
-                        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-[32px] h-[32px] rounded-full border-2 border-white overflow-hidden bg-white shadow-md z-10">
+                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-[36px] h-[36px] rounded-full border-2 border-white overflow-hidden bg-white shadow-md z-10">
                           <img 
                             src={story.creator_avatar ? resolveMediaUrl(story.creator_avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(story.creator_name || 'U')}&background=random`} 
                             alt="Creator"
@@ -388,7 +388,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                           />
                         </div>
                       </div>
-                      <span className="text-[#3A125E] font-bold text-[10px] mt-2.5 max-w-[70px] truncate text-center">
+                      <span className="text-[#3A125E] font-bold text-[10.5px] mt-3.5 max-w-[85px] truncate text-center">
                         {story.creator_name || 'Creator'}
                       </span>
                     </div>
@@ -494,14 +494,17 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                         </p>
                       </div>
 
-                      {/* Post Image Container */}
+                      {/* Post Image Container: Full length width, adaptive auto height */}
                       {(post.cover_image_url || post.image_url) && (
-                        <div className="mt-4 rounded-[16px] overflow-hidden aspect-[4/3] bg-gray-900 border border-gray-100 z-10 relative">
-                          <SkeletonImage 
+                        <div className="mt-4 -mx-5 bg-black border-y border-gray-100 z-10 relative overflow-hidden flex justify-center items-center">
+                          <img 
                             src={resolveMediaUrl(post.cover_image_url || post.image_url)} 
                             alt={post.title || 'Feed Image'} 
-                            className="w-full h-full object-cover"
-                            wrapperStyle={{ width: '100%', height: '100%', display: 'block' }}
+                            loading="lazy"
+                            className="w-full h-auto max-h-[460px] object-contain block transition-opacity duration-200"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
                           />
                         </div>
                       )}
