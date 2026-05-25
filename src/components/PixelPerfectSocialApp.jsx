@@ -344,9 +344,23 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                       className="flex flex-col items-center shrink-0 cursor-pointer"
                     >
                       <div className="w-[78px] h-[124px] rounded-[16px] overflow-hidden relative border-2 border-[#FFD700] shadow-[0_4px_12px_rgba(255,215,0,0.15)] bg-slate-900 group">
-                        {story.cover_image_url ? (
+                        {story.cover_image_url && !(story.cover_image_url.toLowerCase().endsWith('.mp4') || story.cover_image_url.toLowerCase().includes('/video')) ? (
                           <img 
                             src={resolveMediaUrl(story.cover_image_url)} 
+                            alt={story.title} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (story.video_url || story.media_url || (story.cover_image_url && (story.cover_image_url.toLowerCase().endsWith('.mp4') || story.cover_image_url.toLowerCase().includes('/video')))) ? (
+                          <video 
+                            src={resolveMediaUrl(story.video_url || story.media_url || story.cover_image_url)} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            preload="metadata"
+                            muted
+                            playsInline
+                          />
+                        ) : story.thumbnail ? (
+                          <img 
+                            src={resolveMediaUrl(story.thumbnail)} 
                             alt={story.title} 
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
@@ -356,6 +370,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                           </div>
                         )}
                         <div className="absolute inset-0 bg-black/15"></div>
+
                         
                         {/* Play Button Overlay */}
                         <div className="absolute inset-0 flex items-center justify-center">
