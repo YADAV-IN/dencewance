@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, Share2, MoreVertical, Volume2, VolumeX } from 'lucide-react';
+import { Heart, Share2, MoreVertical, Volume2, VolumeX, Settings } from 'lucide-react';
 
 import './ReelsViewer.css';
 import { translations as tAll } from '../translations';
@@ -146,6 +146,8 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const [reportDetails, setReportDetails] = useState('');
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reportSuccess, setReportSuccess] = useState(false);
+  const [activeDropdownIndex, setActiveDropdownIndex] = useState(null);
+
 
   const reelsContainerRef = useRef(null);
   const reelVideoRefs = useRef({});
@@ -448,52 +450,53 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                           padding: '4px 10px 4px 6px',
                           borderRadius: '20px'
                         }}>
-                          <svg className="dencewance-logo-animated" viewBox="0 0 100 100" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
-                            <defs>
-                              <linearGradient id="multiGradWatermark" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor="rgba(255, 255, 255, 0.7)" />
-                                <stop offset="100%" stopColor="rgba(255, 255, 255, 0.4)" />
-                              </linearGradient>
-                            </defs>
-                            <g transform="translate(50, 50)">
-                              <circle cx="0" cy="0" r="42" fill="none" stroke="url(#multiGradWatermark)" strokeWidth="6" className={isActive ? "spin-slow" : ""} />
-                              <circle cx="0" cy="0" r="30" fill="none" stroke="url(#multiGradWatermark)" strokeWidth="4" className={isActive ? "spin-reverse" : ""} strokeDasharray="10 10" />
-                              <polygon points="0,-18 16,9 -16,9" fill="url(#multiGradWatermark)" />
-                            </g>
-                          </svg>
                           <span style={{ 
-                            fontFamily: "'Cinzel', serif", 
-                            fontWeight: '900', 
-                            fontSize: '15px', 
-                            color: 'rgba(255, 255, 255, 0.6)',
-                            letterSpacing: '1px',
-                            textTransform: 'uppercase'
-                          }}>DenceWance</span>
+                            fontFamily: "'Dancing Script', cursive", 
+                            fontWeight: '700', 
+                            fontSize: '25px', 
+                            color: '#FFFFFF',
+                            textShadow: '0 2px 8px rgba(0, 0, 0, 0.65)',
+                            pointerEvents: 'none',
+                            letterSpacing: '1px'
+                          }}>Clips</span>
                         </div>
                       </div>
                       
-                      {((adminData?.role === 'admin') || (item.creator_id === localStorage.getItem('adminId')) || (adminData && (item.creator_id === adminData.id || item.creator_id === adminData._id || item.creator_name === adminData.name)) || localStorage.getItem('adminToken')) && onDelete && (
+                      {/* Top right Settings cog dropdown */}
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', pointerEvents: 'auto', position: 'relative' }}>
                         <button 
-                          className="reel-delete-btn" 
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(item.id || item._id); }}
-                          style={{
-                            background: 'rgba(255, 0, 0, 0.7)',
-                            border: '1px solid rgba(255, 255, 255, 0.3)',
-                            color: 'white',
-                            padding: '6px 12px',
-                            borderRadius: '8px',
-                            backdropFilter: 'blur(4px)',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            marginRight: '20px',
-                            position: 'relative',
-                            zIndex: 9999,
-                            pointerEvents: 'auto'
+                          className="w-9 h-9 rounded-full bg-black/35 text-white flex items-center justify-center border border-white/10 backdrop-blur-md cursor-pointer hover:bg-black/60 transition-colors"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setActiveDropdownIndex(activeDropdownIndex === idx ? null : idx);
                           }}
                         >
-                          Delete
+                          <Settings size={18} />
                         </button>
-                      )}
+                        
+                        {activeDropdownIndex === idx && (
+                          <div className="absolute right-0 top-11 bg-black/85 border border-white/15 rounded-xl p-1.5 shadow-2xl z-[150] min-w-[130px] backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-150" onClick={(e) => e.stopPropagation()}>
+                            {((adminData?.role === 'admin') || (item.creator_id === localStorage.getItem('adminId')) || (adminData && (item.creator_id === adminData.id || item.creator_id === adminData._id || item.creator_name === adminData.name)) || localStorage.getItem('adminToken')) && onDelete ? (
+                              <button 
+                                className="w-full text-left px-3 py-2 text-xs font-bold text-red-400 hover:bg-red-950/40 rounded-lg flex items-center gap-2 cursor-pointer transition-colors"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setActiveDropdownIndex(null);
+                                  onDelete(item.id || item._id);
+                                }}
+                              >
+                                🗑️ Delete Clip
+                              </button>
+                            ) : (
+                              <div className="px-3 py-2 text-[9px] text-gray-500 font-bold uppercase tracking-wider text-center">
+                                No Actions
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Right action column (TikTok-style) */}
@@ -682,7 +685,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     </div>
 
                     {/* Reel counter (top-right) */}
-                    <div className="reel-counter">{idx + 1} / {reelItems.length}</div>
+                    {/* Reel counter removed */}
 
                     {/* Desktop nav arrows */}
                     {idx > 0 && (

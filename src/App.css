@@ -5860,7 +5860,7 @@ body.standalone-mode .reel-top-overlay {
     max-width: 506px !important;
     margin: 5vh auto !important;
     border-radius: 24px !important;
-    border: 1.5px solid rgba(255, 255, 255, 0.08) !important;
+    border: none !important;
     box-shadow: 
       0 20px 60px rgba(0, 0, 0, 0.9),
       0 0 35px rgba(197, 151, 21, 0.04) !important;
