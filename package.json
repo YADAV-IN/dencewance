@@ -1,6 +1,6 @@
 {
   "name": "codespaces-react",
-  "version": "1.0.190",
+  "version": "1.0.192",
   "private": true,
   "type": "module",
   "dependencies": {
@@ -24,9 +24,9 @@
     "postcss": "^8.4.31"
   },
   "scripts": {
-    "version": "node scripts/version-generator.js",
-    "prestart": "npm run version",
-    "prebuild": "npm run version",
+    "version": "node scripts/version-generator.cjs || echo 'Skipping version generation'",
+    "prestart": "npm run version || echo 'Skipping'",
+    "prebuild": "npm run version || echo 'Skipping'",
     "start": "vite --port 3000",
     "build": "vite build",
     "preview": "vite preview",

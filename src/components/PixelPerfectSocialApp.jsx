@@ -1173,23 +1173,20 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               
               <div className="mt-3 text-gray-700 text-[13px] font-bold relative z-10 flex justify-between items-center">
                 <span>Welcome Back, {adminData?.name || 'Preetam'}! Let's Dance!</span>
-                <div className="flex items-center gap-2.5">
-                  <span className="text-gray-400 text-[9px] font-semibold tracking-wider">v{versionData.version}</span>
-                  {token && (
-                    <button 
-                      onClick={() => {
-                        localStorage.clear();
-                        setToken(null);
-                        setAdminId(null);
-                        setAdminData(null);
-                        setSelectedProfileId(null);
-                      }}
-                      className="text-red-500 hover:text-red-700 text-[10px] font-bold uppercase tracking-wider cursor-pointer border-l border-gray-200 pl-2.5"
-                    >
-                      Logout
-                    </button>
-                  )}
-                </div>
+                {token && (
+                  <button 
+                    onClick={() => {
+                      localStorage.clear();
+                      setToken(null);
+                      setAdminId(null);
+                      setAdminData(null);
+                      setSelectedProfileId(null);
+                    }}
+                    className="text-red-500 hover:text-red-700 text-[10px] font-bold uppercase tracking-wider cursor-pointer"
+                  >
+                    Logout
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1453,6 +1450,13 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                 </div>
               </div>
             )}
+            
+            {/* Version Display at the very bottom of Profile Page */}
+            <div className="text-center pt-4 pb-8 shrink-0 border-t border-[#3A125E]/5 mt-2">
+              <span className="text-[#3A125E]/30 text-[9px] font-extrabold tracking-widest uppercase block">
+                DenceWance • v{versionData.version} ({versionData.gitHash || 'stable'})
+              </span>
+            </div>
           </div>
           )
         )}

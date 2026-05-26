@@ -1,6 +1,6 @@
-import fs from 'fs';
-import path from 'path';
-import { execSync } from 'child_process';
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
 
 try {
   const versionFilePath = path.resolve('src/version.json');
@@ -28,7 +28,7 @@ try {
     }
   }
 
-  // Create src directory if it doesn't exist (safety check)
+  // Create src directory if it doesn't exist
   const srcDir = path.dirname(versionFilePath);
   if (!fs.existsSync(srcDir)) {
     fs.mkdirSync(srcDir, { recursive: true });
@@ -73,6 +73,6 @@ try {
     console.error('Failed to write fallback version.json:', e);
   }
   
-  // CRITICAL: Exit with status 0 so Render build does NOT fail
+  // Exit with status 0 so Render build does NOT fail
   process.exit(0);
 }
