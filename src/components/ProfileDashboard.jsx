@@ -36,7 +36,10 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
   const [editName, setEditName] = useState('');
   const [editBio, setEditBio] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
+  const [editUsername, setEditUsername] = useState('');
+  const [usernameStatus, setUsernameStatus] = useState({ checking: false, available: null, reason: '' });
   const [isSaving, setIsSaving] = useState(false);
+  const usernameCheckTimer = useRef(null);
 
   useEffect(() => {
     loadProfileData();
@@ -229,18 +232,79 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
     }
   };
 
+  const checkUsernameAvailability = (val) => {
+    if (usernameCheckTimer.current) clearTimeout(usernameCheckTimer.current);
+    const cleaned = val.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    setEditUsername(cleaned);
+
+    if (!cleaned || cleaned.length < 3) {
+      setUsernameStatus({ checking: false, available: null, reason: cleaned.length > 0 ? 'Username must be at least 3 characters' : '' });
+      return;
+    }
+    if (cleaned.length > 20) {
+      setUsernameStatus({ checking: false, available: false, reason: 'Username must be 20 characters or less' });
+      return;
+    }
+    if (!/^[a-z0-9_]{3,20}$/.test(cleaned)) {
+      setUsernameStatus({ checking: false, available: false, reason: 'Only lowercase letters, numbers and underscores' });
+      return;
+    }
+    // If unchanged from current, skip check
+    const currentHandle = (profile?.username || profile?.email?.split('@')[0] || '').toLowerCase();
+    if (cleaned === currentHandle) {
+      setUsernameStatus({ checking: false, available: true, reason: 'Your current username' });
+      return;
+    }
+
+    setUsernameStatus({ checking: true, available: null, reason: 'Checking...' });
+    usernameCheckTimer.current = setTimeout(async () => {
+      try {
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`${API_URL}/api/auth/check-username?username=${encodeURIComponent(cleaned)}`, { headers });
+        const data = await res.json();
+        if (data.available) {
+          setUsernameStatus({ checking: false, available: true, reason: '✓ Username is available!' });
+        } else {
+          setUsernameStatus({ checking: false, available: false, reason: data.reason === 'invalid_format' ? 'Invalid format' : '✗ Username is already taken' });
+        }
+      } catch {
+        setUsernameStatus({ checking: false, available: null, reason: 'Could not check availability' });
+      }
+    }, 400);
+  };
+
   const handleSaveProfile = async () => {
+    // Validate username before saving
+    if (editUsername && editUsername.length >= 3 && usernameStatus.available === false) {
+      alert('Please choose an available username before saving.');
+      return;
+    }
     setIsSaving(true);
     try {
+      const body = { name: editName, bio: editBio, avatar_url: editAvatar };
+      if (editUsername && /^[a-z0-9_]{3,20}$/.test(editUsername)) {
+        body.username = editUsername;
+      }
       const res = await fetch(`${API_URL}/api/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ name: editName, bio: editBio, avatar_url: editAvatar })
+        body: JSON.stringify(body)
       });
       if (res.ok) {
+        const data = await res.json();
+        if (data.data?.username) {
+          localStorage.setItem('userHandle', data.data.username);
+        }
+        if (data.data?.name) {
+          localStorage.setItem('userName', data.data.name);
+        }
+        if (data.data?.avatar_url) {
+          localStorage.setItem('userAvatar', data.data.avatar_url);
+        }
         setIsEditing(false);
         loadProfileData(); // Reload stats
       } else {
@@ -388,6 +452,9 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
     setEditName(profile?.name || '');
     setEditBio(profile?.bio || '');
     setEditAvatar(profile?.avatar_url || '');
+    const currentHandle = (profile?.username || profile?.email?.split('@')[0] || '').toLowerCase();
+    setEditUsername(currentHandle);
+    setUsernameStatus({ checking: false, available: null, reason: '' });
     setIsEditing(true);
   };
 
@@ -447,6 +514,46 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
             <button className="text-blue-500 text-sm font-semibold" onClick={() => avatarInputRef.current && avatarInputRef.current.click()}>Change Profile DP / Photo</button>
           </div>
           <input type="text" placeholder="Name" className="bg-gray-900 border border-gray-800 rounded p-3 text-sm focus:border-gray-500" value={editName} onChange={e=>setEditName(e.target.value)} />
+          
+          {/* Username / Handle with live availability */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Username / Handle</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">@</span>
+              <input
+                type="text"
+                placeholder="your_username"
+                className={`bg-gray-900 border rounded p-3 pl-7 text-sm w-full focus:outline-none ${
+                  usernameStatus.available === true ? 'border-green-500 focus:border-green-400' :
+                  usernameStatus.available === false ? 'border-red-500 focus:border-red-400' :
+                  'border-gray-800 focus:border-gray-500'
+                }`}
+                value={editUsername}
+                onChange={e => checkUsernameAvailability(e.target.value)}
+                maxLength={20}
+              />
+              {usernameStatus.checking && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-400"></div>
+                </div>
+              )}
+              {!usernameStatus.checking && usernameStatus.available === true && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-400 text-lg">✓</span>
+              )}
+              {!usernameStatus.checking && usernameStatus.available === false && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-red-400 text-lg">✗</span>
+              )}
+            </div>
+            {usernameStatus.reason && (
+              <p className={`text-xs mt-0.5 ${
+                usernameStatus.available === true ? 'text-green-400' :
+                usernameStatus.available === false ? 'text-red-400' :
+                'text-gray-500'
+              }`}>{usernameStatus.reason}</p>
+            )}
+            <p className="text-[10px] text-gray-600">3-20 characters, lowercase letters, numbers, underscores only</p>
+          </div>
+          
           <textarea placeholder="Bio" className="bg-gray-900 border border-gray-800 rounded p-3 text-sm focus:border-gray-500 min-h-[100px]" value={editBio} onChange={e=>setEditBio(e.target.value)} />
           
           {/* Website Settings Logo */}
@@ -464,7 +571,7 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
             <p className="text-xs text-gray-500">This logo will appear everywhere on the site.</p>
           </div>
 
-          <button onClick={handleSaveProfile} disabled={isSaving} className="bg-blue-500 text-white rounded p-3 font-semibold mt-4">
+          <button onClick={handleSaveProfile} disabled={isSaving || (editUsername.length >= 3 && usernameStatus.available === false)} className={`text-white rounded p-3 font-semibold mt-4 transition ${isSaving || (editUsername.length >= 3 && usernameStatus.available === false) ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}`}>
              {isSaving ? 'Saving...' : 'Save Profile'}
           </button>
         </div>

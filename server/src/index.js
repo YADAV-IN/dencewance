@@ -12,7 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel, Report, AnalyticsEvent, AnalyticsError, DeveloperReport } from './db.js';
+import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel, Report, AnalyticsEvent, AnalyticsError, DeveloperReport, useOfflineFallback, Pyq } from './db.js';
 import { storage as appwriteStorage, databases as appwriteDatabases, APPWRITE_DB_ID, ID, Query } from './appwrite.js';
 import { InputFile } from 'node-appwrite/file';
 import { requireAuth, signToken } from './middleware/auth.js';
@@ -45,7 +45,7 @@ const populateCreatorDetails = async (items, idField, nameField, avatarField, ha
         const admin = adminMap.get(authorId.toString());
         if (admin.name && nameField) item[nameField] = admin.name;
         if (admin.avatar_url && avatarField) item[avatarField] = admin.avatar_url;
-        if (admin.email && handleField) item[handleField] = admin.email.split('@')[0];
+        if (handleField) item[handleField] = admin.username || admin.email?.split('@')[0] || 'user';
       }
     });
   } catch (err) {
@@ -244,6 +244,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 app.options('*', cors({
   origin: true,
   credentials: true,
@@ -421,6 +422,105 @@ app.use(async (req, res, next) => {
   }
 });
 
+app.post('/api/auth/oauth-sync', async (req, res) => {
+  try {
+    const { uid, name, email, phoneNumber, avatar_url } = req.body || {};
+    
+    let admin = null;
+    
+    if (email) {
+      admin = await Admin.findOne({ email });
+    }
+    if (!admin && phoneNumber) {
+      admin = await Admin.findOne({ phoneNumber });
+    }
+    if (!admin && uid) {
+      admin = await Admin.findOne({ uid });
+    }
+    
+    if (!admin) {
+      // Create new user profile / admin
+      let username;
+      if (email) {
+        username = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+      } else {
+        // For phone users, generate a friendly random username instead of raw phone digits
+        username = 'user_' + Math.random().toString(36).slice(2, 8);
+      }
+      // Ensure username is at least 3 chars
+      if (username.length < 3) username = 'user_' + Math.random().toString(36).slice(2, 8);
+      const newEmail = email || `${username}@dencewance.com`;
+      
+      admin = await Admin.create({
+        uid: uid || '',
+        name: name || `User ${username}`,
+        email: newEmail,
+        phoneNumber: phoneNumber || '',
+        username,
+        role: 'author',
+        status: 'active',
+        bio: 'Dancer on DenceWance',
+        avatar_url: avatar_url || '',
+        password_hash: ''
+      });
+    } else {
+      let updated = false;
+      if (uid && admin.uid !== uid) { admin.uid = uid; updated = true; }
+      if (phoneNumber && admin.phoneNumber !== phoneNumber) { admin.phoneNumber = phoneNumber; updated = true; }
+      if (avatar_url && !admin.avatar_url) { admin.avatar_url = avatar_url; updated = true; }
+      if (updated) {
+        await admin.save();
+      }
+    }
+    
+    const token = signToken(admin._id.toString());
+    return res.json({
+      data: {
+        token,
+        profile: admin.toJSON(),
+      },
+    });
+  } catch (err) {
+    console.error('OAuth sync error:', err);
+    return res.status(500).json({ error: 'OAuth sync failed.' });
+  }
+});
+
+app.get('/api/auth/check-username', async (req, res) => {
+  try {
+    const { username } = req.query;
+    if (!username) return res.status(400).json({ error: 'Username required.' });
+
+    const isValid = /^[a-z0-9_]{3,20}$/.test(username);
+    if (!isValid) {
+      return res.json({ available: false, reason: 'invalid_format' });
+    }
+
+    const admins = await Admin.find().lean();
+    const taken = admins.some(a => {
+      const aId = a.id || a._id;
+      if (req.headers.authorization) {
+        try {
+          const authHeader = req.headers.authorization;
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+          if (decoded && decoded.id === aId.toString()) {
+            return false; // Skip checking self
+          }
+        } catch(e) {}
+      }
+      
+      const handle = (a.username || a.email?.split('@')[0] || '').toLowerCase();
+      return handle === username.toLowerCase();
+    });
+
+    return res.json({ available: !taken });
+  } catch (err) {
+    console.error('Check username error:', err);
+    return res.status(500).json({ error: 'Failed to check username.' });
+  }
+});
+
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
@@ -579,25 +679,97 @@ app.get('/api/profile', requireAuth, async (req, res) => {
   return res.json({ data: admin.toJSON() });
 });
 
+async function syncProfileUpdatesToDbContent(adminId, updates) {
+  if (!adminId) return;
+  try {
+    const adminIdStr = adminId.toString();
+
+    // 1. Sync to Reels
+    const userReels = await Reel.find({ creator_id: adminIdStr });
+    for (const reel of userReels) {
+      const reelUpdates = {};
+      if (updates.name !== undefined) reelUpdates.creator_name = updates.name;
+      if (updates.username !== undefined) reelUpdates.creator_handle = updates.username;
+      if (updates.avatar_url !== undefined) reelUpdates.creator_avatar = updates.avatar_url;
+      if (Object.keys(reelUpdates).length > 0) {
+        await Reel.findByIdAndUpdate(reel.$id, reelUpdates);
+      }
+    }
+
+    // 2. Sync to News (Posts)
+    const userNews = await News.find({ author_id: adminIdStr });
+    for (const post of userNews) {
+      const postUpdates = {};
+      if (updates.name !== undefined) postUpdates.author_name = updates.name;
+      if (updates.avatar_url !== undefined) postUpdates.source = updates.avatar_url;
+      if (Object.keys(postUpdates).length > 0) {
+        await News.findByIdAndUpdate(post.$id, postUpdates);
+      }
+    }
+
+    // 3. Sync to Comments
+    const userComments = await ReelComment.find({ user_id: adminIdStr });
+    for (const comment of userComments) {
+      const commentUpdates = {};
+      if (updates.name !== undefined) commentUpdates.author_name = updates.name;
+      if (updates.username !== undefined) commentUpdates.author_handle = '@' + updates.username.replace(/^@/, '');
+      if (updates.avatar_url !== undefined) commentUpdates.author_avatar = updates.avatar_url;
+      if (Object.keys(commentUpdates).length > 0) {
+        await ReelComment.findByIdAndUpdate(comment.$id, commentUpdates);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to sync profile updates to database content:', err);
+  }
+}
+
 app.put('/api/profile', requireAuth, async (req, res) => {
-  const { name, email, bio, avatar_url } = req.body || {};
+  const { name, email, bio, avatar_url, username } = req.body || {};
   const updates = {};
   if (typeof name === 'string') updates.name = name;
   if (typeof email === 'string') updates.email = email;
   if (typeof bio === 'string') updates.bio = bio;
   if (typeof avatar_url === 'string') updates.avatar_url = avatar_url;
+  if (typeof username === 'string') {
+    if (/^[a-z0-9_]{3,20}$/.test(username)) {
+      updates.username = username;
+    }
+  }
   const admin = await Admin.findByIdAndUpdate(
     req.adminId,
     updates,
     { new: true }
   );
+
+  // Sync to database content
+  await syncProfileUpdatesToDbContent(req.adminId, updates);
+
   return res.json({ data: admin.toJSON() });
 });
 
 app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
   try {
-    // If R2 is enabled multer-s3 already stored the file and provides a public URL
+    if (useOfflineFallback) {
+      const uploadsDir = path.resolve(process.cwd(), 'uploads');
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const ext = path.extname(req.file.originalname || '') || '.png';
+      const fileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+      fs.writeFileSync(path.join(uploadsDir, fileName), req.file.buffer);
+      const publicUrl = `/uploads/${fileName}`;
+      
+      const admin = await Admin.findByIdAndUpdate(
+        req.adminId,
+        { avatar_url: publicUrl },
+        { new: true }
+      );
+      
+      // Sync to database content
+      await syncProfileUpdatesToDbContent(req.adminId, { avatar_url: publicUrl });
+
+      return res.json({ data: admin.toJSON(), url: publicUrl });
+    }
+
     if (hasR2Config && (req.file.location || req.file.key)) {
       const publicUrl = R2_PUBLIC_URL && req.file.key ? `${R2_PUBLIC_URL}/${req.file.key}` : req.file.location;
       const admin = await Admin.findByIdAndUpdate(
@@ -605,6 +777,10 @@ app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req
         { avatar_url: publicUrl },
         { new: true }
       );
+      
+      // Sync to database content
+      await syncProfileUpdatesToDbContent(req.adminId, { avatar_url: publicUrl });
+
       return res.json({ data: admin.toJSON() });
     }
 
@@ -1852,6 +2028,22 @@ app.post('/api/uploads/cover', requireAuth, upload.single('cover'), async (req, 
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
   try {
+    if (useOfflineFallback) {
+      const uploadsDir = path.resolve(process.cwd(), 'uploads');
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const ext = path.extname(req.file.originalname || '') || '.png';
+      const fileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+      fs.writeFileSync(path.join(uploadsDir, fileName), req.file.buffer);
+      const publicUrl = `/uploads/${fileName}`;
+      return res.json({ 
+        data: { 
+          url: publicUrl,
+          original_name: req.file.originalname,
+          size: req.file.size
+        } 
+      });
+    }
+
     // If using R2, file is already uploaded by multer-s3
     if (hasR2Config && req.file.key) {
       const publicUrl = R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${req.file.key}` : req.file.location;
@@ -1887,6 +2079,22 @@ app.post('/api/uploads/media', upload.single('media'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No media file uploaded.' });
 
   try {
+    if (useOfflineFallback) {
+      const uploadsDir = path.resolve(process.cwd(), 'uploads');
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const ext = path.extname(req.file.originalname || '') || '.mp4';
+      const fileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+      fs.writeFileSync(path.join(uploadsDir, fileName), req.file.buffer);
+      const publicUrl = `/uploads/${fileName}`;
+      return res.json({
+        data: {
+          url: publicUrl,
+          original_name: req.file.originalname,
+          size: req.file.size
+        }
+      });
+    }
+
     // If using R2, file is already uploaded by multer-s3
     if (hasR2Config && (req.file.location || req.file.key)) {
       const publicUrl = R2_PUBLIC_URL && req.file.key ? `${R2_PUBLIC_URL}/${req.file.key}` : req.file.location;
@@ -1964,11 +2172,8 @@ const normalizePYQDocument = (document) => ({
 
 app.get('/api/pyq', async (req, res) => {
   try {
-    const result = await appwriteDatabases.listDocuments('69d60fe8000c9bd92750', 'pyq', [
-      Query.orderDesc('$createdAt'),
-      Query.limit(100)
-    ]);
-    res.json({ success: true, data: result.documents.map(normalizePYQDocument) });
+    const documents = await Pyq.find().sort({ created_at: -1 }).limit(100);
+    res.json({ success: true, data: documents.map(d => normalizePYQDocument(d.toJSON ? d.toJSON() : d)) });
   } catch (err) {
     console.error("PYQ List Error:", err);
     res.status(500).json({ error: 'Failed to fetch PYQ documents.' });
@@ -2011,8 +2216,8 @@ app.post('/api/pyq', requireAuth, async (req, res) => {
           : [req.body.cover_url].filter(Boolean),
         fileType: req.body.fileType || normalizePYQFileType(req.body.mimeType || req.body.contentType || '')
       };
-      const result = await appwriteDatabases.createDocument('69d60fe8000c9bd92750', 'pyq', ID.unique(), payload);
-      res.json({ success: true, data: normalizePYQDocument(result) });
+      const result = await Pyq.create(payload);
+      res.json({ success: true, data: normalizePYQDocument(result.toJSON ? result.toJSON() : result) });
     } catch (err) {
       // Log full error details for debugging
       console.error("PYQ Insert Error (Appwrite):", err);
@@ -2050,7 +2255,15 @@ app.post('/api/pyq/upload', requireAuth, packetUpload.single('file'), async (req
     // when R2 is not configured or temporarily unavailable.
     let fileUrl = '';
     let storedFileId = '';
-    if (hasR2Config) {
+    if (useOfflineFallback) {
+      const uploadsDir = path.resolve(process.cwd(), 'uploads');
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const ext = req.file.originalname ? req.file.originalname.split('.').pop() : 'bin';
+      const fileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
+      fs.writeFileSync(path.join(uploadsDir, fileName), req.file.buffer);
+      fileUrl = `/uploads/${fileName}`;
+      storedFileId = fileName;
+    } else if (hasR2Config) {
       try {
         const timestamp = Date.now();
         const ext = req.file.originalname ? req.file.originalname.split('.').pop() : 'bin';
@@ -2063,7 +2276,7 @@ app.post('/api/pyq/upload', requireAuth, packetUpload.single('file'), async (req
       }
     }
 
-    if (!fileUrl) {
+    if (!fileUrl && !useOfflineFallback) {
       const appwriteFile = await uploadPyqToAppwrite(req.file.buffer, req.file.originalname, req.file.mimetype || req.file.contentType || req.file.type || 'application/octet-stream');
       fileUrl = appwriteFile.url;
       storedFileId = appwriteFile.id;
@@ -2082,7 +2295,7 @@ app.post('/api/pyq/upload', requireAuth, packetUpload.single('file'), async (req
       cover_url: fileUrl ? [fileUrl] : [],
     };
 
-    const doc = await appwriteDatabases.createDocument(APPWRITE_DB_ID, 'pyq', ID.unique(), payload);
+    const doc = await Pyq.create(payload);
     return res.status(201).json({ success: true, data: doc, file: { id: null, url: fileUrl } });
   } catch (err) {
     console.error('PYQ Multipart Upload Error:', err);
@@ -2109,7 +2322,7 @@ app.delete('/api/pyq/:id', requireAuth, async (req, res) => {
       }
     }
     
-    await appwriteDatabases.deleteDocument('69d60fe8000c9bd92750', 'pyq', id);
+    await Pyq.findByIdAndDelete(id);
     res.json({ success: true, message: 'PYQ document deleted.' });
   } catch(err) {
     console.error("PYQ Delete Error:", err);
@@ -2346,7 +2559,7 @@ app.post('/api/reels/:id/comments', async (req, res) => {
       return res.status(400).json({ error: 'Comment text is required.' });
     }
 
-    const newComment = new ReelComment({
+    const newComment = await ReelComment.create({
       reel_id: req.params.id,
       user_id: user_id || '60c72b2f9b1d8e4b88a91b2c', // Fallback objectId for test
       author_name: author_name || 'Anonymous',
@@ -2355,7 +2568,6 @@ app.post('/api/reels/:id/comments', async (req, res) => {
       text: text.trim()
     });
     
-    await newComment.save();
     res.status(201).json(newComment);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -2642,8 +2854,17 @@ app.post('/api/status', requireAuth, upload.single('media'), async (req, res) =>
     if (req.file) {
       if (req.file.mimetype && req.file.mimetype.startsWith('video')) type = 'video';
 
-      if (hasR2Config && (req.file.location || req.file.key)) {
-        mediaUrl = R2_PUBLIC_URL && req.file.key ? `${R2_PUBLIC_URL}/${req.file.key}` : req.file.location;
+      if (useOfflineFallback || (hasR2Config && (req.file.location || req.file.key))) {
+        if (useOfflineFallback) {
+          const uploadsDir = path.resolve(process.cwd(), 'uploads');
+          if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+          const ext = path.extname(req.file.originalname || '') || (type === 'video' ? '.mp4' : '.png');
+          const fileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+          fs.writeFileSync(path.join(uploadsDir, fileName), req.file.buffer);
+          mediaUrl = `/uploads/${fileName}`;
+        } else {
+          mediaUrl = R2_PUBLIC_URL && req.file.key ? `${R2_PUBLIC_URL}/${req.file.key}` : req.file.location;
+        }
       } else {
         return res.status(503).json({ error: 'Server storage migration: Appwrite storage disabled. Configure R2.' });
       }

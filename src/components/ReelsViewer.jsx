@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, Share2, MoreVertical, Volume2, VolumeX, Settings } from 'lucide-react';
+import { Heart, Share2, MoreVertical, Volume2, VolumeX, Settings, MessageSquare, Bookmark } from 'lucide-react';
 
 import './ReelsViewer.css';
 import { translations as tAll } from '../translations';
@@ -32,6 +32,21 @@ const resolveMediaUrl = (url) => {
   if (!url || typeof url !== 'string') return '';
   if (url.startsWith('http') || url.startsWith('//') || url.startsWith('data:')) return url;
   return `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
+const getViewerAvatar = (creatorHandle, creatorName, creatorAvatar) => {
+  if (creatorAvatar && typeof creatorAvatar === 'string' && creatorAvatar.trim() !== '' && 
+      !creatorAvatar.includes('ui-avatars.com') && !creatorAvatar.includes('placeholder') && !creatorAvatar.includes('unsplash.com')) {
+    return resolveMediaUrl(creatorAvatar);
+  }
+  let cleanName = String(creatorHandle || creatorName || 'User').trim();
+  if (cleanName.startsWith('+')) {
+    cleanName = cleanName.replace(/^\+/, '');
+  }
+  if (/^\d+$/.test(cleanName) || cleanName.length === 0) {
+    cleanName = 'User';
+  }
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=random`;
 };
 
 const postYouTubeCommand = (iframe, command) => {
@@ -128,6 +143,41 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const [activeReelIndex, setActiveReelIndex] = useState(initialIndex);
   const [reelsMuted, setReelsMuted] = useState(false); // Changed to false by default as requested
   const [likedTracking, setLikedTracking] = useState({}); // Track local likes
+  const [likedReels, setLikedReels] = useState({}); // { [reelId]: { liked: boolean, count: number } }
+  const [savedReels, setSavedReels] = useState({}); // { [reelId]: boolean }
+
+  const handleLikeReel = async (reelId, initialLikes) => {
+    const adminId = localStorage.getItem('adminId') || '69d663c300013ae31bb4';
+    
+    setLikedReels(prev => {
+      const current = prev[reelId] || { liked: false, count: initialLikes };
+      const nextLiked = !current.liked;
+      return {
+        ...prev,
+        [reelId]: {
+          liked: nextLiked,
+          count: nextLiked ? current.count + 1 : Math.max(0, current.count - 1)
+        }
+      };
+    });
+
+    try {
+      await fetch(`${API_URL}/api/reels/${reelId}/like`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: adminId })
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSaveReel = (reelId) => {
+    setSavedReels(prev => ({
+      ...prev,
+      [reelId]: !prev[reelId]
+    }));
+  };
   const toggleReelsMute = (e) => {
     e.stopPropagation();
     setReelsMuted(!reelsMuted);
@@ -425,7 +475,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     {/* Gradient overlay (non-interactive) */}
 
                     {/* Watermark & Back Navigation */}
-                    <div className="reel-top-overlay" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', paddingLeft: '8px' }}>
+                    <div className="reel-top-overlay" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                         <button 
                           className="reel-back-btn" 
@@ -506,23 +556,24 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                         className="reel-creator-pill"
                         onClick={(e) => { 
                           e.stopPropagation(); 
-                          if (onNavigateToProfile && item.creator_id) {
-                            onNavigateToProfile(item.creator_id);
+                          const targetId = item.creator_id || '69d663c300013ae31bb4';
+                          if (onNavigateToProfile) {
+                            onNavigateToProfile(targetId);
                           } else {
-                            setSelectedUserId(item.creator_id || item.creator_name); 
+                            setSelectedUserId(targetId); 
                           }
                         }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                       >
                         <img 
                           loading="lazy" 
-                          src={creatorAvatar ? resolveMediaUrl(creatorAvatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(item.creator_name || 'User')}&background=random`} 
+                          src={getViewerAvatar(item.creator_handle, item.creator_name, creatorAvatar)} 
                           alt="creator" 
                           className="reel-creator-avatar-sm" 
                           style={{ objectFit: 'cover', background: '#333' }} 
                           onError={(e) => {
                             e.target.onerror = null;
-                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.creator_name || 'User')}&background=random`;
+                            e.target.src = getViewerAvatar('User', '', null);
                           }}
                         />
                         <button
@@ -533,13 +584,25 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       </button>
 
                       {/* Like */}
-                      <div className="reel-action-item">
-                        <LikeButton
-                          reelId={item._id}
-                          userId={localStorage.getItem('adminId')}
-                          initialLikes={item.likes || 0}
-                        />
-                      </div>
+                      {(() => {
+                        const reelId = item._id || item.id;
+                        const likeState = likedReels[reelId] || { liked: false, count: item.likes || 0 };
+                        return (
+                          <div className="reel-action-item">
+                            <button
+                              className="reel-action-btn"
+                              onClick={(e) => { e.stopPropagation(); handleLikeReel(reelId, item.likes || 0); }}
+                            >
+                              <span className="reel-action-icon">
+                                <Heart size={24} fill={likeState.liked ? "#FF2D55" : "none"} className={likeState.liked ? "text-[#FF2D55] scale-110" : "text-white"} />
+                              </span>
+                            </button>
+                            <span className="reel-action-count">
+                              {likeState.count}
+                            </span>
+                          </div>
+                        );
+                      })()}
 
                       {/* Comment / Open comments panel */}
                       <div className="reel-action-item">
@@ -548,36 +611,60 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                           onClick={(e) => { e.stopPropagation(); setSelectedReelForComments(item._id); setShowComments(true); }}
                         >
                           <span className="reel-action-icon">
-                            <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
-                              <path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/>
-                            </svg>
+                            <MessageSquare size={24} />
                           </span>
                         </button>
-                        <span className="reel-action-count">💬</span>
+                        <span className="reel-action-count">
+                          {item.comments_count || (item.comments ? item.comments.length : 0) || 0}
+                        </span>
                       </div>
 
-                      {/* Bookmark */}
-                      <div className="reel-action-item">
-                        <button className="reel-action-btn" onClick={(e) => e.stopPropagation()}>
-                          <span className="reel-action-icon">
-                            <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
-                              <path d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-                            </svg>
-                          </span>
-                        </button>
-                        <span className="reel-action-count">Save</span>
-                      </div>
+                      {/* Bookmark (Save) */}
+                      {(() => {
+                        const reelId = item._id || item.id;
+                        const isSaved = !!savedReels[reelId];
+                        return (
+                          <div className="reel-action-item">
+                            <button
+                              className="reel-action-btn"
+                              onClick={(e) => { e.stopPropagation(); handleSaveReel(reelId); }}
+                            >
+                              <span className="reel-action-icon">
+                                <Bookmark size={24} fill={isSaved ? "#FFD700" : "none"} className={isSaved ? "text-[#FFD700]" : "text-white"} />
+                              </span>
+                            </button>
+                            <span className="reel-action-count">
+                              {isSaved ? "Saved" : "Save"}
+                            </span>
+                          </div>
+                        );
+                      })()}
 
                       {/* Share */}
                       <div className="reel-action-item">
-                        <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); shareReel(item); }}>
+                        <button
+                          className="reel-action-btn"
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            if (navigator.share) {
+                              navigator.share({
+                                title: item.title,
+                                text: item.caption,
+                                url: window.location.href
+                              }).catch(() => {});
+                            } else {
+                              alert("Share link copied to clipboard!");
+                              navigator.clipboard.writeText(window.location.href);
+                            }
+                          }}
+                        >
                           <span className="reel-action-icon">
-                            <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28" style={{ transform: 'scaleX(-1)' }}>
-                              <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/>
-                            </svg>
+                            <Share2 size={24} />
                           </span>
                         </button>
-                        <span className="reel-action-count">{formatCompactNumber(item.shares || 0)}</span>
+                        <span className="reel-action-count">
+                          {item.shares || 0}
+                        </span>
                       </div>
 
                       {/* Sound */}
@@ -649,8 +736,9 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                           style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit' }}
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (onNavigateToProfile && item.creator_id) {
-                              onNavigateToProfile(item.creator_id);
+                            const targetId = item.creator_id || '69d663c300013ae31bb4';
+                            if (onNavigateToProfile) {
+                              onNavigateToProfile(targetId);
                             }
                           }}
                         >
@@ -665,7 +753,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                         {item.category && <span className="reel-category-badge">{item.category}</span>}
                       </div>
                       <p className="reel-caption-text">
-                        {(item.caption || item.excerpt || item.title || '').slice(0, 120)}
+                        {(item.caption || item.excerpt || (item.title && !item.title.includes('/') ? item.title : '')).slice(0, 120)}
                       </p>
                       {item.tags && item.tags.length > 0 && (
                         <div className="reel-hashtag-row">

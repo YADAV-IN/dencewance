@@ -2,6 +2,24 @@ import React, { useState, useEffect } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+const getCommentAvatar = (authorName, authorAvatar) => {
+  if (authorAvatar && typeof authorAvatar === 'string' && authorAvatar.trim() !== '' && 
+      !authorAvatar.includes('ui-avatars.com') && !authorAvatar.includes('placeholder') && !authorAvatar.includes('unsplash.com')) {
+    if (authorAvatar.startsWith('http') || authorAvatar.startsWith('//') || authorAvatar.startsWith('data:')) {
+      return authorAvatar;
+    }
+    return `${API_URL}${authorAvatar.startsWith('/') ? '' : '/'}${authorAvatar}`;
+  }
+  let cleanName = String(authorName || 'User').trim();
+  if (cleanName.startsWith('+')) {
+    cleanName = cleanName.replace(/^\+/, '');
+  }
+  if (/^\d+$/.test(cleanName) || cleanName.length === 0) {
+    cleanName = 'User';
+  }
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=0b0b0b&color=fff&size=32`;
+};
+
 const ReplyIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polyline points="23 4 23 10 17 10"></polyline>
@@ -185,12 +203,12 @@ export default function CommentsSection({ reelId, userId, onNavigateToProfile })
                   style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                 >
                   <img
-                    src={comment.author_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.author_name || 'User')}&background=0b0b0b&color=fff&size=32`}
+                    src={getCommentAvatar(comment.author_name, comment.author_avatar)}
                     alt={comment.author_name}
                     style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }}
                     onError={(e) => {
                       e.target.onerror = null;
-                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.author_name || 'User')}&background=0b0b0b&color=fff&size=32`;
+                      e.target.src = getCommentAvatar('User', null);
                     }}
                   />
                 </button>

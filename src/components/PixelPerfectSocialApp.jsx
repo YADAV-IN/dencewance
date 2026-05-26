@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 
 import ReelsViewer from './ReelsViewer';
+import LoginScreen from './LoginScreen';
 import CreateInstagramMenu from './CreateInstagramMenu';
 import PYQAssistant from './PYQAssistant';
 import StorageManager from './StorageManager';
@@ -60,6 +61,30 @@ const resolveMediaUrl = (url) => {
 };
 
 export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMode }) {
+  const getRefinedAvatar = (nameOrHandle, avatarUrl) => {
+    if (avatarUrl && typeof avatarUrl === 'string' && avatarUrl.trim() !== '' && 
+        !avatarUrl.includes('ui-avatars.com') && !avatarUrl.includes('placeholder') && !avatarUrl.includes('unsplash.com')) {
+      return resolveMediaUrl(avatarUrl);
+    }
+    let cleanName = String(nameOrHandle || '').trim();
+    if (cleanName.startsWith('+')) {
+      cleanName = cleanName.replace(/^\+/, '');
+    }
+    if (/^\d+$/.test(cleanName) || cleanName.length === 0) {
+      cleanName = 'User';
+    } else {
+      cleanName = nameOrHandle;
+    }
+    const lowerName = String(cleanName || '').toLowerCase();
+    if (lowerName.includes('preetam')) {
+      return 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&fit=crop&q=80'; // high-quality bearded profile
+    }
+    if (lowerName.includes('kiran')) {
+      return 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&fit=crop&q=80'; // Kiran female profile
+    }
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName || 'U')}&background=random`;
+  };
+
   const [activeTab, setActiveTab] = useState('home');
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
   const [viewingMedia, setViewingMedia] = useState('reel');
@@ -71,6 +96,8 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
   const [searchResults, setSearchResults] = useState({ users: [], posts: [], reels: [] });
   const [isSearching, setIsSearching] = useState(false);
   const [recommendations, setRecommendations] = useState({ tags: [], reels: [] });
+  const [postLikes, setPostLikes] = useState({});
+  const [savedPosts, setSavedPosts] = useState({});
 
   // Profile Specific State
   const [profileViewMode, setProfileViewMode] = useState('dashboard'); // 'dashboard' or 'content'
@@ -81,8 +108,187 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
   const [storageUsageSummary, setStorageUsageSummary] = useState(null);
   const [openMenuFor, setOpenMenuFor] = useState(null);
 
-  const token = localStorage.getItem('adminToken');
-  const adminId = localStorage.getItem('adminId');
+  // Edit Profile Modal states
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editUsername, setEditUsername] = useState('');
+  const [editAvatar, setEditAvatar] = useState('');
+  const [usernameStatus, setUsernameStatus] = useState({ checking: false, available: null, reason: '' });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const usernameCheckTimerRef = useRef(null);
+  const editAvatarInputRef = useRef(null);
+
+  const openEditProfileModal = () => {
+    setEditName(adminData?.name || '');
+    setEditBio(adminData?.bio || '');
+    setEditUsername(adminData?.username || adminData?.email?.split('@')[0] || '');
+    setEditAvatar(adminData?.avatar_url || '');
+    setUsernameStatus({ checking: false, available: true, reason: 'Current username' });
+    setShowEditProfileModal(true);
+  };
+
+  const checkUsernameAvailability = (username) => {
+    setEditUsername(username);
+    
+    if (usernameCheckTimerRef.current) {
+      clearTimeout(usernameCheckTimerRef.current);
+    }
+    
+    const cleanVal = username.trim();
+    if (!cleanVal) {
+      setUsernameStatus({ checking: false, available: null, reason: '' });
+      return;
+    }
+    
+    // Strict pattern: 3-20 characters, lowercase letters, numbers, and underscores
+    const isValidFormat = /^[a-z0-9_]{3,20}$/.test(cleanVal);
+    if (!isValidFormat) {
+      let reason = 'Invalid format.';
+      if (cleanVal.length < 3) reason = 'Too short (min 3 chars).';
+      else if (cleanVal.length > 20) reason = 'Too long (max 20 chars).';
+      else if (/[A-Z]/.test(cleanVal)) reason = 'Lowercase letters only.';
+      else reason = 'Letters, numbers, and underscores only.';
+      
+      setUsernameStatus({ checking: false, available: false, reason });
+      return;
+    }
+
+    if (adminData && adminData.username && adminData.username.toLowerCase() === cleanVal.toLowerCase()) {
+      setUsernameStatus({ checking: false, available: true, reason: 'This is your current handle' });
+      return;
+    }
+    
+    setUsernameStatus({ checking: true, available: null, reason: 'Checking availability...' });
+    
+    usernameCheckTimerRef.current = setTimeout(async () => {
+      try {
+        const headers = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+        const res = await fetch(`${API_URL}/api/auth/check-username?username=${encodeURIComponent(cleanVal)}`, {
+          headers
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.available) {
+            setUsernameStatus({ checking: false, available: true, reason: '✓ Username is available!' });
+          } else {
+            setUsernameStatus({ checking: false, available: false, reason: '✗ Username is already taken.' });
+          }
+        } else {
+          setUsernameStatus({ checking: false, available: false, reason: 'Failed to verify username.' });
+        }
+      } catch (err) {
+        console.error('Error checking username:', err);
+        setUsernameStatus({ checking: false, available: false, reason: 'Connection error checking availability.' });
+      }
+    }, 400);
+  };
+
+  const handleEditAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('avatar', file);
+    
+    setIsSavingProfile(true);
+    try {
+      const res = await fetch(`${API_URL}/api/profile/avatar`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const returnedUrl = data.url || data.data?.avatar_url;
+        if (returnedUrl) {
+          setEditAvatar(returnedUrl);
+        }
+      } else {
+        alert('Failed to upload avatar.');
+      }
+    } catch (err) {
+      console.error('Error uploading avatar:', err);
+      alert('Error uploading avatar.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleSaveEditProfile = async () => {
+    if (editUsername.length >= 3 && usernameStatus.available === false) {
+      return;
+    }
+    
+    setIsSavingProfile(true);
+    try {
+      const res = await fetch(`${API_URL}/api/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: editName,
+          bio: editBio,
+          username: editUsername,
+          avatar_url: editAvatar
+        })
+      });
+      
+      if (res.ok) {
+        const result = await res.json();
+        const updatedUser = result.data;
+        if (updatedUser) {
+          setAdminData(updatedUser);
+          localStorage.setItem('userName', updatedUser.name || '');
+          localStorage.setItem('userHandle', updatedUser.username || updatedUser.email?.split('@')[0] || '');
+          localStorage.setItem('userAvatar', updatedUser.avatar_url || '');
+          
+          setReelsFeed(prev => prev.map(reel => {
+            if (reel.creator_id === adminId) {
+              return {
+                ...reel,
+                creator_name: updatedUser.name,
+                creator_handle: updatedUser.username,
+                creator_avatar: updatedUser.avatar_url
+              };
+            }
+            return reel;
+          }));
+          
+          setFeed(prev => prev.map(post => {
+            if (post.author_id === adminId) {
+              return {
+                ...post,
+                author_name: updatedUser.name,
+                source: updatedUser.avatar_url
+              };
+            }
+            return post;
+          }));
+          
+          setShowEditProfileModal(false);
+        }
+      } else {
+        const errorData = await res.json();
+        alert(errorData.error || 'Failed to update profile.');
+      }
+    } catch (err) {
+      console.error('Error saving profile:', err);
+      alert('Error saving profile.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const [token, setToken] = useState(() => localStorage.getItem('adminToken'));
+  const [adminId, setAdminId] = useState(() => localStorage.getItem('adminId'));
 
   // Load Initial Backend Data
   useEffect(() => {
@@ -135,12 +341,45 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
           if (me) {
             setAdminData(me);
             localStorage.setItem('userName', me.name || '');
-            localStorage.setItem('userHandle', me.email?.split('@')[0] || '');
+            localStorage.setItem('userHandle', me.username || me.email?.split('@')[0] || '');
             localStorage.setItem('userAvatar', me.avatar_url || '');
           }
         }).catch(err => console.error('Admin fetch failed', err));
+    } else {
+      setAdminData(null);
     }
   }, [token, adminId]);
+
+  // Dynamically sync status reels with the logged-in testing user details
+  const syncedStatuses = React.useMemo(() => {
+    return statuses.map(s => {
+      if (!s.creator_id || s.creator_id === "" || s.creator_handle === "alok" || s.creator_name === "Admin") {
+        return {
+          ...s,
+          creator_id: adminId || '69d663c300013ae31bb4',
+          creator_name: adminData?.name || 'Preetam Singh Yadav ',
+          creator_handle: adminData?.username || (adminData?.email ? adminData.email.split('@')[0] : 'preetam'),
+          creator_avatar: adminData?.avatar_url || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&fit=crop&q=80',
+        };
+      }
+      return s;
+    });
+  }, [statuses, adminData, adminId]);
+
+  const syncedReelsFeed = React.useMemo(() => {
+    return reelsFeed.map(r => {
+      if (!r.creator_id || r.creator_id === "" || r.creator_handle === "alok" || r.creator_name === "Admin") {
+        return {
+          ...r,
+          creator_id: adminId || '69d663c300013ae31bb4',
+          creator_name: adminData?.name || 'Preetam Singh Yadav ',
+          creator_handle: adminData?.username || (adminData?.email ? adminData.email.split('@')[0] : 'preetam'),
+          creator_avatar: adminData?.avatar_url || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&fit=crop&q=80',
+        };
+      }
+      return r;
+    });
+  }, [reelsFeed, adminData, adminId]);
 
   // Fetch recommendations for search tab
   useEffect(() => {
@@ -276,32 +515,30 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
   };
 
   return (
-    <div className="relative max-w-[420px] mx-auto h-[100dvh] flex flex-col overflow-hidden bg-gradient-to-b from-[#F4ECD8] to-[#FFFFFF] font-sans shadow-2xl border-x border-gray-200">
+    <div className="relative max-w-[420px] mx-auto h-[100dvh] flex flex-col overflow-hidden bg-[#FAF7EE] font-sans shadow-2xl border-x border-gray-200">
       
       {/* 1. Global Header */}
       {activeTab !== 'stories' && (
-        <header className="sticky top-0 z-50 bg-[#3A125E] text-white px-4 py-3 flex justify-between items-center shadow-md shrink-0">
-          <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => setActiveTab('home')}>
-            <span className="font-serif font-extrabold text-lg italic tracking-wider leading-[1.1] flex flex-col">
-              <span>Dence</span>
-              <span className="-mt-0.5">Wance</span>
+        <header className="sticky top-0 z-50 bg-[#FAF7EE] border-b border-gray-200/60 px-4 py-3 flex justify-between items-center shrink-0">
+          <div className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => setActiveTab('home')}>
+            <span className="font-serif font-black text-[22px] italic tracking-wide text-[#2B2315] leading-none">
+              Dence Wance
             </span>
-            <Music size={18} className="text-[#FFD700] mb-2 -ml-0.5" />
           </div>
 
           <div className="flex items-center gap-[12px]">
-            <div className="relative cursor-pointer w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors" onClick={() => setActiveTab('messages')}>
-              <MessageSquare size={18} className="text-[#FFD700]" />
-              <span className="absolute -top-1 -right-1 bg-[#FFD700] text-[#3A125E] text-[9px] font-extrabold w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-[#3A125E]">1</span>
+            <div className="relative cursor-pointer w-9 h-9 rounded-full bg-black/5 border border-black/5 flex items-center justify-center hover:bg-black/10 transition-colors" onClick={() => setActiveTab('messages')}>
+              <MessageSquare size={18} className="text-[#2B2315]" />
+              <span className="absolute -top-1 -right-1 bg-[#FFD700] text-[#3A125E] text-[9px] font-extrabold w-4.5 h-4.5 rounded-full flex items-center justify-center border border-white">1</span>
             </div>
-            <div className="relative cursor-pointer w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors">
-              <Bell size={18} className="text-[#FFD700]" />
-              <span className="absolute -top-1 -right-1 bg-[#FFD700] text-[#3A125E] text-[9px] font-extrabold w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-[#3A125E]">3</span>
+            <div className="relative cursor-pointer w-9 h-9 rounded-full bg-black/5 border border-black/5 flex items-center justify-center hover:bg-black/10 transition-colors">
+              <Bell size={18} className="text-[#2B2315]" />
+              <span className="absolute -top-1 -right-1 bg-[#FFD700] text-[#3A125E] text-[9px] font-extrabold w-4.5 h-4.5 rounded-full flex items-center justify-center border border-white">3</span>
             </div>
 
             <button 
               onClick={() => setActiveTab('pyq')}
-              className="w-9 h-9 rounded-full bg-[#FFD700] text-[#3A125E] font-extrabold text-[10px] flex items-center justify-center border-2 border-[#3A125E] shadow-[0_2px_8px_rgba(255,215,0,0.35)] hover:bg-yellow-400 hover:scale-105 transition-all cursor-pointer select-none shrink-0"
+              className="w-9 h-9 rounded-full bg-[#FAF7EE] text-[#2B2315] font-serif font-black italic text-[11px] flex items-center justify-center border border-[#2B2315]/30 hover:bg-black/5 transition-colors cursor-pointer select-none shrink-0"
             >
               PYQ
             </button>
@@ -309,7 +546,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
             {setViewMode && (
               <button 
                 onClick={() => setViewMode(viewMode === 'desktop' ? 'phone' : 'desktop')}
-                className="text-[10px] bg-white/10 text-white/90 px-2 py-1 rounded border border-white/10 ml-1 whitespace-nowrap"
+                className="text-[9px] bg-black/5 text-[#2B2315] px-2 py-1 rounded border border-black/5 ml-1 whitespace-nowrap font-bold"
               >
                 {viewMode === 'desktop' ? '📱 Mobile' : '💻 PC'}
               </button>
@@ -323,81 +560,136 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
         {activeTab === 'home' && (
           <div className="p-4 pb-24 flex flex-col gap-5">
             {/* Global Trending Status Horizontal Scroll */}
-            <div className="bg-gradient-to-tr from-[#FFF7EA] to-[#F3D7D7]/40 rounded-[20px] p-4 shadow-[0_4px_25px_rgba(58,18,94,0.04)] border border-[#3A125E]/5 flex flex-col">
-              <h2 className="text-[#3A125E] font-black text-xs tracking-wider uppercase mb-3 flex items-center gap-1.5">
-                <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                Trending Clips
+            <div className="flex flex-col py-1">
+              <style>{`
+                @keyframes circleGlowPulse {
+                  0%, 100% {
+                    box-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 2px 6px rgba(0, 0, 0, 0.15);
+                  }
+                  50% {
+                    box-shadow: 0 0 18px rgba(255, 255, 255, 1), 0 0 10px rgba(155, 81, 224, 0.5);
+                  }
+                }
+                .circular-glow-pulse {
+                  animation: circleGlowPulse 2.5s infinite ease-in-out;
+                }
+              `}</style>
+              <h2 className="text-[#2B2315] font-sans font-bold text-base tracking-tight mb-4 flex items-center gap-1.5">
+                Explore the Latest Clips
               </h2>
 
-              <div className="flex overflow-x-auto gap-3.5 pb-1.5 scrollbar-hide">
+              <div className="flex overflow-x-auto gap-4 pb-2 scrollbar-hide">
 
                 {/* Status List */}
-                {statuses.length > 0 ? (
-                  statuses.map((story, i) => (
-                    <div 
-                      key={story.id || i}
-                      onClick={() => {
-                        setViewingMedia('status');
-                        setActiveStoryIndex(i);
-                        setActiveTab('stories');
-                      }}
-                      className="flex flex-col items-center shrink-0 cursor-pointer"
-                    >
-                      <div className="w-[96px] h-[154px] rounded-[18px] overflow-hidden relative border-2 border-[#FFD700] shadow-[0_4px_16px_rgba(255,215,0,0.2)] bg-slate-900 group">
-                        {story.cover_image_url && !(story.cover_image_url.toLowerCase().endsWith('.mp4') || story.cover_image_url.toLowerCase().includes('/video')) ? (
-                          <img 
-                            src={resolveMediaUrl(story.cover_image_url)} 
-                            alt={story.title} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                        ) : (story.video_url || story.media_url || (story.cover_image_url && (story.cover_image_url.toLowerCase().endsWith('.mp4') || story.cover_image_url.toLowerCase().includes('/video')))) ? (
-                          <video 
-                            src={resolveMediaUrl(story.video_url || story.media_url || story.cover_image_url)} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            preload="metadata"
-                            muted
-                            playsInline
-                          />
-                        ) : story.thumbnail ? (
-                          <img 
-                            src={resolveMediaUrl(story.thumbnail)} 
-                            alt={story.title} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-[#3A125E]/20 flex items-center justify-center">
-                            <Music size={24} className="text-white/30" />
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/15"></div>
+                {syncedStatuses.length > 0 ? (
+                  syncedStatuses.map((story, i) => {
+                    // Alternate themes: Silver, Gold, Gradient
+                    const cardThemes = [
+                      {
+                        wrapperClass: "p-[2.5px] rounded-[24px] bg-[#D0D0D0] shadow-sm border border-[#EBEBEB]/80",
+                        innerBg: "bg-white p-[4px] h-full relative rounded-[21.5px]",
+                        innerBorder: "border border-[#EAEAEA] rounded-[18px] h-full w-full relative overflow-hidden flex flex-col items-center justify-start bg-[#F9F9F9]",
+                        textColor: "text-gray-800",
+                        playBtn: "bg-white/45 border border-white/60 text-gray-800"
+                      },
+                      {
+                        wrapperClass: "p-[2.5px] rounded-[24px] bg-[#B38F24] shadow-sm border border-[#C59715]/40",
+                        innerBg: "bg-[#FDF9F0] p-[4px] h-full relative rounded-[21.5px]",
+                        innerBorder: "border border-[#E5C060]/40 rounded-[18px] h-full w-full relative overflow-hidden flex flex-col items-center justify-start bg-[#FAF5E6]",
+                        textColor: "text-yellow-950",
+                        playBtn: "bg-white/45 border border-white/60 text-yellow-800"
+                      },
+                      {
+                        wrapperClass: "p-[2.5px] rounded-[24px] bg-gradient-to-tr from-[#9B51E0] via-[#D4AF37] to-[#00FFFF] shadow-sm",
+                        innerBg: "bg-[#FAFAFA] p-[4px] h-full relative rounded-[21.5px]",
+                        innerBorder: "border border-[#C5A5FA]/40 rounded-[18px] h-full w-full relative overflow-hidden flex flex-col items-center justify-start bg-[#F5F2FC]",
+                        textColor: "text-purple-950",
+                        playBtn: "bg-white/45 border border-white/60 text-purple-800"
+                      }
+                    ];
+                    const theme = cardThemes[i % cardThemes.length];
 
-                        
-                        {/* Play Button Overlay */}
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="w-10 h-10 rounded-full bg-black/35 border border-[#FFD700]/60 backdrop-blur-xs flex items-center justify-center text-[#FFD700]">
-                            <Play size={16} fill="#FFD700" className="ml-0.5" />
-                          </div>
-                        </div>
+                    return (
+                      <div 
+                        key={story.id || i}
+                        onClick={() => {
+                          setViewingMedia('status');
+                          setActiveStoryIndex(i);
+                          setActiveTab('stories');
+                        }}
+                        className="flex flex-col items-center shrink-0 cursor-pointer select-none group"
+                      >
+                        <div className={`w-[114px] h-[182px] ${theme.wrapperClass}`}>
+                          <div className={theme.innerBg}>
+                            <div className={theme.innerBorder}>
+                              
+                              {/* Refined Circular Avatar with Story-style border */}
+                              <div className="absolute top-2 left-2 w-[26px] h-[26px] rounded-full p-[1.2px] bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] shadow-[0_2px_6px_rgba(0,0,0,0.25)] flex items-center justify-center z-20">
+                                <div className="w-full h-full rounded-full border border-white overflow-hidden bg-white">
+                                  <img 
+                                    src={getRefinedAvatar(story.creator_handle || story.creator_name, story.creator_avatar)} 
+                                    alt="Creator"
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              </div>
 
-                        {/* Creator Avatar Overlapping Bottom Edge */}
-                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-[36px] h-[36px] rounded-full border-2 border-white overflow-hidden bg-white shadow-md z-10">
-                          <img 
-                            src={story.creator_avatar ? resolveMediaUrl(story.creator_avatar) : `https://ui-avatars.com/api/?name=${encodeURIComponent(story.creator_name || 'U')}&background=random`} 
-                            alt="Creator"
-                            className="w-full h-full object-cover"
-                          />
+                              {/* Center Dancer Circular Mask */}
+                              <div className="w-[74px] h-[74px] rounded-full overflow-hidden border-[2.5px] border-white circular-glow-pulse relative mt-5 shrink-0 group-hover:scale-105 transition-transform duration-300 ease-out z-10">
+                                {story.cover_image_url && !(story.cover_image_url.toLowerCase().endsWith('.mp4') || story.cover_image_url.toLowerCase().includes('/video')) ? (
+                                  <img 
+                                    src={resolveMediaUrl(story.cover_image_url)} 
+                                    alt={story.title} 
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (story.video_url || story.media_url || (story.cover_image_url && (story.cover_image_url.toLowerCase().endsWith('.mp4') || story.cover_image_url.toLowerCase().includes('/video')))) ? (
+                                  <video 
+                                    src={resolveMediaUrl(story.video_url || story.media_url || story.cover_image_url)} 
+                                    className="w-full h-full object-cover"
+                                    preload="auto"
+                                    autoPlay
+                                    loop
+                                    muted
+                                    playsInline
+                                  />
+                                ) : story.thumbnail ? (
+                                  <img 
+                                    src={resolveMediaUrl(story.thumbnail)} 
+                                    alt={story.title} 
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-[#3A125E]/20 flex items-center justify-center">
+                                    <Music size={20} className="text-[#3A125E]/40" />
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 bg-black/5"></div>
+                              </div>
+
+                              {/* Play Button Overlay */}
+                              <div className="absolute bottom-[44px] left-1/2 -translate-x-1/2 z-10">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-xs hover:scale-105 transition-transform ${theme.playBtn}`}>
+                                  <Play size={11} fill="currentColor" className="ml-0.5" />
+                                </div>
+                              </div>
+
+                              {/* Title / User text at the bottom */}
+                              <div className="absolute bottom-2.5 left-1 right-1 flex flex-col items-center justify-center leading-[1.1] text-center z-10">
+                                <span className={`text-[9px] font-extrabold ${theme.textColor} tracking-wide text-center lowercase break-words max-w-full px-0.5 line-clamp-1`}>
+                                  @{story.creator_handle || story.creator_name || 'admin'}
+                                </span>
+                              </div>
+
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <span className="text-[#3A125E] font-bold text-[10.5px] mt-3.5 max-w-[85px] truncate text-center">
-                        {story.creator_name || 'Creator'}
-                      </span>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   Array(3).fill(0).map((_, idx) => (
                     <div key={idx} className="flex flex-col items-center shrink-0 animate-pulse">
-                      <div className="w-[78px] h-[124px] rounded-[16px] bg-gray-200"></div>
-                      <div className="w-12 h-2.5 bg-gray-200 rounded mt-2"></div>
+                      <div className="w-[114px] h-[182px] rounded-[24px] bg-black/5"></div>
                     </div>
                   ))
                 )}
@@ -416,7 +708,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                     >
                       {/* Dancing silhouettes background pattern watermark at the bottom */}
                       <div 
-                        className="absolute bottom-0 left-0 right-0 h-[80px] opacity-[0.04] pointer-events-none z-0"
+                        className="absolute bottom-0 left-0 right-0 h-[80px] opacity-[0.03] pointer-events-none z-0"
                         style={{
                           backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'%3E%3Cpath d='M50 20c2 0 4 2 4 4s-2 4-4 4-4-2-4-4 2-4 4-4zm-5 12h10v20H45V32zm-6 24h6v20h-6V56zm16 0h6v20h-6V56z' fill='%233A125E'/%3E%3C/svg%3E")`,
                           backgroundRepeat: 'repeat-x',
@@ -424,24 +716,29 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                         }}
                       ></div>
 
+                      {/* Header row */}
+                      {/* Header row */}
                       <div className="flex justify-between items-center z-10">
                         <div className="flex items-center gap-3.5">
+                          {/* Refined Post Avatar (No gradient ring) */}
                           <div 
-                            className="w-[48px] h-[48px] rounded-full overflow-hidden border border-gray-200 cursor-pointer shadow-xs shrink-0"
+                            className="w-[46px] h-[46px] rounded-full p-[1.5px] bg-[#2B2315]/10 cursor-pointer shrink-0 flex items-center justify-center"
                             onClick={() => {
                               setSelectedProfileId(authorId);
                               setActiveTab('profile');
                             }}
                           >
-                            <img 
-                              src={post.source ? resolveMediaUrl(post.source) : `https://ui-avatars.com/api/?name=${encodeURIComponent(post.author_name || 'U')}&background=random`} 
-                              alt="Avatar"
-                              className="w-full h-full object-cover"
-                            />
+                            <div className="w-full h-full rounded-full border-[1.5px] border-white overflow-hidden bg-white">
+                              <img 
+                                src={getRefinedAvatar(post.author_name, post.source)} 
+                                alt="Avatar"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
                           </div>
                           <div className="flex flex-col">
                             <h3 
-                              className="font-extrabold text-[14px] text-[#3A125E] leading-tight flex items-center gap-1.5 cursor-pointer uppercase tracking-wide hover:underline"
+                              className="font-extrabold text-[14px] text-[#2B2315] leading-tight flex items-center gap-1.5 cursor-pointer tracking-wide hover:underline uppercase"
                               onClick={() => {
                                 setSelectedProfileId(authorId);
                                 setActiveTab('profile');
@@ -451,47 +748,53 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                               <GoldVerifiedBadge size={16} />
                             </h3>
                             <span className="text-gray-400 font-semibold text-[11px] mt-0.5">
-                              {new Date(post.published_at || post.created_at || Date.now()).toLocaleDateString()} • Recorded
+                              {new Date(post.published_at || post.created_at || Date.now()).toLocaleDateString()} • Pre-recorded
                             </span>
                           </div>
                         </div>
-
-                        {/* Three dot menu button */}
-                        <div className="relative">
-                          <button 
-                            className="text-gray-400 hover:text-[#3A125E] p-1.5 rounded-full hover:bg-gray-50 transition-colors cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenuFor(openMenuFor === (post.id || post._id) ? null : (post.id || post._id));
-                            }}
-                          >
-                            <MoreVertical size={18} />
-                          </button>
-
-                          {openMenuFor === (post.id || post._id) && (
-                            <div className="absolute right-0 top-9 bg-white border border-gray-100 rounded-xl p-1.5 shadow-xl z-20 min-w-[130px] animate-in fade-in slide-in-from-top-1 duration-150">
-                              <button 
-                                className="w-full text-left px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg flex items-center gap-1.5"
-                                onClick={() => {
-                                  setOpenMenuFor(null);
-                                  handleDeletePost(post.id || post._id);
-                                }}
-                              >
-                                <Trash2 size={14} /> Delete
-                              </button>
-                            </div>
-                          )}
-                        </div>
                       </div>
 
-                      {/* Post Content */}
-                      <div className="mt-3.5 z-10">
-                        {post.title && !post.title.includes('Untitled') && (
-                          <h4 className="font-extrabold text-[14.5px] text-[#3A125E] mb-1">{post.title}</h4>
-                        )}
-                        <p className="text-gray-700 text-[13px] leading-relaxed font-medium">
-                          {post.excerpt || post.content}
-                        </p>
+                      {/* Text details (Likes & Caption) */}
+                      <div className="mt-4.5 z-10 flex flex-col gap-2">
+                        <span className="text-[12.5px] font-extrabold text-[#2B2315] leading-normal tracking-wide">
+                          {post.author_name || 'PREETAM SINGH YADAV'} • {post.title || 'Ramlal Anand College'} 
+                          <span className="text-gray-400 font-semibold text-[11px] ml-1.5">
+                            (Pre-recorded • {new Date(post.published_at || post.created_at || Date.now()).toLocaleDateString()})
+                          </span>
+                        </span>
+                        
+                        {/* Liked count */}
+                        {(() => {
+                          const postId = post.id || post._id;
+                          const postLikeState = postLikes[postId] || { liked: false, count: post.likes || 0 };
+                          return (
+                            <div className="text-[12px] font-extrabold text-[#2B2315] mt-0.5 leading-none">
+                              {postLikeState.count} {postLikeState.count === 1 ? 'like' : 'likes'}
+                            </div>
+                          );
+                        })()}
+
+                        {/* Caption */}
+                        <div className="text-[#2B2315] text-[13px] leading-relaxed font-medium mt-1">
+                          <span className="font-extrabold mr-1.5">
+                            {typeof post.author_name === 'string' ? post.author_name.trim().toLowerCase().replace(/\s+/g, '') : 'preetam_yadav'}
+                          </span>
+                          <span className="whitespace-pre-wrap">
+                            {post.content || post.excerpt}
+                          </span>
+                        </div>
+
+                        {/* Tags */}
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {(post.tags && post.tags.length > 0 ? post.tags : ['DenceWance', 'CollegeLife']).map((tag) => (
+                            <span 
+                              key={tag} 
+                              className="text-blue-600 font-semibold cursor-pointer hover:underline text-[13px]"
+                            >
+                              #{tag.replace(/^#/, '')}
+                            </span>
+                          ))}
+                        </div>
                       </div>
 
                       {/* Post Image Container: Full length width, adaptive auto height */}
@@ -509,17 +812,91 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                         </div>
                       )}
 
-                      {/* Post Action Buttons */}
-                      <div className="mt-4.5 pt-3.5 border-t border-gray-50 flex justify-between items-center z-10">
-                        <button className="flex-1 py-2 text-gray-500 hover:text-red-500 text-xs font-bold flex items-center justify-center gap-2 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer">
-                          <Heart size={16} /> Honor
-                        </button>
-                        <button className="flex-1 py-2 text-gray-500 hover:text-[#3A125E] text-xs font-bold flex items-center justify-center gap-2 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer">
-                          <MessageSquare size={16} /> Inscribe
-                        </button>
-                        <button className="flex-1 py-2 text-gray-500 hover:text-[#3A125E] text-xs font-bold flex items-center justify-center gap-2 hover:bg-gray-50 rounded-xl transition-colors cursor-pointer">
-                          <Share2 size={16} /> Propagate
-                        </button>
+                      {/* Unified Post Action Bar (Below image) */}
+                      <div className="mt-4 flex justify-between items-center z-10 px-0.5">
+                        <div className="flex gap-4 items-center">
+                          {(() => {
+                            const postId = post.id || post._id;
+                            const postLikeState = postLikes[postId] || { liked: false, count: post.likes || 0 };
+                            return (
+                              <button 
+                                onClick={() => {
+                                  setPostLikes(prev => {
+                                    const current = prev[postId] || { liked: false, count: post.likes || 0 };
+                                    const nextLiked = !current.liked;
+                                    return {
+                                      ...prev,
+                                      [postId]: {
+                                        liked: nextLiked,
+                                        count: nextLiked ? current.count + 1 : Math.max(0, current.count - 1)
+                                      }
+                                    };
+                                  });
+                                }}
+                                className={`transition-colors cursor-pointer ${postLikeState.liked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'}`}
+                              >
+                                <Heart size={21} strokeWidth={2} fill={postLikeState.liked ? "currentColor" : "none"} />
+                              </button>
+                            );
+                          })()}
+                          <button className="text-gray-500 hover:text-blue-500 transition-colors cursor-pointer">
+                            <MessageSquare size={21} strokeWidth={2} />
+                          </button>
+                          <button className="text-gray-500 hover:text-[#9B51E0] transition-colors cursor-pointer -rotate-12 mt-[-2px]">
+                            <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="22" y1="2" x2="11" y2="13"></line>
+                              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                          </button>
+                        </div>
+                        
+                        <div className="flex gap-4 items-center relative">
+                          {/* Save Button */}
+                          {(() => {
+                            const postId = post.id || post._id;
+                            const isSaved = !!savedPosts[postId];
+                            return (
+                              <button 
+                                onClick={() => {
+                                  setSavedPosts(prev => ({
+                                    ...prev,
+                                    [postId]: !prev[postId]
+                                  }));
+                                }}
+                                className={`transition-colors cursor-pointer ${isSaved ? 'text-yellow-600' : 'text-gray-500 hover:opacity-75'}`}
+                              >
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill={isSaved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                                </svg>
+                              </button>
+                            );
+                          })()}
+
+                          {/* Post Settings Menu */}
+                          <button 
+                            className="text-gray-500 hover:text-[#2B2315] p-1 rounded-full hover:bg-gray-50 transition-colors cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuFor(openMenuFor === (post.id || post._id) ? null : (post.id || post._id));
+                            }}
+                          >
+                            <MoreVertical size={18} />
+                          </button>
+
+                          {openMenuFor === (post.id || post._id) && (
+                            <div className="absolute right-0 bottom-8 bg-white border border-gray-100 rounded-xl p-1.5 shadow-xl z-20 min-w-[130px] animate-in fade-in slide-in-from-bottom-1 duration-150">
+                              <button 
+                                className="w-full text-left px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg flex items-center gap-1.5 cursor-pointer"
+                                onClick={() => {
+                                  setOpenMenuFor(null);
+                                  handleDeletePost(post.id || post._id);
+                                }}
+                              >
+                                <Trash2 size={14} /> Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -538,10 +915,10 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
         {activeTab === 'stories' && (
           <ReelsViewer 
             reels={
-              viewingMedia === 'status' ? statuses :
+              viewingMedia === 'status' ? syncedStatuses :
               viewingMedia === 'search' ? searchResults.reels :
               viewingMedia === 'recommendation' ? recommendations.reels :
-              reelsFeed
+              syncedReelsFeed
             } 
             initialIndex={activeStoryIndex} 
             onClose={() => setActiveTab('home')}
@@ -689,7 +1066,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                             }}
                           >
                             <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 shadow-xs border border-gray-50">
-                              <img src={u.avatar_url ? resolveMediaUrl(u.avatar_url) : `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'User')}&background=random`} alt="Avatar" className="w-full h-full object-cover" />
+                              <img src={getRefinedAvatar(u.name || u.username || 'User', u.avatar_url)} alt="Avatar" className="w-full h-full object-cover" />
                             </div>
                             <div className="flex flex-col">
                               <span className="text-[#3A125E] font-bold text-xs flex items-center gap-1 uppercase">{u.name} <GoldVerifiedBadge size={14} /></span>
@@ -731,7 +1108,20 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
 
         {/* Profile Tab */}
         {activeTab === 'profile' && (
-          <div className="p-4 pb-24 flex flex-col gap-4 animate-in fade-in duration-200">
+          !token || !adminId ? (
+            <div className="p-4 pb-24 animate-in fade-in duration-200">
+              <LoginScreen 
+                onLoginSuccess={(newToken, newProfile) => {
+                  localStorage.setItem('adminToken', newToken);
+                  localStorage.setItem('adminId', newProfile.id || newProfile._id);
+                  setToken(newToken);
+                  setAdminId(newProfile.id || newProfile._id);
+                  setAdminData(newProfile);
+                }}
+              />
+            </div>
+          ) : (
+            <div className="p-4 pb-24 flex flex-col gap-4 animate-in fade-in duration-200">
             {/* View Mode Toggle: Dashboard vs Grid layout */}
             <div className="flex bg-[#3A125E]/5 border border-[#3A125E]/10 rounded-xl p-1 shrink-0">
               <button 
@@ -759,7 +1149,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               <div className="flex gap-4 relative z-10">
                 <div className="w-[84px] h-[84px] rounded-[18px] overflow-hidden border-2 border-gray-100 shadow-sm shrink-0">
                   <img 
-                    src={adminData?.avatar_url || "https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80"} 
+                    src={getRefinedAvatar(adminData?.name || adminData?.username || 'Admin', adminData?.avatar_url)} 
                     alt="Profile Avatar" 
                     className="w-full h-full object-cover"
                   />
@@ -781,12 +1171,15 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               </div>
               
               <div className="mt-3 text-gray-700 text-[13px] font-bold relative z-10 flex justify-between items-center">
-                <span>Welcome Back, Preetam! Let's Dance!</span>
+                <span>Welcome Back, {adminData?.name || 'Preetam'}! Let's Dance!</span>
                 {token && (
                   <button 
                     onClick={() => {
                       localStorage.clear();
-                      window.location.reload();
+                      setToken(null);
+                      setAdminId(null);
+                      setAdminData(null);
+                      setSelectedProfileId(null);
                     }}
                     className="text-red-500 hover:text-red-700 text-[10px] font-bold uppercase tracking-wider cursor-pointer"
                   >
@@ -801,23 +1194,30 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               // SUB-VIEW A: Dashboard View (matching Screen 3)
               <div className="flex flex-col gap-4 animate-in fade-in duration-200">
                 {/* Stats Row */}
-                <div className="flex gap-2">
-                  <div className="flex-1 bg-[#FFD700] rounded-[16px] p-3 flex flex-col relative overflow-hidden shadow-[0_4px_15px_rgba(255,215,0,0.25)] border border-[#FFD700]/10">
-                    <span className="text-[#3A125E] text-[10px] font-extrabold mb-1.5 uppercase tracking-wide opacity-80">Total Dance Time</span>
-                    <span className="text-[#3A125E] text-lg font-black leading-none">120 Hours</span>
-                    <Activity size={36} className="absolute -right-2.5 -bottom-2.5 text-[#3A125E]/10" strokeWidth={3} />
-                  </div>
-                  <div className="flex-1 bg-[#3A125E] rounded-[16px] p-3 flex flex-col relative overflow-hidden shadow-[0_4px_15px_rgba(58,18,94,0.15)]">
-                    <span className="text-white/80 text-[10px] font-semibold mb-1.5 uppercase tracking-wide">New Routines</span>
-                    <span className="text-white text-lg font-black leading-none">15</span>
-                    <Users size={32} className="absolute -right-2 -bottom-2 text-white/5" />
-                  </div>
-                  <div className="flex-1 bg-[#3A125E] rounded-[16px] p-3 flex flex-col relative overflow-hidden shadow-[0_4px_15px_rgba(58,18,94,0.15)]">
-                    <span className="text-white/80 text-[10px] font-semibold mb-1.5 uppercase tracking-wide">Top Routine</span>
-                    <span className="text-white text-[13px] font-black leading-tight truncate mt-0.5">'Urban Flow'</span>
-                    <TrendingUp size={32} className="absolute -right-2 -bottom-2 text-white/5" />
-                  </div>
-                </div>
+                {(() => {
+                  const myReels = reelsFeed.filter(r => r.creator_id === adminId || r.creator_name === adminData?.name);
+                  const myPosts = feed.filter(p => p.author_id === adminId);
+                  const totalLikes = myReels.reduce((sum, r) => sum + (r.likes || 0), 0);
+                  return (
+                    <div className="flex gap-2">
+                      <div className="flex-grow flex-1 bg-[#FFD700] rounded-[16px] p-3 flex flex-col relative overflow-hidden shadow-[0_4px_15px_rgba(255,215,0,0.25)] border border-[#FFD700]/10">
+                        <span className="text-[#3A125E] text-[10px] font-extrabold mb-1.5 uppercase tracking-wide opacity-80">Total Clips</span>
+                        <span className="text-[#3A125E] text-lg font-black leading-none">{myReels.length}</span>
+                        <Activity size={36} className="absolute -right-2.5 -bottom-2.5 text-[#3A125E]/10" strokeWidth={3} />
+                      </div>
+                      <div className="flex-grow flex-1 bg-[#3A125E] rounded-[16px] p-3 flex flex-col relative overflow-hidden shadow-[0_4px_15px_rgba(58,18,94,0.15)]">
+                        <span className="text-white/80 text-[10px] font-semibold mb-1.5 uppercase tracking-wide">Feed Posts</span>
+                        <span className="text-white text-lg font-black leading-none">{myPosts.length}</span>
+                        <Users size={32} className="absolute -right-2 -bottom-2 text-white/5" />
+                      </div>
+                      <div className="flex-grow flex-grow-0 w-[110px] bg-[#3A125E] rounded-[16px] p-3 flex flex-col relative overflow-hidden shadow-[0_4px_15px_rgba(58,18,94,0.15)]">
+                        <span className="text-white/80 text-[10px] font-semibold mb-1.5 uppercase tracking-wide">Clips Likes</span>
+                        <span className="text-white text-lg font-black leading-none">{totalLikes}</span>
+                        <TrendingUp size={32} className="absolute -right-2 -bottom-2 text-white/5" />
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Performance Chart Card */}
                 <div className="bg-white rounded-[24px] p-4 shadow-[0_8px_30px_rgba(58,18,94,0.03)] border border-gray-100 flex flex-col">
@@ -861,7 +1261,10 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                       </div>
                       <span className="text-[10px] font-bold text-center text-[#3A125E] leading-tight uppercase tracking-wider">Upload New<br/>Routine (+)</span>
                     </button>
-                    <button className="flex flex-col items-center gap-2 group cursor-pointer">
+                    <button 
+                      onClick={openEditProfileModal}
+                      className="flex flex-col items-center gap-2 group cursor-pointer"
+                    >
                       <div className="w-[46px] h-[46px] rounded-full border border-gray-100 text-[#3A125E] flex items-center justify-center bg-gray-50 shadow-xs group-hover:bg-gray-100 transition-colors duration-200">
                         <UserCog size={18} />
                       </div>
@@ -910,23 +1313,30 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               // SUB-VIEW B: Grid & Connections View (matching Screen 2)
               <div className="flex flex-col gap-4 animate-in fade-in duration-200">
                 {/* Alternative Stats Row */}
-                <div className="flex gap-2">
-                  <div className="flex-grow flex-1 bg-[#1A3B47] text-white rounded-[16px] p-3 flex flex-col justify-center relative overflow-hidden shadow-md">
-                    <span className="text-white/60 text-[9px] font-extrabold uppercase tracking-wide">Posts</span>
-                    <span className="text-white text-xl font-black mt-0.5">85</span>
-                    <Play size={26} className="absolute right-2.5 bottom-2.5 text-white/10" fill="currentColor" />
-                  </div>
-                  <div className="flex-grow flex-1 bg-[#D4AF37] text-[#3A125E] rounded-[16px] p-3 flex flex-col justify-center relative overflow-hidden shadow-md">
-                    <span className="text-[#3A125E]/60 text-[9px] font-extrabold uppercase tracking-wide">Followers</span>
-                    <span className="text-[#3A125E] text-xl font-black mt-0.5">3.2k</span>
-                    <Users size={26} className="absolute right-2.5 bottom-2.5 text-[#3A125E]/10" />
-                  </div>
-                  <div className="flex-grow flex-grow-0 w-[110px] bg-[#B38F24] text-white rounded-[16px] p-3 flex flex-col justify-center relative overflow-hidden shadow-md">
-                    <span className="text-white/60 text-[9px] font-extrabold uppercase tracking-wide">Following</span>
-                    <span className="text-white text-xl font-black mt-0.5">410</span>
-                    <Share2 size={24} className="absolute right-2.5 bottom-2.5 text-white/10" />
-                  </div>
-                </div>
+                {(() => {
+                  const myReels = reelsFeed.filter(r => r.creator_id === adminId || r.creator_name === adminData?.name);
+                  const myPosts = feed.filter(p => p.author_id === adminId);
+                  const totalRoutinesCount = myReels.length + myPosts.length;
+                  return (
+                    <div className="flex gap-2">
+                      <div className="flex-grow flex-1 bg-[#1A3B47] text-white rounded-[16px] p-3 flex flex-col justify-center relative overflow-hidden shadow-md">
+                        <span className="text-white/60 text-[9px] font-extrabold uppercase tracking-wide">Posts</span>
+                        <span className="text-white text-xl font-black mt-0.5">{totalRoutinesCount}</span>
+                        <Play size={26} className="absolute right-2.5 bottom-2.5 text-white/10" fill="currentColor" />
+                      </div>
+                      <div className="flex-grow flex-1 bg-[#D4AF37] text-[#3A125E] rounded-[16px] p-3 flex flex-col justify-center relative overflow-hidden shadow-md">
+                        <span className="text-[#3A125E]/60 text-[9px] font-extrabold uppercase tracking-wide">Followers</span>
+                        <span className="text-[#3A125E] text-xl font-black mt-0.5">{adminData?.followers || 0}</span>
+                        <Users size={26} className="absolute right-2.5 bottom-2.5 text-[#3A125E]/10" />
+                      </div>
+                      <div className="flex-grow flex-grow-0 w-[110px] bg-[#B38F24] text-white rounded-[16px] p-3 flex flex-col justify-center relative overflow-hidden shadow-md">
+                        <span className="text-white/60 text-[9px] font-extrabold uppercase tracking-wide">Following</span>
+                        <span className="text-white text-xl font-black mt-0.5">{adminData?.following || 0}</span>
+                        <Share2 size={24} className="absolute right-2.5 bottom-2.5 text-white/10" />
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Profile Grid content box */}
                 <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgba(58,18,94,0.03)] border border-gray-100 flex flex-col overflow-hidden">
@@ -993,47 +1403,40 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                           {/* Followers list */}
                           <div className="flex flex-col gap-1.5">
                             <h4 className="text-[#3A125E] font-black text-[9.5px] uppercase tracking-wider mb-0.5">Followers</h4>
-                            {[
-                              { name: 'Admin', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&fit=crop&q=80', views: '1.2k', growth: '+50' },
-                              { name: 'DanceGuru', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&fit=crop&q=80', views: '1.2k', growth: '+50' },
-                              { name: 'AishaK', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&fit=crop&q=80', views: '1.2k', growth: '+50' }
-                            ].map((f, i) => (
-                              <div key={i} className="flex items-center gap-1.5 border-b border-gray-50/50 pb-1.5 last:border-0 last:pb-0">
-                                <div className="w-[28px] h-[28px] rounded-full overflow-hidden bg-gray-100 border border-gray-200/50 shadow-xs shrink-0">
-                                  <img src={f.avatar} alt="avatar" className="w-full h-full object-cover" />
+                            {adminData?.followers_list && adminData.followers_list.length > 0 ? (
+                              adminData.followers_list.map((f, i) => (
+                                <div key={i} className="flex items-center gap-1.5 border-b border-gray-50/50 pb-1.5 last:border-0 last:pb-0">
+                                  <div className="w-[28px] h-[28px] rounded-full overflow-hidden bg-gray-100 border border-gray-200/50 shadow-xs shrink-0">
+                                    <img src={getRefinedAvatar(f.name || f.handle || 'User', f.avatar_url)} alt="avatar" className="w-full h-full object-cover" />
+                                  </div>
+                                  <div className="flex flex-col min-w-0 flex-1 leading-none">
+                                    <span className="text-gray-400 font-extrabold text-[7px] uppercase truncate mb-0.5">Handle</span>
+                                    <span className="text-[#3A125E] font-black text-[9px] truncate">@{f.handle || 'dancer'}</span>
+                                  </div>
                                 </div>
-                                <div className="flex flex-col min-w-0 flex-1 leading-none">
-                                  <span className="text-gray-400 font-extrabold text-[7px] uppercase truncate mb-0.5">Views</span>
-                                  <span className="text-[#3A125E] font-black text-[9px] truncate">{f.views}</span>
-                                </div>
-                                <div className="flex flex-col items-end leading-none shrink-0 text-right">
-                                  <span className="text-gray-400 font-extrabold text-[7px] uppercase mb-0.5">Growth</span>
-                                  <span className="text-emerald-500 font-black text-[9px]">{f.growth}</span>
-                                </div>
-                              </div>
-                            ))}
+                              ))
+                            ) : (
+                              <div className="text-[9px] text-gray-400 font-bold uppercase text-center py-2">No followers yet</div>
+                            )}
                           </div>
 
                           <div className="border-t border-gray-100 pt-2.5 flex flex-col gap-1.5">
                             <h4 className="text-[#3A125E] font-black text-[9.5px] uppercase tracking-wider mb-0.5">Following</h4>
-                            {[
-                              { name: 'ScribeY', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&fit=crop&q=80', views: '900', growth: '+10' },
-                              { name: 'DancePro', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&fit=crop&q=80', views: '900', growth: '+10' }
-                            ].map((f, i) => (
-                              <div key={i} className="flex items-center gap-1.5 border-b border-gray-50/50 pb-1.5 last:border-0 last:pb-0">
-                                <div className="w-[28px] h-[28px] rounded-full overflow-hidden bg-gray-100 border border-gray-200/50 shadow-xs shrink-0">
-                                  <img src={f.avatar} alt="avatar" className="w-full h-full object-cover" />
+                            {adminData?.following_list && adminData.following_list.length > 0 ? (
+                              adminData.following_list.map((f, i) => (
+                                <div key={i} className="flex items-center gap-1.5 border-b border-gray-50/50 pb-1.5 last:border-0 last:pb-0">
+                                  <div className="w-[28px] h-[28px] rounded-full overflow-hidden bg-gray-100 border border-gray-200/50 shadow-xs shrink-0">
+                                    <img src={getRefinedAvatar(f.name || f.handle || 'User', f.avatar_url)} alt="avatar" className="w-full h-full object-cover" />
+                                  </div>
+                                  <div className="flex flex-col min-w-0 flex-1 leading-none">
+                                    <span className="text-gray-400 font-extrabold text-[7px] uppercase truncate mb-0.5">Handle</span>
+                                    <span className="text-[#3A125E] font-black text-[9px] truncate">@{f.handle || 'dancer'}</span>
+                                  </div>
                                 </div>
-                                <div className="flex flex-col min-w-0 flex-1 leading-none">
-                                  <span className="text-gray-400 font-extrabold text-[7px] uppercase truncate mb-0.5">Views</span>
-                                  <span className="text-[#3A125E] font-black text-[9px] truncate">{f.views}</span>
-                                </div>
-                                <div className="flex flex-col items-end leading-none shrink-0 text-right">
-                                  <span className="text-gray-400 font-extrabold text-[7px] uppercase mb-0.5">Growth</span>
-                                  <span className="text-emerald-500 font-black text-[9px]">{f.growth}</span>
-                                </div>
-                              </div>
-                            ))}
+                              ))
+                            ) : (
+                              <div className="text-[9px] text-gray-400 font-bold uppercase text-center py-2">Not following anyone</div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1047,6 +1450,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               </div>
             )}
           </div>
+          )
         )}
       </main>
 
@@ -1142,6 +1546,123 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
 
           </div>
         </nav>
+      )}
+
+      {/* Edit Profile Modal */}
+      {showEditProfileModal && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowEditProfileModal(false)}>
+          <div 
+            className="bg-[#1a1a2e] rounded-3xl w-[92%] max-w-md max-h-[85vh] overflow-y-auto shadow-2xl border border-white/10 p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-5">
+              <h2 className="text-white text-xl font-bold">Edit Profile</h2>
+              <button onClick={() => setShowEditProfileModal(false)} className="text-gray-400 hover:text-white text-sm font-semibold transition">Cancel</button>
+            </div>
+
+            {/* Avatar */}
+            <div className="flex flex-col items-center gap-2 mb-5">
+              <div 
+                className="w-24 h-24 rounded-full overflow-hidden border-2 border-purple-500/30 cursor-pointer hover:opacity-80 transition"
+                onClick={() => editAvatarInputRef.current?.click()}
+              >
+                <img 
+                  src={getRefinedAvatar(editName || editUsername || 'User', editAvatar)}
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <button 
+                className="text-blue-400 text-sm font-semibold hover:text-blue-300 transition"
+                onClick={() => editAvatarInputRef.current?.click()}
+              >
+                Change Photo
+              </button>
+              <input 
+                type="file" 
+                ref={editAvatarInputRef} 
+                className="hidden" 
+                accept="image/*" 
+                onChange={handleEditAvatarUpload}
+              />
+            </div>
+
+            {/* Name */}
+            <div className="mb-3">
+              <label className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-1 block">Name</label>
+              <input 
+                type="text" 
+                placeholder="Your name" 
+                className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white w-full focus:outline-none focus:border-purple-500/50 transition" 
+                value={editName} 
+                onChange={e => setEditName(e.target.value)} 
+              />
+            </div>
+
+            {/* Username / Handle */}
+            <div className="mb-3">
+              <label className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-1 block">Username / Handle</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">@</span>
+                <input 
+                  type="text"
+                  placeholder="your_username"
+                  className={`bg-white/5 border rounded-xl p-3 pl-7 text-sm text-white w-full focus:outline-none transition ${
+                    usernameStatus.available === true ? 'border-green-500/60 focus:border-green-400' :
+                    usernameStatus.available === false ? 'border-red-500/60 focus:border-red-400' :
+                    'border-white/10 focus:border-purple-500/50'
+                  }`}
+                  value={editUsername}
+                  onChange={e => checkUsernameAvailability(e.target.value)}
+                  maxLength={20}
+                />
+                {usernameStatus.checking && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-400"></div>
+                  </div>
+                )}
+                {!usernameStatus.checking && usernameStatus.available === true && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-400 text-lg">✓</span>
+                )}
+                {!usernameStatus.checking && usernameStatus.available === false && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-red-400 text-lg">✗</span>
+                )}
+              </div>
+              {usernameStatus.reason && (
+                <p className={`text-xs mt-1 ${
+                  usernameStatus.available === true ? 'text-green-400' :
+                  usernameStatus.available === false ? 'text-red-400' :
+                  'text-gray-500'
+                }`}>{usernameStatus.reason}</p>
+              )}
+              <p className="text-[10px] text-gray-600 mt-0.5">3-20 chars, lowercase letters, numbers & underscores</p>
+            </div>
+
+            {/* Bio */}
+            <div className="mb-5">
+              <label className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-1 block">Bio</label>
+              <textarea 
+                placeholder="Tell the world about you..." 
+                className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white w-full focus:outline-none focus:border-purple-500/50 transition min-h-[80px] resize-none" 
+                value={editBio} 
+                onChange={e => setEditBio(e.target.value)} 
+              />
+            </div>
+
+            {/* Save Button */}
+            <button 
+              onClick={handleSaveEditProfile} 
+              disabled={isSavingProfile || (editUsername.length >= 3 && usernameStatus.available === false)}
+              className={`w-full py-3 rounded-xl font-bold text-white transition text-sm ${
+                isSavingProfile || (editUsername.length >= 3 && usernameStatus.available === false)
+                  ? 'bg-gray-600 cursor-not-allowed' 
+                  : 'bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 shadow-lg'
+              }`}
+            >
+              {isSavingProfile ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
       )}
 
     </div>
