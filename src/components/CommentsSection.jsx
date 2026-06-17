@@ -36,7 +36,7 @@ const TrashIcon = () => (
   </svg>
 );
 
-export default function CommentsSection({ reelId, userId, onNavigateToProfile }) {
+export default function CommentsSection({ reelId, userId, adminData, onNavigateToProfile }) {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState('');
@@ -267,7 +267,7 @@ export default function CommentsSection({ reelId, userId, onNavigateToProfile })
                 >
                   <ReplyIcon /> Reply
                 </button>
-                {(userId === comment.user_id || localStorage.getItem('adminToken')) && (
+                {(userId && (userId === comment.user_id || adminData?.role === 'admin' || adminData?.role === 'superadmin')) && (
                   <button
                     onClick={() => handleDeleteComment(comment._id)}
                     style={{

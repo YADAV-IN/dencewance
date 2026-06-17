@@ -874,28 +874,32 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                           })()}
 
                           {/* Post Settings Menu */}
-                          <button 
-                            className="text-gray-500 hover:text-[#2B2315] p-1 rounded-full hover:bg-gray-50 transition-colors cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenuFor(openMenuFor === (post.id || post._id) ? null : (post.id || post._id));
-                            }}
-                          >
-                            <MoreVertical size={18} />
-                          </button>
-
-                          {openMenuFor === (post.id || post._id) && (
-                            <div className="absolute right-0 bottom-8 bg-white border border-gray-100 rounded-xl p-1.5 shadow-xl z-20 min-w-[130px] animate-in fade-in slide-in-from-bottom-1 duration-150">
+                          {adminId && (adminData?.role === 'admin' || adminData?.role === 'superadmin' || String(post.author_id) === String(adminId)) && (
+                            <>
                               <button 
-                                className="w-full text-left px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg flex items-center gap-1.5 cursor-pointer"
-                                onClick={() => {
-                                  setOpenMenuFor(null);
-                                  handleDeletePost(post.id || post._id);
+                                className="text-gray-500 hover:text-[#2B2315] p-1 rounded-full hover:bg-gray-50 transition-colors cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenMenuFor(openMenuFor === (post.id || post._id) ? null : (post.id || post._id));
                                 }}
                               >
-                                <Trash2 size={14} /> Delete
+                                <MoreVertical size={18} />
                               </button>
-                            </div>
+
+                              {openMenuFor === (post.id || post._id) && (
+                                <div className="absolute right-0 bottom-8 bg-white border border-gray-100 rounded-xl p-1.5 shadow-xl z-20 min-w-[130px] animate-in fade-in slide-in-from-bottom-1 duration-150">
+                                  <button 
+                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg flex items-center gap-1.5 cursor-pointer"
+                                    onClick={() => {
+                                      setOpenMenuFor(null);
+                                      handleDeletePost(post.id || post._id);
+                                    }}
+                                  >
+                                    <Trash2 size={14} /> Delete
+                                  </button>
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
@@ -1087,7 +1091,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
         {/* Create/Add Tab */}
         {activeTab === 'add' && (
           <div className="p-4 pb-24 h-full animate-in fade-in duration-200">
-            <CreateInstagramMenu onComplete={handleUploadPanelComplete} />
+            <CreateInstagramMenu token={token} onComplete={handleUploadPanelComplete} />
           </div>
         )}
 

@@ -5,8 +5,8 @@ import SkeletonImage from './SkeletonImage';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-export default function CreateInstagramMenu({ onComplete }) {
-  const [token] = useState(localStorage.getItem('adminToken') || '');
+export default function CreateInstagramMenu({ token: propToken, onComplete }) {
+  const token = propToken || localStorage.getItem('adminToken') || '';
   const [activeTab, setActiveTab] = useState('post'); // 'post' or 'reel'
 
   // Post State

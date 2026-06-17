@@ -527,7 +527,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                         
                         {activeDropdownIndex === idx && (
                           <div className="absolute right-0 top-11 bg-black/85 border border-white/15 rounded-xl p-1.5 shadow-2xl z-[150] min-w-[130px] backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-150" onClick={(e) => e.stopPropagation()}>
-                            {((adminData?.role === 'admin') || (item.creator_id === localStorage.getItem('adminId')) || (adminData && (item.creator_id === adminData.id || item.creator_id === adminData._id || item.creator_name === adminData.name)) || localStorage.getItem('adminToken')) && onDelete ? (
+                             {((adminData?.role === 'admin' || adminData?.role === 'superadmin') || (item.creator_id && item.creator_id === localStorage.getItem('adminId')) || (adminData && (item.creator_id === adminData.id || item.creator_id === adminData._id || (item.creator_name && item.creator_name === adminData.name)))) && onDelete ? (
                               <button 
                                 className="w-full text-left px-3 py-2 text-xs font-bold text-red-400 hover:bg-red-950/40 rounded-lg flex items-center gap-2 cursor-pointer transition-colors"
                                 onClick={(e) => {
@@ -802,6 +802,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                         <CommentsSection
                           reelId={selectedReelForComments}
                           userId={localStorage.getItem('adminId')}
+                          adminData={adminData}
                           onNavigateToProfile={onNavigateToProfile}
                         />
                         <button

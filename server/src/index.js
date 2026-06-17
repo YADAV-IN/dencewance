@@ -15,7 +15,7 @@ import jwt from 'jsonwebtoken';
 import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel, Report, AnalyticsEvent, AnalyticsError, DeveloperReport, useOfflineFallback, Pyq } from './db.js';
 import { storage as appwriteStorage, databases as appwriteDatabases, APPWRITE_DB_ID, ID, Query } from './appwrite.js';
 import { InputFile } from 'node-appwrite/file';
-import { requireAuth, signToken } from './middleware/auth.js';
+import { requireAuth, signToken, verifyAndGetAdminId } from './middleware/auth.js';
 import { slugify } from './utils/slug.js';
 import { getReadingTime } from './utils/readingTime.js';
 import { deleteR2ObjectByKey } from './r2.js';
@@ -496,18 +496,20 @@ app.get('/api/auth/check-username', async (req, res) => {
       return res.json({ available: false, reason: 'invalid_format' });
     }
 
+    let requestingUserId = null;
+    if (req.headers.authorization) {
+      try {
+        const authHeader = req.headers.authorization;
+        const token = authHeader.split(' ')[1];
+        requestingUserId = await verifyAndGetAdminId(token);
+      } catch(e) {}
+    }
+
     const admins = await Admin.find().lean();
     const taken = admins.some(a => {
       const aId = a.id || a._id;
-      if (req.headers.authorization) {
-        try {
-          const authHeader = req.headers.authorization;
-          const token = authHeader.split(' ')[1];
-          const decoded = jwt.verify(token, JWT_SECRET);
-          if (decoded && decoded.id === aId.toString()) {
-            return false; // Skip checking self
-          }
-        } catch(e) {}
+      if (requestingUserId && requestingUserId === aId.toString()) {
+        return false; // Skip checking self
       }
       
       const handle = (a.username || a.email?.split('@')[0] || '').toLowerCase();
@@ -1521,8 +1523,7 @@ app.post('/api/reels', async (req, res) => {
 
   if (rawToken) {
     try {
-      const decoded = jwt.verify(rawToken, JWT_SECRET);
-      const adminId = decoded?.adminId || decoded?.id || '';
+      const adminId = await verifyAndGetAdminId(rawToken);
       if (!adminId) {
         return res.status(401).json({ error: 'Invalid token.' });
       }
@@ -2654,7 +2655,12 @@ app.delete('/api/reels/:reelId/comments/:commentId', requireAuth, async (req, re
     }
 
     // Only admin or comment author can delete
-    if (req.adminId !== comment.user_id && req.adminId !== comment.$id) {
+    const requester = await Admin.findById(req.adminId);
+    const requesterRole = requester?.role;
+    const isAdmin = requesterRole === 'admin' || requesterRole === 'superadmin';
+    const ownsComment = String(req.adminId) === String(comment.user_id) || String(req.adminId) === String(comment.$id);
+
+    if (!isAdmin && !ownsComment) {
       return res.status(403).json({ error: 'Not authorized to delete this comment' });
     }
 
