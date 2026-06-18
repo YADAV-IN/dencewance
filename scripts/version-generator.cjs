@@ -53,12 +53,27 @@ async function run() {
     const packageJsonPath = path.resolve('package.json');
     
     let version = '1.0.0';
+    let currentCount = 0;
 
     try {
-      const { count, hash } = await getCommitCount();
-      if (count > 0) {
-        version = `1.0.${count}`;
+      if (fs.existsSync(packageJsonPath)) {
+        const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+        if (pkg.version && pkg.version.startsWith('1.0.')) {
+          version = pkg.version;
+          currentCount = parseInt(pkg.version.split('.')[2], 10) || 0;
+        }
       }
+
+      const { count, hash } = await getCommitCount();
+      
+      let newCount = count;
+      if (count <= 1) {
+        newCount = currentCount + 1; // Fallback: increment by 1 on Render shallow clones
+      } else {
+        newCount = Math.max(count, currentCount);
+      }
+      
+      version = `1.0.${newCount}`;
       
       const srcDir = path.dirname(versionFilePath);
       if (!fs.existsSync(srcDir)) {
