@@ -13,7 +13,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel, Report, AnalyticsEvent, AnalyticsError, DeveloperReport, useOfflineFallback, Pyq } from './db.js';
+import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel, Report, AnalyticsEvent, AnalyticsError, DeveloperReport, useOfflineFallback, Pyq, Interaction, Follow } from './db.js';
 import { storage as appwriteStorage, databases as appwriteDatabases, APPWRITE_DB_ID, ID, Query } from './appwrite.js';
 import { InputFile } from 'node-appwrite/file';
 import { requireAuth, signToken, verifyAndGetAdminId } from './middleware/auth.js';
@@ -25,7 +25,7 @@ import { deleteStoredMedia, deleteMultipleFiles } from './utils/deletion.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const populateCreatorDetails = async (items, idField, nameField, avatarField, handleField) => {
+const populateCreatorDetails = async (items, idField, nameField, avatarField, handleField, currentUserId = null) => {
   if (!items) return items;
   const isArray = Array.isArray(items);
   const list = isArray ? items : [items];
@@ -38,6 +38,13 @@ const populateCreatorDetails = async (items, idField, nameField, avatarField, ha
       const id = a.id || a._id || a.$id;
       if (id) adminMap.set(id.toString(), a);
     });
+
+    let myInteractions = [];
+    let myFollows = [];
+    if (currentUserId) {
+      myInteractions = await Interaction.find({ user_id: currentUserId.toString() }) || [];
+      myFollows = await Follow.find({ follower_id: currentUserId.toString() }) || [];
+    }
     
     list.forEach(item => {
       if (!item) return;
@@ -47,6 +54,16 @@ const populateCreatorDetails = async (items, idField, nameField, avatarField, ha
         if (admin.name && nameField) item[nameField] = admin.name;
         if (admin.avatar_url && avatarField) item[avatarField] = admin.avatar_url;
         if (handleField) item[handleField] = admin.username || admin.email?.split('@')[0] || 'user';
+      }
+
+      if (currentUserId) {
+        const targetId = (item._id || item.id || '').toString();
+        item.is_liked_by_me = myInteractions.some(i => i.target_id === targetId && i.type === 'like');
+        item.is_saved_by_me = myInteractions.some(i => i.target_id === targetId && i.type === 'save');
+        
+        if (authorId) {
+           item.is_following_creator = myFollows.some(f => f.following_id === authorId.toString());
+        }
       }
     });
   } catch (err) {
@@ -1346,7 +1363,7 @@ function mixSourcesForFeed(list = []) {
 
 app.get('/api/reels', async (req, res) => {
   try {
-    const { limit = 100, active = 'true', creator_id } = req.query;
+    const { limit = 100, active = 'true', creator_id, viewer_id } = req.query;
     const query = {};
     if (active === 'true') query.is_active = true;
     if (creator_id) query.creator_id = creator_id;
@@ -1357,7 +1374,7 @@ app.get('/api/reels', async (req, res) => {
       .lean();
     const deletedUrlSet = await getDeletedReelUrlSet();
     const visibleReels = reels.filter((reel) => !isReelTombstoned(reel, deletedUrlSet));
-    const populated = await populateCreatorDetails(visibleReels, 'creator_id', 'creator_name', 'creator_avatar', 'creator_handle');
+    const populated = await populateCreatorDetails(visibleReels, 'creator_id', 'creator_name', 'creator_avatar', 'creator_handle', viewer_id);
 
     // Disable all caching for reels - always fresh data
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate, private');
@@ -1555,22 +1572,6 @@ app.get('/api/reels/:slug', async (req, res) => {
   }
 });
 
-app.post('/api/reels/:id/like', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const reel = await Reel.findByIdAndUpdate(
-      id,
-      { $inc: { likes: 1 } },
-      { new: true }
-    );
-
-    if (!reel) return res.status(404).json({ error: 'Reel not found.' });
-    return res.json({ data: reel.toJSON() });
-  } catch (error) {
-    console.error('Reel like error:', error);
-    return res.status(500).json({ error: 'Failed to update reel likes.' });
-  }
-});
 
 app.post('/api/reels', async (req, res) => {
   const authHeader = req.headers.authorization || '';
@@ -2569,6 +2570,54 @@ app.get('/api/admin/setup-db', async (req, res) => {
       }
     }
 
+    // Interactions
+    try {
+      await databases.createCollection(APPWRITE_DB_ID, 'interactions', 'Interactions');
+      results.push('Created interactions collection');
+    } catch (err) {
+      results.push(`Skipped interactions collection (${err.message})`);
+    }
+
+    const intAttrs = [
+      { key: 'user_id', size: 255 },
+      { key: 'target_id', size: 255 },
+      { key: 'target_type', size: 50 },
+      { key: 'type', size: 50 },
+      { key: 'created_at', size: 255 }
+    ];
+
+    for (const attr of intAttrs) {
+      try {
+        await databases.createStringAttribute(APPWRITE_DB_ID, 'interactions', attr.key, attr.size, false, '', false);
+        results.push(`Created interactions.${attr.key}`);
+      } catch (err) {
+        results.push(`Skipped interactions.${attr.key} (${err.message})`);
+      }
+    }
+
+    // Follows
+    try {
+      await databases.createCollection(APPWRITE_DB_ID, 'follows', 'Follows');
+      results.push('Created follows collection');
+    } catch (err) {
+      results.push(`Skipped follows collection (${err.message})`);
+    }
+
+    const followAttrs = [
+      { key: 'follower_id', size: 255 },
+      { key: 'following_id', size: 255 },
+      { key: 'created_at', size: 255 }
+    ];
+
+    for (const attr of followAttrs) {
+      try {
+        await databases.createStringAttribute(APPWRITE_DB_ID, 'follows', attr.key, attr.size, false, '', false);
+        results.push(`Created follows.${attr.key}`);
+      } catch (err) {
+        results.push(`Skipped follows.${attr.key} (${err.message})`);
+      }
+    }
+
     res.json({ success: true, results });
   } catch(e) {
     res.status(500).json({ error: e.message });
@@ -2716,71 +2765,132 @@ app.post('/api/reels/:id/comments', async (req, res) => {
 });
 
 // Toggle Save/Bookmark for a Reel
-app.post('/api/reels/:id/save', async (req, res) => {
+// Modern Interactions API (Likes & Saves)
+app.post('/api/interactions/:type', requireAuth, async (req, res) => {
   try {
-    const { user_id } = req.body;
-    const testUserId = user_id || '60c72b2f9b1d8e4b88a91b2c';
+    const { target_id, target_type } = req.body;
+    const type = req.params.type; // 'like' or 'save'
+    const userId = req.adminId;
+
+    if (!['like', 'save', 'share'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid interaction type' });
+    }
+    if (!target_id || !target_type) {
+      return res.status(400).json({ error: 'Missing target_id or target_type' });
+    }
+
+    const existing = await Interaction.findOne({ user_id: userId, target_id, type });
     
-    const existing = await SavedReel.findOne({ reel_id: req.params.id, user_id: testUserId });
+    // Toggle logic
     if (existing) {
       await existing.deleteOne();
-      return res.json({ saved: false, message: 'Reel un-saved.' });
+      
+      // Update counts based on target
+      if (target_type === 'reel') {
+        const reel = await Reel.findById(target_id);
+        if (reel) {
+          reel[type === 'like' ? 'likes' : 'saves'] = Math.max(0, (reel[type === 'like' ? 'likes' : 'saves'] || 0) - 1);
+          await reel.save();
+        }
+      }
+      return res.json({ active: false, message: `${type} removed.` });
     } else {
-      await SavedReel.create({ reel_id: req.params.id, user_id: testUserId });
-      return res.json({ saved: true, message: 'Reel saved locally in profile.' });
+      await Interaction.create({
+        user_id: userId,
+        target_id,
+        target_type,
+        type,
+        created_at: new Date().toISOString()
+      });
+
+      if (target_type === 'reel') {
+        const reel = await Reel.findById(target_id);
+        if (reel) {
+          reel[type === 'like' ? 'likes' : 'saves'] = (reel[type === 'like' ? 'likes' : 'saves'] || 0) + 1;
+          await reel.save();
+        }
+      }
+      return res.json({ active: true, message: `${type} added.` });
     }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Like/Unlike a Reel
-app.post('/api/reels/:id/like', async (req, res) => {
+// Modern Follow API
+app.post('/api/users/:id/follow', requireAuth, async (req, res) => {
   try {
-    const { user_id } = req.body;
-    const userId = user_id || (req.adminId);
-    const reelId = req.params.id;
+    const followingId = req.params.id;
+    const followerId = req.adminId;
 
-    if (!userId) {
-      return res.status(401).json({ error: 'Must be logged in to like' });
+    if (followingId === followerId) {
+      return res.status(400).json({ error: 'Cannot follow yourself' });
     }
 
-    const reel = await Reel.findById(reelId);
-    if (!reel) {
-      return res.status(404).json({ error: 'Reel not found' });
-    }
+    const existing = await Follow.findOne({ follower_id: followerId, following_id: followingId });
+    
+    if (existing) {
+      await existing.deleteOne();
+      
+      const adminToUnfollow = await Admin.findById(followingId);
+      if (adminToUnfollow) {
+        adminToUnfollow.followers_count = Math.max(0, (adminToUnfollow.followers_count || 0) - 1);
+        await adminToUnfollow.save();
+      }
 
-    // Check if user already liked
-    const likes = reel.likes_by || [];
-    const alreadyLiked = likes.includes(userId);
+      const currentUser = await Admin.findById(followerId);
+      if (currentUser) {
+        currentUser.following_count = Math.max(0, (currentUser.following_count || 0) - 1);
+        await currentUser.save();
+      }
 
-    if (alreadyLiked) {
-      // Unlike
-      reel.likes_by = likes.filter(id => id !== userId);
-      reel.likes = Math.max(0, (reel.likes || 0) - 1);
-      await reel.save();
-      return res.json({ liked: false, likes: reel.likes });
+      return res.json({ following: false, message: 'Unfollowed user.' });
     } else {
-      // Like
-      reel.likes_by = [...likes, userId];
-      reel.likes = (reel.likes || 0) + 1;
-      await reel.save();
-      return res.json({ liked: true, likes: reel.likes });
+      await Follow.create({
+        follower_id: followerId,
+        following_id: followingId,
+        created_at: new Date().toISOString()
+      });
+
+      const adminToFollow = await Admin.findById(followingId);
+      if (adminToFollow) {
+        adminToFollow.followers_count = (adminToFollow.followers_count || 0) + 1;
+        await adminToFollow.save();
+      }
+
+      const currentUser = await Admin.findById(followerId);
+      if (currentUser) {
+        currentUser.following_count = (currentUser.following_count || 0) + 1;
+        await currentUser.save();
+      }
+
+      return res.json({ following: true, message: 'Followed user.' });
     }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Check if user liked a reel
+// Legacy fallback routes for frontend compatibility (will redirect logic)
+app.post('/api/reels/:id/save', requireAuth, async (req, res) => {
+  req.body.target_id = req.params.id;
+  req.body.target_type = 'reel';
+  req.params.type = 'save';
+  return app._router.handle(req, res, () => {});
+});
+
+app.post('/api/reels/:id/like', requireAuth, async (req, res) => {
+  req.body.target_id = req.params.id;
+  req.body.target_type = 'reel';
+  req.params.type = 'like';
+  return app._router.handle(req, res, () => {});
+});
+
 app.get('/api/reels/:id/liked-by/:userId', async (req, res) => {
   try {
+    const existing = await Interaction.findOne({ user_id: req.params.userId, target_id: req.params.id, type: 'like' });
     const reel = await Reel.findById(req.params.id);
-    if (!reel) {
-      return res.status(404).json({ error: 'Reel not found' });
-    }
-    const isLiked = (reel.likes_by || []).includes(req.params.userId);
-    return res.json({ liked: isLiked, likes: reel.likes || 0 });
+    return res.json({ liked: !!existing, likes: reel?.likes || 0 });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -2833,8 +2943,8 @@ app.get('/api/users/:userHandle', async (req, res) => {
           handle: reels[0].creator_handle || handle,
           avatar_url: reels[0].creator_avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(reels[0].creator_name || handle),
           bio: `Creator on DenceWance`,
-          followers: 0,
-          following: 0,
+          followers: reels[0].followers_count || 0,
+          following: reels[0].following_count || 0,
           verified: false
         });
       }
@@ -2848,8 +2958,8 @@ app.get('/api/users/:userHandle', async (req, res) => {
       handle: user.email?.split('@')[0] || handle,
       avatar_url: user.avatar_url || '',
       bio: user.bio || '',
-      followers: 0,
-      following: 0,
+      followers: user.followers_count || 0,
+      following: user.following_count || 0,
       verified: false
     });
   } catch (error) {

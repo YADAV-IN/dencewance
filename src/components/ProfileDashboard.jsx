@@ -642,14 +642,14 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
               </div>
               <div className="flex-1 bg-[var(--accent)] rounded-xl p-3 flex flex-col relative overflow-hidden shadow-md">
                 <span className="text-[var(--primary-dark)] text-sm font-semibold mb-1">Followers</span>
-                <span className="text-white text-2xl font-bold drop-shadow-md">3.2k</span>
+                <span className="text-white text-2xl font-bold drop-shadow-md">{adminData?.followers_count || 0}</span>
                 <div className="absolute right-2 bottom-2 opacity-70">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary-dark)" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 </div>
               </div>
               <div className="flex-1 bg-[var(--accent)] rounded-xl p-3 flex flex-col relative overflow-hidden shadow-md">
                 <span className="text-[var(--primary-dark)] text-sm font-semibold mb-1">Following</span>
-                <span className="text-white text-2xl font-bold drop-shadow-md">410</span>
+                <span className="text-white text-2xl font-bold drop-shadow-md">{adminData?.following_count || 0}</span>
                 <div className="absolute right-2 bottom-2 opacity-70">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary-dark)" strokeWidth="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                 </div>

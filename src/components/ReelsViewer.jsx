@@ -88,7 +88,32 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const [reelCreatorMode, setReelCreatorMode] = useState('auto');
   const reelUploadInputRef = useRef(null);
   const reelUploadProgress = 0;
-  const toggleFollowCreator = () => {};
+  const [followedCreators, setFollowedCreators] = useState({});
+
+  const toggleFollowCreator = async (item) => {
+    const adminId = localStorage.getItem('adminId');
+    const token = localStorage.getItem('adminToken');
+    if (!adminId || !token) {
+      alert("Please login to follow creators.");
+      return;
+    }
+    const creatorId = item.creator_id || '69d663c300013ae31bb4';
+    if (adminId === creatorId) return;
+
+    setFollowedCreators(prev => {
+      const isCurrentlyFollowing = prev[creatorId] !== undefined ? prev[creatorId] : !!item.is_following_creator;
+      return { ...prev, [creatorId]: !isCurrentlyFollowing };
+    });
+
+    try {
+      await fetch(`${API_URL}/api/users/${creatorId}/follow`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
   const handleReelLike = async (item) => {
     if (likedTracking[item._id]?.liked) return; // User already liked locally
     
@@ -146,11 +171,16 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const [likedReels, setLikedReels] = useState({}); // { [reelId]: { liked: boolean, count: number } }
   const [savedReels, setSavedReels] = useState({}); // { [reelId]: boolean }
 
-  const handleLikeReel = async (reelId, initialLikes) => {
-    const adminId = localStorage.getItem('adminId') || '69d663c300013ae31bb4';
+  const handleLikeReel = async (reelId, initialLikes, isLikedByMe) => {
+    const adminId = localStorage.getItem('adminId');
+    const token = localStorage.getItem('adminToken');
+    if (!adminId || !token) {
+      alert("Please login to like this post.");
+      return;
+    }
     
     setLikedReels(prev => {
-      const current = prev[reelId] || { liked: false, count: initialLikes };
+      const current = prev[reelId] || { liked: isLikedByMe, count: initialLikes };
       const nextLiked = !current.liked;
       return {
         ...prev,
@@ -162,21 +192,41 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
     });
 
     try {
-      await fetch(`${API_URL}/api/reels/${reelId}/like`, {
+      await fetch(`${API_URL}/api/interactions/like`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: adminId })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ target_id: reelId, target_type: 'reel' })
       });
     } catch (e) {
       console.error(e);
     }
   };
 
-  const handleSaveReel = (reelId) => {
-    setSavedReels(prev => ({
-      ...prev,
-      [reelId]: !prev[reelId]
-    }));
+  const handleSaveReel = async (reelId, isSavedByMe) => {
+    const adminId = localStorage.getItem('adminId');
+    const token = localStorage.getItem('adminToken');
+    if (!adminId || !token) {
+      alert("Please login to save this post.");
+      return;
+    }
+
+    setSavedReels(prev => {
+      const currentLiked = prev[reelId] !== undefined ? prev[reelId] : isSavedByMe;
+      return {
+        ...prev,
+        [reelId]: !currentLiked
+      };
+    });
+
+    try {
+      await fetch(`${API_URL}/api/interactions/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ target_id: reelId, target_type: 'reel' })
+      });
+    } catch (e) {
+      console.error(e);
+    }
   };
   const toggleReelsMute = (e) => {
     e.stopPropagation();
@@ -576,22 +626,34 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                             e.target.src = getViewerAvatar('User', '', null);
                           }}
                         />
-                        <button
-                          className="reel-follow-fab-btn"
-                          onClick={(e) => { e.stopPropagation(); toggleFollowCreator(item); }}
-                          title="Follow creator"
-                        >＋</button>
+                        {(() => {
+                          const creatorId = item.creator_id || '69d663c300013ae31bb4';
+                          const isFollowing = followedCreators[creatorId] !== undefined ? followedCreators[creatorId] : !!item.is_following_creator;
+                          const isMe = creatorId === localStorage.getItem('adminId');
+                          
+                          if (isMe) return null;
+                          return (
+                            <button
+                              className="reel-follow-fab-btn"
+                              style={{ background: isFollowing ? '#333' : '#FF2D55' }}
+                              onClick={(e) => { e.stopPropagation(); toggleFollowCreator(item); }}
+                              title={isFollowing ? "Unfollow" : "Follow creator"}
+                            >
+                              {isFollowing ? '✓' : '＋'}
+                            </button>
+                          );
+                        })()}
                       </button>
 
                       {/* Like */}
                       {(() => {
                         const reelId = item._id || item.id;
-                        const likeState = likedReels[reelId] || { liked: false, count: item.likes || 0 };
+                        const likeState = likedReels[reelId] || { liked: !!item.is_liked_by_me, count: item.likes || 0 };
                         return (
                           <div className="reel-action-item">
                             <button
                               className="reel-action-btn"
-                              onClick={(e) => { e.stopPropagation(); handleLikeReel(reelId, item.likes || 0); }}
+                              onClick={(e) => { e.stopPropagation(); handleLikeReel(reelId, item.likes || 0, !!item.is_liked_by_me); }}
                             >
                               <span className="reel-action-icon">
                                 <Heart size={24} fill={likeState.liked ? "#FF2D55" : "none"} className={likeState.liked ? "text-[#FF2D55] scale-110" : "text-white"} />
@@ -622,12 +684,12 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       {/* Bookmark (Save) */}
                       {(() => {
                         const reelId = item._id || item.id;
-                        const isSaved = !!savedReels[reelId];
+                        const isSaved = savedReels[reelId] !== undefined ? savedReels[reelId] : !!item.is_saved_by_me;
                         return (
                           <div className="reel-action-item">
                             <button
                               className="reel-action-btn"
-                              onClick={(e) => { e.stopPropagation(); handleSaveReel(reelId); }}
+                              onClick={(e) => { e.stopPropagation(); handleSaveReel(reelId, !!item.is_saved_by_me); }}
                             >
                               <span className="reel-action-icon">
                                 <Bookmark size={24} fill={isSaved ? "#FFD700" : "none"} className={isSaved ? "text-[#FFD700]" : "text-white"} />
