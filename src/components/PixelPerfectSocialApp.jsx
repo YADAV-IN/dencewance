@@ -77,9 +77,6 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
       cleanName = nameOrHandle;
     }
     const lowerName = String(cleanName || '').toLowerCase();
-    if (lowerName.includes('preetam')) {
-      return 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&fit=crop&q=80'; // high-quality bearded profile
-    }
     if (lowerName.includes('kiran')) {
       return 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&fit=crop&q=80'; // Kiran female profile
     }
@@ -364,36 +361,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
     }
   }, [token, adminId]);
 
-  // Dynamically sync status reels with the logged-in testing user details
-  const syncedStatuses = React.useMemo(() => {
-    return statuses.map(s => {
-      if (!s.creator_id || s.creator_id === "" || s.creator_handle === "alok" || s.creator_name === "Admin") {
-        return {
-          ...s,
-          creator_id: adminId || '69d663c300013ae31bb4',
-          creator_name: adminData?.name || 'Preetam Singh Yadav ',
-          creator_handle: adminData?.username || (adminData?.email ? adminData.email.split('@')[0] : 'preetam'),
-          creator_avatar: adminData?.avatar_url || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&fit=crop&q=80',
-        };
-      }
-      return s;
-    });
-  }, [statuses, adminData, adminId]);
-
-  const syncedReelsFeed = React.useMemo(() => {
-    return reelsFeed.map(r => {
-      if (!r.creator_id || r.creator_id === "" || r.creator_handle === "alok" || r.creator_name === "Admin") {
-        return {
-          ...r,
-          creator_id: adminId || '69d663c300013ae31bb4',
-          creator_name: adminData?.name || 'Preetam Singh Yadav ',
-          creator_handle: adminData?.username || (adminData?.email ? adminData.email.split('@')[0] : 'preetam'),
-          creator_avatar: adminData?.avatar_url || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&fit=crop&q=80',
-        };
-      }
-      return r;
-    });
-  }, [reelsFeed, adminData, adminId]);
+  // Sync logic removed to show actual database content
 
   // Fetch recommendations for search tab
   useEffect(() => {
@@ -595,8 +563,8 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               <div className="flex overflow-x-auto gap-4 pb-2 scrollbar-hide">
 
                 {/* Status List */}
-                {syncedStatuses.length > 0 ? (
-                  syncedStatuses.map((story, i) => {
+                {statuses.length > 0 ? (
+                  statuses.map((story, i) => {
                     // Alternate themes: Silver, Gold, Gradient
                     const cardThemes = [
                       {
@@ -933,10 +901,10 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
         {activeTab === 'stories' && (
           <ReelsViewer 
             reels={
-              viewingMedia === 'status' ? syncedStatuses :
               viewingMedia === 'search' ? searchResults.reels :
               viewingMedia === 'recommendation' ? recommendations.reels :
-              syncedReelsFeed
+              viewingMedia === 'status' ? statuses :
+              reelsFeed
             } 
             initialIndex={activeStoryIndex} 
             onClose={() => setActiveTab('home')}

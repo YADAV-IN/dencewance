@@ -221,7 +221,7 @@ const storage = hasR2Config
           folder = 'media';
         }
         const fileExt = path.extname(file.originalname).substring(1) || 'bin';
-        cb(null, `alok/${folder}/${Date.now()}-${Math.round(Math.random() * 1E9)}.${fileExt}`);
+        cb(null, `users/${folder}/${Date.now()}-${Math.round(Math.random() * 1E9)}.${fileExt}`);
       }
     })
   : multer.memoryStorage();
@@ -2173,7 +2173,7 @@ app.post('/api/uploads/sign', async (req, res) => {
     // Fallbacks just in case
     const timestamp = Date.now();
     const ext = filename ? filename.split('.').pop() : 'mp4';
-    const key = `alok/media/${timestamp}-${Math.round(Math.random() * 1e9)}.${ext}`;
+    const key = `users/media/${timestamp}-${Math.round(Math.random() * 1e9)}.${ext}`;
     
     // We get back { uploadUrl, publicUrl }
     const signData = await generatePresignedUrl(key, contentType || 'video/mp4');
@@ -2183,7 +2183,7 @@ app.post('/api/uploads/sign', async (req, res) => {
       publicUrl: signData.publicUrl,
       data: {
         timestamp: Math.round(timestamp / 1000),
-        folder: 'alok/media',
+        folder: 'users/media',
         resource_type: 'video',
       },
     });
@@ -2302,7 +2302,7 @@ app.post('/api/pyq/upload', requireAuth, packetUpload.single('file'), async (req
       try {
         const timestamp = Date.now();
         const ext = req.file.originalname ? req.file.originalname.split('.').pop() : 'bin';
-        const key = `alok/pyq/${timestamp}-${Math.round(Math.random() * 1e9)}.${ext}`;
+        const key = `users/pyq/${timestamp}-${Math.round(Math.random() * 1e9)}.${ext}`;
         const signData = await generatePresignedUrl(key, req.file.mimetype || 'application/octet-stream');
         await fetch(signData.uploadUrl, { method: 'PUT', body: req.file.buffer, headers: { 'content-type': req.file.mimetype || 'application/octet-stream' } });
         fileUrl = signData.publicUrl;

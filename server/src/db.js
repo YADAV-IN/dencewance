@@ -845,9 +845,9 @@ export const initDb = async () => {
       const existingAdmin = await Admin.findOne();
       if (!existingAdmin) {
         console.log('No admin found in Appwrite, creating default...');
-        const defaultEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
-        const defaultPassword = process.env.ADMIN_PASSWORD || 'change-me-before-login';
-        const defaultName = process.env.ADMIN_NAME || 'Admin User';
+        const defaultEmail = process.env.ADMIN_EMAIL || 'vipno1official@gmail.com';
+        const defaultPassword = process.env.ADMIN_PASSWORD || 'admin123';
+        const defaultName = process.env.ADMIN_NAME || 'Preetam Singh Yadav ';
         const hashedPassword = await bcrypt.hash(defaultPassword, 10);
         await Admin.create({
           name: defaultName,
