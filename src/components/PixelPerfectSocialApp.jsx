@@ -1455,16 +1455,19 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               </div>
             )}
             
-            {/* Version Display at the very bottom of Profile Page */}
-            <div className="text-center pt-4 pb-8 shrink-0 border-t border-[#3A125E]/5 mt-2">
-              <span className="text-[#3A125E]/30 text-[9px] font-extrabold tracking-widest uppercase block">
-                DenceWance • v{versionData.version} ({versionData.gitHash || 'stable'})
-              </span>
-            </div>
           </div>
           )
         )}
       </main>
+
+      {/* Global Version Footer - visible on all pages */}
+      {activeTab !== 'stories' && (
+        <div className="w-full bg-[#F4ECD8]/80 backdrop-blur-sm text-center py-1 shrink-0">
+          <span className="text-[#3A125E]/20 text-[7.5px] font-extrabold tracking-[0.18em] uppercase select-none">
+            DenceWance • v{versionData.version} ({versionData.gitHash || 'stable'})
+          </span>
+        </div>
+      )}
 
       {/* 3. Bottom Navigation Bar */}
       {activeTab !== 'stories' && (
