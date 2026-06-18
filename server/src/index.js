@@ -2532,6 +2532,49 @@ app.get('/api/storage/usage', requireAuth, async (req, res) => {
   }
 });
 
+app.get('/api/admin/setup-db', async (req, res) => {
+  try {
+    const { databases, APPWRITE_DB_ID } = await import('./appwrite.js');
+    
+    // Create missing attributes on admins
+    const adminAttrs = [
+      { key: 'username', size: 255 },
+      { key: 'bio', size: 1000 },
+      { key: 'avatar_url', size: 2048 },
+      { key: 'name', size: 255 }
+    ];
+
+    const results = [];
+    for (const attr of adminAttrs) {
+      try {
+        await databases.createStringAttribute(APPWRITE_DB_ID, 'admins', attr.key, attr.size, false, '', false);
+        results.push(`Created admins.${attr.key}`);
+      } catch (err) {
+        results.push(`Skipped admins.${attr.key} (${err.message})`);
+      }
+    }
+    
+    // Reels
+    const reelAttrs = [
+      { key: 'creator_handle', size: 255 },
+      { key: 'creator_avatar', size: 2048 }
+    ];
+
+    for (const attr of reelAttrs) {
+      try {
+        await databases.createStringAttribute(APPWRITE_DB_ID, 'reels', attr.key, attr.size, false, '', false);
+        results.push(`Created reels.${attr.key}`);
+      } catch (err) {
+        results.push(`Skipped reels.${attr.key} (${err.message})`);
+      }
+    }
+
+    res.json({ success: true, results });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Admin DB Cleanup tool: Rewrites empty/alok creator_name values to the superadmin profile
 app.get('/api/admin/clean-names', requireAuth, async (req, res) => {
   try {
