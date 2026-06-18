@@ -538,9 +538,12 @@ class Model {
 
     let payload = { ...data };
     delete payload._id; delete payload.id; delete payload.$id;
+    const strippedAttrs = new Set();
     const tryUpdate = async (currentPayload) => {
       try {
         const payloadToWrite = prepareUpdatePayload(this.collectionId, currentPayload);
+        for (const attr of strippedAttrs) delete payloadToWrite[attr];
+        
         const doc = await databases.updateDocument(DB_ID, this.collectionId, id, payloadToWrite);
         return this._map(doc);
       } catch(err) {
@@ -548,7 +551,7 @@ class Model {
           const match = err.message.match(/Unknown attribute: "([^"]+)"/);
           if (match && match[1]) {
             const badAttr = match[1];
-            delete currentPayload[badAttr];
+            strippedAttrs.add(badAttr);
             console.warn(`[Appwrite] Set stripping missing attribute "${badAttr}" from ${this.collectionId}`);
             return tryUpdate(currentPayload);
           }
