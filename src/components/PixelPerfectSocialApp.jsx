@@ -305,6 +305,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
   useEffect(() => {
     setIsLoading(true);
     const now = Date.now();
+    const viewerId = localStorage.getItem('adminId') || '';
 
     Promise.all([
       // Fetch Statuses
@@ -318,7 +319,6 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
         .catch(err => console.error('Failed to load status', err)),
 
       // Fetch Reels
-      const viewerId = localStorage.getItem('adminId') || '';
       fetch(`${API_URL}/api/reels?limit=100&_t=${now}&viewer_id=${viewerId}`)
         .then(res => res.ok ? res.json() : { data: [] })
         .then(data => {
