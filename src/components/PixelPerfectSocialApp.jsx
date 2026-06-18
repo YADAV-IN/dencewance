@@ -1460,18 +1460,9 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
         )}
       </main>
 
-      {/* Global Version Footer - visible on all pages */}
-      {activeTab !== 'stories' && (
-        <div className="w-full bg-[#F4ECD8]/80 backdrop-blur-sm text-center py-1 shrink-0">
-          <span className="text-[#3A125E]/20 text-[7.5px] font-extrabold tracking-[0.18em] uppercase select-none">
-            DenceWance • v{versionData.version} ({versionData.gitHash || 'stable'})
-          </span>
-        </div>
-      )}
-
       {/* 3. Bottom Navigation Bar */}
       {activeTab !== 'stories' && (
-        <nav className="absolute bottom-0 left-0 right-0 bg-[#F4ECD8] border-t border-gray-200/50 shadow-[0_-4px_25px_rgba(58,18,94,0.06)] pb-[env(safe-area-inset-bottom)] z-50 shrink-0">
+        <nav className="absolute bottom-0 left-0 right-0 bg-[#F4ECD8] border-t border-gray-200/50 shadow-[0_-4px_25px_rgba(58,18,94,0.06)] z-50 shrink-0 flex flex-col">
           <div className="flex justify-around items-center h-[64px] px-2 relative">
             
             {/* Tab 1: Home */}
@@ -1559,6 +1550,13 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               />
             </button>
 
+          </div>
+          
+          {/* Version string under the icons */}
+          <div className="w-full text-center pb-[calc(env(safe-area-inset-bottom)+4px)] pt-0.5 opacity-60">
+            <span className="text-[#3A125E] text-[7.5px] font-extrabold tracking-[0.18em] uppercase select-none block leading-none">
+              DenceWance • v{versionData.version} ({versionData.gitHash || 'stable'})
+            </span>
           </div>
         </nav>
       )}
