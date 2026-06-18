@@ -1,84 +1,94 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const https = require('https');
 
-try {
-  const versionFilePath = path.resolve('src/version.json');
-  const packageJsonPath = path.resolve('package.json');
-
-  let version = '1.0.0';
-  let gitCommitCount = 0;
+async function getCommitCount() {
+  let count = 0;
   let gitHash = '';
 
   try {
-    // Run git fetch unshallow if shallow clone is detected (fixes Render shallow clones returning 1)
-    try {
-      if (execSync('git rev-parse --is-shallow-repository').toString().trim() === 'true') {
-        execSync('git fetch --unshallow');
-      }
-    } catch(e) {}
-
-    // Get git commit count
-    gitCommitCount = parseInt(execSync('git rev-list --count HEAD').toString().trim(), 10);
     gitHash = execSync('git rev-parse --short HEAD').toString().trim();
-    // Standard professional version format (Sequential 1.0.1, 1.0.2...)
-    version = `1.0.${gitCommitCount}`;
-  } catch (e) {
-    console.warn('⚠️ Fallback to package.json.');
-    if (fs.existsSync(packageJsonPath)) {
-      try {
-        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-        if (packageJson.version) {
-          version = packageJson.version;
-        }
-      } catch (err) {}
-    }
-  }
-  // Create src directory if it doesn't exist
-  const srcDir = path.dirname(versionFilePath);
-  if (!fs.existsSync(srcDir)) {
-    fs.mkdirSync(srcDir, { recursive: true });
-  }
+  } catch(e) {}
 
-  // Write generated version to version.json for the frontend
-  const versionData = {
-    version,
-    buildTime: new Date().toISOString(),
-    gitHash: gitHash || 'deploy-build'
-  };
-
-  fs.writeFileSync(versionFilePath, JSON.stringify(versionData, null, 2), 'utf8');
-  console.log(`🚀 Version automatically updated: ${version} (${gitHash || 'deploy-build'})`);
-
-  // Optionally update package.json version to keep it synced
-  if (fs.existsSync(packageJsonPath)) {
-    try {
-      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-      if (packageJson.version !== version) {
-        packageJson.version = version;
-        fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2), 'utf8');
-      }
-    } catch (err) {}
-  }
-} catch (globalErr) {
-  console.warn('⚠️ Version generator script failed, using fallback configuration to prevent build failure:', globalErr);
-  
-  // Safe fallback to prevent import errors in frontend
+  // 1. Try local git first (works locally and if unshallow succeeds)
   try {
-    const fallbackPath = path.resolve('src/version.json');
-    const fallbackDir = path.dirname(fallbackPath);
-    if (!fs.existsSync(fallbackDir)) {
-      fs.mkdirSync(fallbackDir, { recursive: true });
+    if (execSync('git rev-parse --is-shallow-repository').toString().trim() === 'true') {
+      execSync('git fetch --unshallow');
     }
-    fs.writeFileSync(fallbackPath, JSON.stringify({
-      version: '1.0.0',
-      buildTime: new Date().toISOString(),
-      gitHash: 'fallback'
-    }, null, 2), 'utf8');
-  } catch (e) {
-    console.error('Failed to write fallback version.json:', e);
-  }
-  
-  // Exit with status 0 so Render build does NOT fail
-  process.exit(0);
+    const localCount = parseInt(execSync('git rev-list --count HEAD').toString().trim(), 10);
+    if (!isNaN(localCount) && localCount > 1) {
+      return { count: localCount, hash: gitHash };
+    }
+  } catch(e) {}
+
+  // 2. Fallback to GitHub API for shallow Render clones
+  return new Promise((resolve) => {
+    https.get('https://api.github.com/repos/YADAV-IN/dencewance/commits?per_page=1', { headers: { 'User-Agent': 'Node' } }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const link = res.headers.link;
+          if (link) {
+            const match = link.match(/&page=(\d+)>; rel="last"/);
+            if (match && match[1]) {
+              return resolve({ count: parseInt(match[1], 10), hash: gitHash || 'api-fallback' });
+            }
+          }
+          const json = JSON.parse(data);
+          if (Array.isArray(json)) {
+            return resolve({ count: json.length, hash: gitHash || 'api-fallback' });
+          }
+        } catch(e) {}
+        resolve({ count: 1, hash: gitHash || 'deploy-build' });
+      });
+    }).on('error', () => resolve({ count: 1, hash: gitHash || 'deploy-build' }));
+  });
 }
+
+async function run() {
+  try {
+    const versionFilePath = path.resolve('src/version.json');
+    const packageJsonPath = path.resolve('package.json');
+    
+    let version = '1.0.0';
+
+    try {
+      const { count, hash } = await getCommitCount();
+      if (count > 0) {
+        version = `1.0.${count}`;
+      }
+      
+      const srcDir = path.dirname(versionFilePath);
+      if (!fs.existsSync(srcDir)) {
+        fs.mkdirSync(srcDir, { recursive: true });
+      }
+
+      const versionData = {
+        version,
+        buildTime: new Date().toISOString(),
+        gitHash: hash
+      };
+
+      fs.writeFileSync(versionFilePath, JSON.stringify(versionData, null, 2), 'utf8');
+      console.log(`✅ Version automatically updated: ${version} (${hash})`);
+
+      // Keep package.json synced
+      if (fs.existsSync(packageJsonPath)) {
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+        if (packageJson.version !== version) {
+          packageJson.version = version;
+          fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2), 'utf8');
+        }
+      }
+    } catch(e) {
+      console.warn('⚠️ Fallback version logic triggered', e);
+    }
+  } catch (globalErr) {
+    console.error('Failed version generator entirely:', globalErr);
+    process.exit(0);
+  }
+}
+
+run();
