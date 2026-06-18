@@ -2510,6 +2510,47 @@ app.get('/api/storage/usage', requireAuth, async (req, res) => {
   }
 });
 
+// Admin DB Cleanup tool: Rewrites empty/alok creator_name values to the superadmin profile
+app.get('/api/admin/clean-names', requireAuth, async (req, res) => {
+  try {
+    const adminId = req.adminId || req.userId;
+    const admin = await Admin.findById(adminId);
+    if (!admin || admin.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Superadmin access required' });
+    }
+
+    const setOps = { 
+      creator_name: admin.name,
+      creator_handle: admin.username || admin.email.split('@')[0],
+      creator_avatar: admin.avatar_url,
+      creator_id: admin._id?.toString() || admin.id?.toString()
+    };
+
+    let modifiedReels = 0;
+    
+    // Manually loop through reels and update because updateMany is not supported by our Appwrite mock
+    const allReels = await Reel.find();
+    for (const reel of allReels) {
+      const name = String(reel.creator_name || '');
+      const handle = String(reel.creator_handle || '');
+      if (!name || name === 'Admin' || name.toLowerCase().includes('alok') || handle.toLowerCase().includes('alok')) {
+        Object.assign(reel, setOps);
+        await reel.save();
+        modifiedReels++;
+      }
+    }
+
+    return res.json({ 
+      success: true, 
+      message: 'Old records cleaned successfully', 
+      modifiedCount: modifiedReels
+    });
+  } catch (err) {
+    console.error('Clean DB error:', err);
+    return res.status(500).json({ error: 'DB Cleanup failed: ' + err.message });
+  }
+});
+
 app.use((err, req, res, next) => {
   console.error('Unhandled route error:', err);
   if (res.headersSent) return next(err);

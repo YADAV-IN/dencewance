@@ -11,13 +11,21 @@ try {
   let gitHash = '';
 
   try {
-    // Get git commit count
-    gitCommitCount = parseInt(execSync('git rev-list --count HEAD').toString().trim(), 10);
-    gitHash = execSync('git rev-parse --short HEAD').toString().trim();
-    // Standard professional version format
-    version = `1.0.${gitCommitCount}`;
+    // Get git commit hash
+    try { gitHash = execSync('git rev-parse --short HEAD').toString().trim(); } catch(e) {}
+    
+    // Auto-generate based on timestamp for CI/CD shallow clones (Render)
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(2);
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    
+    // Standard professional auto-updating version format: 1.YYMM.DDHHMM
+    version = `1.${yy}${mm}.${dd}${hh}${min}`;
   } catch (e) {
-    console.warn('⚠️ Git is not available or shallow clone. falling back to package.json.');
+    console.warn('⚠️ Fallback to package.json.');
     if (fs.existsSync(packageJsonPath)) {
       try {
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
@@ -27,7 +35,6 @@ try {
       } catch (err) {}
     }
   }
-
   // Create src directory if it doesn't exist
   const srcDir = path.dirname(versionFilePath);
   if (!fs.existsSync(srcDir)) {
