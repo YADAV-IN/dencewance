@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import { execSync } from 'child_process';
 import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
@@ -290,6 +291,39 @@ app.get('/api/health', async (req, res) => {
     dbReady,
     config,
   });
+});
+
+// --- DEVELOPER DASHBOARD VERSIONS ---
+app.get('/api/admin/versions', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || currentUser.role !== 'superadmin') {
+      return res.status(403).json({ success: false, message: 'Only developers/superadmins can view versions' });
+    }
+    
+    // Fetch last 30 commits from git history
+    try {
+      const gitLog = execSync('git log --pretty=format:"%h|%ad|%s" --date=short -n 30').toString();
+      const versions = gitLog.split('\n').map(line => {
+        const [hash, date, ...msgParts] = line.split('|');
+        return {
+          hash,
+          date,
+          message: msgParts.join('|')
+        };
+      }).filter(v => v.hash);
+      
+      return res.json({ success: true, data: versions });
+    } catch (gitErr) {
+      console.warn('Git log failed, returning dummy versions', gitErr);
+      return res.json({ success: true, data: [
+        { hash: 'e8c2765', date: new Date().toISOString().split('T')[0], message: 'Fallback: Git not available on production build' }
+      ]});
+    }
+  } catch (err) {
+    console.error('Versions API Error:', err);
+    res.status(500).json({ success: false, message: 'Server error fetching versions' });
+  }
 });
 
 // --- COMPREHENSIVE CLEANUP ---

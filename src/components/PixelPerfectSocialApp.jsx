@@ -98,6 +98,19 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
   const [isSearching, setIsSearching] = useState(false);
   const [recommendations, setRecommendations] = useState({ tags: [], reels: [] });
   const [postLikes, setPostLikes] = useState({});
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+      if (/android/i.test(userAgent) || /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
+        setIsMobileDevice(true);
+      }
+    };
+    checkMobile();
+  }, []);
+
+  const videoRefs = useRef({});
   const [savedPosts, setSavedPosts] = useState({});
 
   // Profile Specific State
@@ -516,7 +529,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
   };
 
   return (
-    <div className="relative max-w-[420px] mx-auto h-[100dvh] flex flex-col overflow-hidden bg-[#FAF7EE] font-sans shadow-2xl border-x border-gray-200">
+    <div className="relative max-w-[420px] mx-auto h-[100dvh] flex flex-col overflow-hidden bg-[#FAF7EE] font-sans shadow-2xl border-x border-gray-200 overscroll-none overscroll-y-none">
       
       {/* 1. Global Header */}
       {activeTab !== 'stories' && (
@@ -544,7 +557,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               PYQ
             </button>
 
-            {setViewMode && (
+            {setViewMode && !isMobileDevice && (
               <button 
                 onClick={() => setViewMode(viewMode === 'desktop' ? 'phone' : 'desktop')}
                 className="text-[9px] bg-black/5 text-[#2B2315] px-2 py-1 rounded border border-black/5 ml-1 whitespace-nowrap font-bold"
@@ -557,7 +570,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
       )}
 
       {/* 2. Main Content Area */}
-      <main className="flex-1 overflow-y-auto hide-scrollbar relative">
+      <main className="flex-1 overflow-y-auto hide-scrollbar relative overscroll-y-none">
         {activeTab === 'home' && (
           <div className="p-4 pb-24 flex flex-col gap-5">
             {/* Global Trending Status Horizontal Scroll */}

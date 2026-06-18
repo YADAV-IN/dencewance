@@ -41,6 +41,11 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
   const [isSaving, setIsSaving] = useState(false);
   const usernameCheckTimer = useRef(null);
 
+  // Developer Dashboard UI
+  const [showDeveloperDashboard, setShowDeveloperDashboard] = useState(false);
+  const [developerVersions, setDeveloperVersions] = useState([]);
+  const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+
   useEffect(() => {
     loadProfileData();
   }, [token, targetUserId]);
@@ -134,6 +139,29 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
       setIsLoading(false);
     }
   };
+
+  const fetchVersions = async () => {
+    setIsLoadingVersions(true);
+    try {
+      const res = await fetch(`${API_URL}/api/admin/versions`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDeveloperVersions(data.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch versions', err);
+    } finally {
+      setIsLoadingVersions(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showDeveloperDashboard && developerVersions.length === 0) {
+      fetchVersions();
+    }
+  }, [showDeveloperDashboard]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -632,9 +660,17 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
 
           <div className="px-4 pb-4 flex flex-col gap-3 bg-white">
             {!isPublicView ? (
-              <div className="flex gap-2">
-                <button onClick={startEditing} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg py-1.5 transition">Edit profile</button>
-                <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg py-1.5 transition">Share profile</button>
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <button onClick={startEditing} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg py-1.5 transition">Edit profile</button>
+                  <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg py-1.5 transition">Share profile</button>
+                </div>
+                {profile?.role === 'superadmin' && (
+                  <button onClick={() => setShowDeveloperDashboard(true)} className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-sm font-bold rounded-lg py-2 transition shadow-lg flex justify-center items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 9.36l-7.1 7.1a1 1 0 0 1-1.4 0l-2.8-2.8a1 1 0 0 1 0-1.4l7.1-7.1a6 6 0 0 1 9.36-7.94l-3.77 3.77z"/></svg>
+                    Developer Dashboard
+                  </button>
+                )}
               </div>
             ) : (
               <div className="flex gap-2">
@@ -739,6 +775,69 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
       {/* Hidden file inputs for uploads */}
       <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
       <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={handleAdminAvatarUpload} />
+
+      {/* Developer Dashboard Modal */}
+      {showDeveloperDashboard && (
+        <div className="fixed inset-0 z-[9999] flex flex-col bg-[#121212] text-white animate-in slide-in-from-bottom duration-300 font-sans">
+          <div className="flex items-center justify-between p-4 border-b border-gray-800 bg-[#1A1A1A]">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 9.36l-7.1 7.1a1 1 0 0 1-1.4 0l-2.8-2.8a1 1 0 0 1 0-1.4l7.1-7.1a6 6 0 0 1 9.36-7.94l-3.77 3.77z"/></svg>
+              Developer Dashboard
+            </h2>
+            <button onClick={() => setShowDeveloperDashboard(false)} className="p-2 rounded-full hover:bg-gray-800">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-4 hide-scrollbar">
+            <h3 className="text-sm font-bold text-gray-400 mb-4 uppercase tracking-wider">Version History (Git Log)</h3>
+            
+            {isLoadingVersions ? (
+              <div className="flex justify-center items-center py-10">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+              </div>
+            ) : developerVersions.length > 0 ? (
+              <div className="flex flex-col gap-4 relative">
+                {/* Timeline Line */}
+                <div className="absolute left-3 top-2 bottom-2 w-0.5 bg-gray-800"></div>
+                
+                {developerVersions.map((v, i) => (
+                  <div key={v.hash + i} className="relative pl-8 flex flex-col gap-1 group">
+                    <div className={`absolute left-[9px] top-1.5 w-2.5 h-2.5 rounded-full ${i === 0 ? 'bg-purple-500 ring-4 ring-purple-500/20' : 'bg-gray-600'}`}></div>
+                    
+                    <div className="bg-[#1E1E1E] border border-gray-800 p-3 rounded-lg shadow-sm group-hover:border-gray-700 transition">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="font-mono text-xs text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded">v_{v.hash}</span>
+                        <span className="text-xs text-gray-500">{v.date}</span>
+                      </div>
+                      <p className="text-sm text-gray-300 leading-snug">{v.message}</p>
+                      
+                      {i !== 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-800/50 flex justify-end">
+                          <button 
+                            onClick={() => alert(`To activate this version (Rollback to ${v.hash}), run this command locally in your terminal and push:\n\n1. git reset --hard ${v.hash}\n2. git push -f origin main\n\n(Render will automatically deploy it)`)} 
+                            className="text-xs font-semibold px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 transition"
+                          >
+                            Activate Version
+                          </button>
+                        </div>
+                      )}
+                      {i === 0 && (
+                         <div className="mt-2 text-xs text-green-400 font-bold flex items-center gap-1">
+                           <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+                           Current Live Version
+                         </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-gray-500 py-10">No version history available.</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
