@@ -873,16 +873,36 @@ app.get('/api/search', async (req, res) => {
       return output;
     };
 
-    const usersResult = dedupe([userById, ...users]);
-    const postsResult = dedupe([postById, ...posts]);
-    const reelsResult = dedupe([reelById, ...reels]);
+    let allReels = [];
+    if (reelById) allReels.push(reelById);
+    if (reels && reels.length) allReels = allReels.concat(reels);
+    
+    const populatedReels = await populateCreatorDetails(allReels, 'creator_id', 'creator_name', 'creator_avatar', 'creator_handle');
+    
+    const normalize = arr => arr.map(a => ({ ...a, id: a._id.toString(), _id: undefined }));
+
+    const responseUsers = [];
+    if (userById) responseUsers.push(userById);
+    users.forEach(u => {
+      if (!responseUsers.find(ru => (ru._id && ru._id.toString() === u._id.toString()))) {
+        responseUsers.push(u);
+      }
+    });
+
+    const responsePosts = [];
+    if (postById) responsePosts.push(postById);
+    posts.forEach(p => {
+      if (!responsePosts.find(rp => (rp._id && rp._id.toString() === p._id.toString()))) {
+        responsePosts.push(p);
+      }
+    });
 
     return res.json({
       success: true,
       data: {
-        users: usersResult,
-        posts: postsResult,
-        reels: reelsResult
+        users: normalize(responseUsers),
+        posts: normalize(responsePosts),
+        reels: normalize(populatedReels)
       }
     });
   } catch (err) {
@@ -905,12 +925,14 @@ app.get('/api/recommendations', async (req, res) => {
       ])
     ]);
     
+    const populatedReels = await populateCreatorDetails(trendingReels, 'creator_id', 'creator_name', 'creator_avatar', 'creator_handle');
+    
     const normalize = arr => arr.map(a => ({ ...a, id: a._id.toString(), _id: undefined }));
     
     return res.json({
       success: true,
       data: {
-        reels: normalize(trendingReels),
+        reels: normalize(populatedReels),
         tags: popularTags.map(t => t._id)
       }
     });
