@@ -1445,7 +1445,7 @@ app.post('/api/reels/bulk', requireAuth, async (req, res) => {
   try {
     const currentUser = await Admin.findById(req.adminId);
     if (!currentUser) return res.status(404).json({ error: 'User not found.' });
-    if (!['superadmin', 'superadmin', 'admin', 'editor', 'author'].includes(currentUser.role)) {
+    if (!['superadmin', 'admin', 'editor', 'author', 'developer'].includes(currentUser.role)) {
       return res.status(403).json({ error: 'Permission denied to bulk create reels.' });
     }
 
@@ -1595,7 +1595,7 @@ app.post('/api/reels', async (req, res) => {
 
   console.log('DEBUG: POST /api/reels called, adminId=', currentUser?._id || '(anonymous)');
   console.log('DEBUG: body preview=', JSON.stringify(req.body).slice(0, 1000));
-  if (currentUser && !['superadmin', 'admin', 'editor', 'author'].includes(currentUser.role)) {
+  if (currentUser && !['superadmin', 'admin', 'editor', 'author', 'developer'].includes(currentUser.role)) {
     return res.status(403).json({ error: 'Permission denied to create reels.' });
   }
 
@@ -1755,7 +1755,7 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
     const ownsReel = reelOwnerId && reelOwnerId === currentUserId;
     const matchesLegacyIdentity = !reelOwnerId && (reelOwnerHandle && reelOwnerHandle === currentUserHandle);
 
-    if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin' && !ownsReel && !matchesLegacyIdentity) {
+    if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin' && currentUser.role !== 'developer' && !ownsReel && !matchesLegacyIdentity) {
       return res.status(403).json({ error: 'Permission denied to delete this reel.' });
     }
 
@@ -1969,7 +1969,7 @@ app.post('/api/admin/reels/backfill-creator-ids', requireAuth, async (req, res) 
 app.post('/api/news', requireAuth, async (req, res) => {
   const currentUser = await Admin.findById(req.adminId);
   if (!currentUser) return res.status(404).json({ error: 'User not found.' });
-  if (!['superadmin', 'superadmin', 'admin', 'editor', 'author'].includes(currentUser.role)) {
+  if (!['superadmin', 'admin', 'editor', 'author', 'developer'].includes(currentUser.role)) {
     return res.status(403).json({ error: 'Permission denied to create news.' });
   }
 
@@ -2031,7 +2031,7 @@ app.post('/api/news', requireAuth, async (req, res) => {
 app.put('/api/news/:id', requireAuth, async (req, res) => {
   const currentUser = await Admin.findById(req.adminId);
   if (!currentUser) return res.status(404).json({ error: 'User not found.' });
-  if (!['superadmin', 'superadmin', 'admin', 'editor', 'author'].includes(currentUser.role)) {
+  if (!['superadmin', 'admin', 'editor', 'author', 'developer'].includes(currentUser.role)) {
     return res.status(403).json({ error: 'Permission denied to update news.' });
   }
 

@@ -445,7 +445,10 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
         body: JSON.stringify({ video_url: fileUrl, caption: 'My Latest Profile Story', ...creatorIdentity })
       });
       
-      if (!reelRes.ok) throw new Error('Failed to create video story row');
+      if (!reelRes.ok) {
+        const errData = await reelRes.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to create video story row');
+      }
       const savedReel = await reelRes.json();
       const reelId = String(savedReel.data?.id || savedReel.data?._id || savedReel.id || savedReel._id || '');
       if (reelId) {
