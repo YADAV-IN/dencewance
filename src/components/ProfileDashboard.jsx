@@ -341,6 +341,7 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
       }
     } catch(e) {
       console.error(e);
+      alert('Save Error: ' + (e.message || 'Network error connecting to the server.'));
     } finally {
       setIsSaving(false);
     }
