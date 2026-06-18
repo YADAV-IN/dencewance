@@ -44,7 +44,8 @@ export default function CreateInstagramMenu({ token: propToken, onComplete }) {
       name: uploaderName,
     });
     try {
-      const imageUrl = await uploadToAppwrite(postCover, 'alok_media');
+      const bucketId = import.meta.env.VITE_APPWRITE_BUCKET_ID || 'media';
+      const imageUrl = await uploadToAppwrite(postCover, bucketId);
       const res = await fetch(`${API_URL}/api/news`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -86,7 +87,8 @@ export default function CreateInstagramMenu({ token: propToken, onComplete }) {
     try {
       let videoUrl = reelVideoUrlInput;
       if (reelVideoFile && !reelVideoUrlInput) {
-        videoUrl = await uploadToAppwrite(reelVideoFile, 'alok_media');
+        const bucketId = import.meta.env.VITE_APPWRITE_BUCKET_ID || 'media';
+        videoUrl = await uploadToAppwrite(reelVideoFile, bucketId);
       }
       const res = await fetch(`${API_URL}/api/reels`, {
         method: 'POST',

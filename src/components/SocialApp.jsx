@@ -400,7 +400,8 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
     
     try {
       // 1. Upload Video directly via Appwrite SDK (or R2/backend)
-      const videoUploadResult = await uploadMediaToAppwrite(file, 'alok_media', (progressData) => {
+      const bucketId = import.meta.env.VITE_APPWRITE_BUCKET_ID || 'media';
+      const videoUploadResult = await uploadMediaToAppwrite(file, bucketId, (progressData) => {
         setStatusUploadProgress(Math.round(progressData.progress));
       });
 
@@ -1075,7 +1076,7 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
                         <div className="search-reel-overlay">
                            <div className="search-reel-title">{r.title || r.caption?.substring(0,40)}</div>
                            <div className="search-reel-meta">
-                             <span>@{r.creator_handle || r.creator_name || 'Alok'}</span>
+                             <span>@{r.creator_handle || r.creator_name || 'User'}</span>
                              <span className="search-reel-meta-id">ID: {r.creator_id ? r.creator_id.substring(0, 6) : 'NA'}</span>
                            </div>
                         </div>
@@ -1264,62 +1265,6 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
                       )}
                     </div>
                   </div>
-                  <div className="post-body">
-                    {post.title && !post.title.includes('Untitled') && !post.title.includes('DenceWance') && !post.content?.startsWith(post.title?.replace(/...$/, '')) && (<h4>{post.title}</h4>)}
-                    <p>{post.excerpt || post.content}</p>
-                    {((post.cover_image_url && post.cover_image_url.trim() !== "") || (post.image_url && post.image_url.trim() !== "")) && (
-                      <SkeletonImage
-                        src={resolveMediaUrl(post.cover_image_url || post.image_url)}
-                        alt={post.title}
-                        className="post-image"
-                        wrapperStyle={{ width: '100%', display: 'block', minHeight: 280 }}
-                        skeletonHeight={280}
-                      />
-                    )}
-                  </div>
-                  <div className="post-actions">
-                    <button><HeartIcon /> Honor</button>
-                    <button><QuillIcon /> Inscribe</button>
-                    <button><ShareIcon /> Propagate</button>
-                  </div>
-                  {/* Admin visible delete icon below actions */}
-                  {((adminData?.role === 'admin') || (adminData?.role === 'superadmin') || (post.author_id === adminId) || (adminData && (post.author_id === adminData._id || post.author_name === adminData.name)) || adminId) && (
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
-                      <button className="delete-icon-btn" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeletePost(post.id || post._id); }} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.06)', color: '#ff6b6b', padding: '6px 10px', borderRadius: '8px', cursor: 'pointer' }}>🗑️ Delete</button>
-                    </div>
-                  )}
-                </div>
-              )})
-            ) : (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#cbd5e1', border: '1px dashed rgba(255,255,255,0.12)', borderRadius: '18px', background: 'rgba(255,255,255,0.02)' }}>
-                <h3 style={{ marginBottom: '8px', color: '#fff' }}>No posts yet</h3>
-                <p style={{ margin: 0 }}>Live posts will appear here once content is published.</p>
-              </div>
-            )}
-          </section>
-          </>)}
-        </main>
-        {showStorageManager && (
-          <StorageManager open={showStorageManager} onClose={() => setShowStorageManager(false)} adminToken={token} />
-        )}
-
-        {/* Right Sidebar for Suggestions / Messaging (Desktop) */}
-        <aside className="suggestion-sidebar">
-          <div className="sidebar-section-title">
-            <span className="pulsing-neon-dot"></span>
-            <h3>Fellow Scholars</h3>
-          </div>
-          
-          <div className="cyber-suggestions-list">
-            {[
-              { name: 'Dr. Preetam Alok', role: 'Chief Archivist', avatar: 'https://ui-avatars.com/api/?name=Dr.+Preetam+Alok&background=random', status: 'Active' },
-              { name: 'Scribe Yadav', role: 'DenceWance Scriptor', avatar: 'https://ui-avatars.com/api/?name=Scribe+Yadav&background=random', status: 'Syncing' }
-            ].map((scholar, idx) => (
-              <div key={idx} className="cyber-profile-card">
-                <img src={scholar.avatar} alt={scholar.name} className="cyber-avatar" />
-                <div className="cyber-profile-info">
-                  <strong>{scholar.name}</strong>
-                  <span className="cyber-role">{scholar.role}</span>
                 </div>
                 <span className={`cyber-status-badge ${scholar.status.toLowerCase()}`}>{scholar.status}</span>
               </div>

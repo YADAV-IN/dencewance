@@ -352,7 +352,8 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
     setIsUploadingReel(true);
     setUploadStatusText('Uploading Site Logo...');
     try {
-      const fileUrl = await uploadMediaToAppwrite(file, 'alok_media', (progress) => {
+      const bucketId = import.meta.env.VITE_APPWRITE_BUCKET_ID || 'media';
+      const fileUrl = await uploadMediaToAppwrite(file, bucketId, (progress) => {
         setUploadProgress(Math.round(progress));
       });
       // Save logo to SiteSettings
@@ -384,7 +385,8 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
     setIsUploadingReel(true);
     setUploadStatusText('Uploading Admin Avatar (also used as Logo)...');
     try {
-      const fileUrl = await uploadMediaToAppwrite(file, 'alok_media', (progress) => {
+      const bucketId = import.meta.env.VITE_APPWRITE_BUCKET_ID || 'media';
+      const fileUrl = await uploadMediaToAppwrite(file, bucketId, (progress) => {
         setUploadProgress(Math.round(progress));
       });
       // Update Admin avatar_url
@@ -424,7 +426,8 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
     
     try {
       setUploadStatusText('Uploading Video directly via Appwrite...');
-      const fileUrl = await uploadMediaToAppwrite(file, 'alok_media', (progress) => {
+      const bucketId = import.meta.env.VITE_APPWRITE_BUCKET_ID || 'media';
+      const fileUrl = await uploadMediaToAppwrite(file, bucketId, (progress) => {
         setUploadProgress(Math.round(progress.progress));
         setUploadStatusText(`Uploading Video ${Math.round(progress.progress)}%...`);
       });

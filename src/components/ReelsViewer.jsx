@@ -766,7 +766,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                         <span className="reel-audio-disc">🎵</span>
                         <div className="reel-audio-text-wrap">
                           <span className="reel-audio-text">
-                            {item.creator_name || 'ALOK Creator'} · Original Audio
+                            {item.creator_name || 'Original Creator'} • Original Audio
                           </span>
                         </div>
                       </div>

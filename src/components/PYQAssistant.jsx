@@ -13,7 +13,7 @@ const storage = new Storage(client);
 
 const DATABASE_ID = '69d60fe8000c9bd92750';
 const COLLECTION_ID = '69d6126a0031232a50d0';
-const BUCKET_ID = 'alok_media'; 
+const BUCKET_ID = import.meta.env.VITE_APPWRITE_BUCKET_ID || 'media';
 
 const PYQAssistant = ({ adminData }) => {
   const [libraryItems, setLibraryItems] = useState([]);

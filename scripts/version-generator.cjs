@@ -11,19 +11,18 @@ try {
   let gitHash = '';
 
   try {
-    // Get git commit hash
-    try { gitHash = execSync('git rev-parse --short HEAD').toString().trim(); } catch(e) {}
-    
-    // Auto-generate based on timestamp for CI/CD shallow clones (Render)
-    const now = new Date();
-    const yy = String(now.getFullYear()).slice(2);
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-    const hh = String(now.getHours()).padStart(2, '0');
-    const min = String(now.getMinutes()).padStart(2, '0');
-    
-    // Standard professional auto-updating version format: 1.YYMM.DDHHMM
-    version = `1.${yy}${mm}.${dd}${hh}${min}`;
+    // Run git fetch unshallow if shallow clone is detected (fixes Render shallow clones returning 1)
+    try {
+      if (execSync('git rev-parse --is-shallow-repository').toString().trim() === 'true') {
+        execSync('git fetch --unshallow');
+      }
+    } catch(e) {}
+
+    // Get git commit count
+    gitCommitCount = parseInt(execSync('git rev-list --count HEAD').toString().trim(), 10);
+    gitHash = execSync('git rev-parse --short HEAD').toString().trim();
+    // Standard professional version format (Sequential 1.0.1, 1.0.2...)
+    version = `1.0.${gitCommitCount}`;
   } catch (e) {
     console.warn('⚠️ Fallback to package.json.');
     if (fs.existsSync(packageJsonPath)) {
