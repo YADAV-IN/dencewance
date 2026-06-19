@@ -809,7 +809,15 @@ app.put('/api/profile', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req, res) => {
+app.post('/api/profile/avatar', requireAuth, (req, res, next) => {
+  upload.single('avatar')(req, res, (err) => {
+    if (err) {
+      console.error('Avatar Multer/S3 Upload Error:', err);
+      return res.status(500).json({ error: 'Avatar Upload Failed: ' + (err.message || 'Check R2 credentials') });
+    }
+    next();
+  });
+}, async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
   try {
     if (useOfflineFallback) {
@@ -2144,7 +2152,15 @@ app.post('/api/uploads/cover', requireAuth, upload.single('cover'), async (req, 
   }
 });
 
-app.post('/api/uploads/media', upload.single('media'), async (req, res) => {
+app.post('/api/uploads/media', (req, res, next) => {
+  upload.single('media')(req, res, (err) => {
+    if (err) {
+      console.error('Media Multer/S3 Upload Error:', err);
+      return res.status(500).json({ error: 'Media Upload Failed: ' + (err.message || 'Check R2 credentials') });
+    }
+    next();
+  });
+}, async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No media file uploaded.' });
 
   try {
