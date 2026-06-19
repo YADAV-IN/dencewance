@@ -777,27 +777,36 @@ async function syncProfileUpdatesToDbContent(adminId, updates) {
 }
 
 app.put('/api/profile', requireAuth, async (req, res) => {
-  const { name, email, bio, avatar_url, username } = req.body || {};
-  const updates = {};
-  if (typeof name === 'string') updates.name = name;
-  if (typeof email === 'string') updates.email = email;
-  if (typeof bio === 'string') updates.bio = bio;
-  if (typeof avatar_url === 'string') updates.avatar_url = avatar_url;
-  if (typeof username === 'string') {
-    if (/^[a-z0-9_]{3,20}$/.test(username)) {
-      updates.username = username;
+  try {
+    const { name, email, bio, avatar_url, username } = req.body || {};
+    const updates = {};
+    if (typeof name === 'string') updates.name = name;
+    if (typeof email === 'string') updates.email = email;
+    if (typeof bio === 'string') updates.bio = bio;
+    if (typeof avatar_url === 'string') updates.avatar_url = avatar_url;
+    if (typeof username === 'string') {
+      if (/^[a-z0-9_]{3,20}$/.test(username)) {
+        updates.username = username;
+      }
     }
+    const admin = await Admin.findByIdAndUpdate(
+      req.adminId,
+      updates,
+      { new: true }
+    );
+  
+    if (!admin) {
+      return res.status(404).json({ error: 'User profile not found. Please log out and log back in.' });
+    }
+
+    // Sync to database content
+    await syncProfileUpdatesToDbContent(req.adminId, updates);
+  
+    return res.json({ data: admin.toJSON() });
+  } catch (error) {
+    console.error('Error saving profile:', error);
+    return res.status(500).json({ error: 'Failed to save profile. Server error.' });
   }
-  const admin = await Admin.findByIdAndUpdate(
-    req.adminId,
-    updates,
-    { new: true }
-  );
-
-  // Sync to database content
-  await syncProfileUpdatesToDbContent(req.adminId, updates);
-
-  return res.json({ data: admin.toJSON() });
 });
 
 app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req, res) => {
@@ -816,6 +825,7 @@ app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req
         { avatar_url: publicUrl },
         { new: true }
       );
+      if (!admin) return res.status(404).json({ error: 'User profile not found. Please log out and log back in.' });
       
       // Sync to database content
       await syncProfileUpdatesToDbContent(req.adminId, { avatar_url: publicUrl });
@@ -830,6 +840,7 @@ app.post('/api/profile/avatar', requireAuth, upload.single('avatar'), async (req
         { avatar_url: publicUrl },
         { new: true }
       );
+      if (!admin) return res.status(404).json({ error: 'User profile not found. Please log out and log back in.' });
       
       // Sync to database content
       await syncProfileUpdatesToDbContent(req.adminId, { avatar_url: publicUrl });
