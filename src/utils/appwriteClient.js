@@ -14,16 +14,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 export const uploadMediaToAppwrite = async (file, bucketId, onProgress, preferredStorage) => {
     const token = localStorage.getItem('adminToken') || '';
 
-    // Try direct Appwrite upload first so browser-side R2 CORS never blocks upload.
-    try {
-        const targetBucket = bucketId || 'alok_media';
-        const result = await appwriteStorage.createFile(targetBucket, ID.unique(), file);
-        const viewUrl = `https://nyc.cloud.appwrite.io/v1/storage/buckets/${targetBucket}/files/${result.$id}/view?project=69d60fbe002bae1e32d5`;
-        if (onProgress) onProgress({ progress: 100 });
-        return viewUrl;
-    } catch (appwriteErr) {
-        console.warn('Direct Appwrite upload failed:', appwriteErr.message || appwriteErr);
-    }
+    // Direct backend XHR upload for fast direct-to-R2 transfer without Appwrite Cloud bottleneck
 
     // Fallback to backend upload (XHR for progress)
     return new Promise((resolve, reject) => {
