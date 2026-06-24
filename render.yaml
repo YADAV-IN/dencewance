@@ -18,6 +18,16 @@ services:
         sync: false
       - key: APPWRITE_STORAGE_BUCKET_ID
         sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        value: "modebook"
+      - key: R2_PUBLIC_URL
+        value: "https://pub-f318f227f2464969905ca4cee570d998.r2.dev"
       - key: JWT_SECRET
         value: "your-secret-key-change-in-production"
       - key: PORT

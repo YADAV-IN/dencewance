@@ -277,6 +277,58 @@ app.use('/api/posts', (req, res, next) => {
   next();
 });
 
+// Appwrite Reverse Proxy Route
+app.all('/v1/*', async (req, res) => {
+  try {
+    const APPWRITE_ENDPOINT = process.env.APPWRITE_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1';
+    const APPWRITE_PROJECT_ID = process.env.APPWRITE_PROJECT_ID || '69d60fbe002bae1e32d5';
+    // The req.originalUrl includes the query string and starts with /v1/
+    // We just append whatever comes after /v1 to the base endpoint (which already has /v1).
+    // Actually, APPWRITE_ENDPOINT is "https://nyc.cloud.appwrite.io/v1"
+    // So if req.originalUrl is "/v1/account", we want "https://nyc.cloud.appwrite.io/v1/account"
+    // So url = "https://nyc.cloud.appwrite.io" + req.originalUrl
+    const APPWRITE_HOST = APPWRITE_ENDPOINT.replace(/\/v1\/?$/, '');
+    const url = `${APPWRITE_HOST}${req.originalUrl}`;
+    
+    const headers = { ...req.headers };
+    delete headers['host']; // Let fetch set the correct host
+    delete headers['origin'];
+    delete headers['referer'];
+    headers['X-Appwrite-Project'] = APPWRITE_PROJECT_ID;
+
+    // We can't easily proxy multipart/form-data using standard fetch if body is already parsed by multer.
+    // Assuming standard JSON requests for most Appwrite calls (except storage which might go direct or fail).
+    const options = {
+      method: req.method,
+      headers: headers,
+    };
+
+    if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+      if (req.is('multipart/form-data')) {
+        return res.status(501).json({ error: 'Multipart uploads through proxy are not supported yet. Please upload directly or use base64.' });
+      }
+      if (req.body && Object.keys(req.body).length > 0) {
+        options.body = JSON.stringify(req.body);
+      }
+    }
+
+    const { default: fetch } = await import('node-fetch');
+    const response = await fetch(url, options);
+    
+    // Pass back headers
+    for (const [key, value] of response.headers.entries()) {
+      res.setHeader(key, value);
+    }
+    
+    // Pipe the response stream directly to res to avoid parsing issues
+    res.status(response.status);
+    response.body.pipe(res);
+  } catch (error) {
+    console.error('Appwrite Proxy error:', error);
+    res.status(500).json({ error: 'Proxy request failed', message: error.message });
+  }
+});
+
 let dbInitialized = false;
 let dbInitPromise = null;
 
