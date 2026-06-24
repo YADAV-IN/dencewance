@@ -361,6 +361,47 @@ app.get('/api/health', async (req, res) => {
     config,
   });
 });
+// --- DIRECT TEST ROUTES (NO LOGIN REQUIRED) ---
+
+// Test 1: Check if R2 is configured
+app.get('/api/test/r2-status', (req, res) => {
+  res.json({
+    r2_configured: hasR2Config,
+    r2_account_id: process.env.R2_ACCOUNT_ID ? 'SET' : 'MISSING',
+    r2_access_key: process.env.R2_ACCESS_KEY_ID ? 'SET' : 'MISSING',
+    r2_secret_key: process.env.R2_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
+    r2_bucket: process.env.R2_BUCKET_NAME || 'MISSING',
+    r2_public_url: process.env.R2_PUBLIC_URL || 'MISSING',
+    offline_mode: process.env.OFFLINE_MODE,
+  });
+});
+
+// Test 2: Direct file upload WITHOUT login
+app.post('/api/test/upload', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file. Send with field name "file"' });
+    }
+    if (hasR2Config && req.file.location) {
+      return res.json({
+        success: true,
+        message: 'Upload to R2 SUCCESSFUL!',
+        url: req.file.location,
+        key: req.file.key,
+        size: req.file.size,
+      });
+    }
+    return res.json({
+      success: false,
+      message: 'R2 NOT configured! File went to memory only.',
+      r2_configured: hasR2Config,
+      file_size: req.file.size,
+    });
+  } catch (err) {
+    console.error('Test upload error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // --- DEVELOPER DASHBOARD VERSIONS ---
 app.get('/api/admin/versions', requireAuth, async (req, res) => {
