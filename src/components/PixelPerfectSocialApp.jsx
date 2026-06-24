@@ -502,7 +502,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
     <div className="relative max-w-[420px] mx-auto h-[100dvh] flex flex-col overflow-hidden bg-[#FAF7EE] font-sans shadow-2xl border-x border-gray-200 overscroll-none overscroll-y-none">
       
       {/* 1. Global Header */}
-      {activeTab !== 'stories' && (
+      {activeTab !== 'stories' && activeTab !== 'add' && (
         <header className="sticky top-0 z-50 bg-[#FAF7EE] border-b border-gray-200/60 px-4 py-3 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => setActiveTab('home')}>
             <span className="font-serif font-black text-[22px] italic tracking-wide text-[#2B2315] leading-none">
@@ -1073,8 +1073,8 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
 
         {/* Create/Add Tab (New Snapchat/Insta style camera) */}
         {activeTab === 'add' && (
-          <div className="h-full animate-in fade-in duration-200">
-            <CameraUpload token={token} onComplete={handleUploadPanelComplete} />
+          <div className="absolute inset-0 z-[100] h-full w-full animate-in zoom-in-95 duration-200">
+            <CameraUpload token={token} onComplete={handleUploadPanelComplete} onClose={() => setActiveTab('home')} />
           </div>
         )}
 
@@ -1460,7 +1460,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
       </main>
 
       {/* 3. Bottom Navigation Bar */}
-      {activeTab !== 'stories' && (
+      {activeTab !== 'stories' && activeTab !== 'add' && (
         <nav className="absolute bottom-0 left-0 right-0 bg-[#F4ECD8] border-t border-gray-200/50 shadow-[0_-4px_25px_rgba(58,18,94,0.06)] z-50 shrink-0 flex flex-col">
           <div className="flex justify-around items-center h-[64px] px-2 relative">
             

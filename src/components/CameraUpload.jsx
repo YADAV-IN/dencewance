@@ -18,7 +18,7 @@ const FILTERS = [
   { name: 'Ludwig', css: 'contrast(1.1) saturate(1.2) brightness(1.05)' }
 ];
 
-export default function CameraUpload({ token: propToken, onComplete }) {
+export default function CameraUpload({ token: propToken, onComplete, onClose }) {
   const token = propToken || localStorage.getItem('adminToken') || '';
   const videoRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -244,7 +244,7 @@ export default function CameraUpload({ token: propToken, onComplete }) {
          {capturedMediaBlob ? (
            <button onClick={resetCamera} className="w-10 h-10 bg-black/40 rounded-full flex items-center justify-center backdrop-blur"><X size={24} /></button>
          ) : (
-           <div className="w-10"></div>
+           <button onClick={() => onClose && onClose()} className="w-10 h-10 bg-black/40 rounded-full flex items-center justify-center backdrop-blur"><X size={24} /></button>
          )}
          <span className="font-bold tracking-wider">{capturedMediaBlob ? 'Preview' : 'Camera'}</span>
          {!capturedMediaBlob && hasCameraAccess ? (
