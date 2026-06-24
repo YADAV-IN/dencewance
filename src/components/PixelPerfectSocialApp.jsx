@@ -24,7 +24,8 @@ import {
 
 import ReelsViewer from './ReelsViewer';
 import LoginScreen from './LoginScreen';
-import CreateInstagramMenu from './CreateInstagramMenu';
+import CameraUpload from './CameraUpload';
+import DeveloperControlPanel from './DeveloperControlPanel';
 import PYQAssistant from './PYQAssistant';
 import StorageManager from './StorageManager';
 import SkeletonImage from './SkeletonImage';
@@ -1070,10 +1071,17 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
           </div>
         )}
 
-        {/* Create/Add Tab */}
+        {/* Create/Add Tab (New Snapchat/Insta style camera) */}
         {activeTab === 'add' && (
+          <div className="h-full animate-in fade-in duration-200">
+            <CameraUpload token={token} onComplete={handleUploadPanelComplete} />
+          </div>
+        )}
+
+        {/* Developer Control Panel */}
+        {activeTab === 'developer' && (
           <div className="p-4 pb-24 h-full animate-in fade-in duration-200">
-            <CreateInstagramMenu token={token} onComplete={handleUploadPanelComplete} />
+            <DeveloperControlPanel token={token} onComplete={handleUploadPanelComplete} />
           </div>
         )}
 
@@ -1262,6 +1270,15 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                         <BarChart2 size={18} />
                       </div>
                       <span className="text-[10px] font-bold text-center text-[#3A125E] leading-tight uppercase tracking-wider">View Insights<br/>&nbsp;</span>
+                    </button>
+                    <button 
+                      onClick={() => setActiveTab('developer')}
+                      className="flex flex-col items-center gap-2 group cursor-pointer"
+                    >
+                      <div className="w-[46px] h-[46px] rounded-full border border-gray-100 text-[#3A125E] flex items-center justify-center bg-gray-50 shadow-xs group-hover:bg-gray-100 transition-colors duration-200">
+                        <User size={18} />
+                      </div>
+                      <span className="text-[10px] font-bold text-center text-[#3A125E] leading-tight uppercase tracking-wider">Developer<br/>Panel</span>
                     </button>
                   </div>
                 </div>

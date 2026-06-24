@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './SocialApp.css';
 import ReelsViewer from './ReelsViewer';
-import CreateInstagramMenu from './CreateInstagramMenu';
+import DeveloperControlPanel from './DeveloperControlPanel';
 import ProfileDashboard from './ProfileDashboard';
 import SkeletonImage from './SkeletonImage';
 
@@ -1137,7 +1137,7 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
           ) : activeTab === 'messages' ? (
             <div style={{ padding: '20px', color: '#fff', textAlign: 'center' }}><h2>Scrolls (Messages)</h2><p>No new scrolls received from the archivists...</p></div>
           ) : activeTab === 'profile' ? (
-             <ProfileDashboard targetUserId={selectedProfileId} onBack={() => { setSelectedProfileId(null); setActiveTab('home'); }} /> ) : activeTab === 'add' ? ( <CreateInstagramMenu onComplete={handleUploadPanelComplete} />
+             <ProfileDashboard targetUserId={selectedProfileId} onBack={() => { setSelectedProfileId(null); setActiveTab('home'); }} /> ) : activeTab === 'add' ? ( <DeveloperControlPanel onComplete={handleUploadPanelComplete} />
           ) : isLoading ? (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#fff', flexDirection: 'column' }}>
               <DenceWanceLogo width={80} height={80} />
