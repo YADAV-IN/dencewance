@@ -634,6 +634,23 @@ class Model {
     } catch (e) { console.error("Delete error in Appwrite:", e); return false; }
   }
 
+  async deleteMany(query) {
+    try {
+      const docs = await this.find(query);
+      let count = 0;
+      for (const doc of docs) {
+        if (doc && doc.deleteOne) {
+          const success = await doc.deleteOne();
+          if (success) count++;
+        }
+      }
+      return { deletedCount: count };
+    } catch (err) {
+      console.error('deleteMany error:', err);
+      return { deletedCount: 0 };
+    }
+  }
+
   async create(data) {
     if (useOfflineFallback) {
       const list = readFallbackData(this.collectionId).map(mapFallbackDoc);
