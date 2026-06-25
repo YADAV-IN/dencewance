@@ -267,7 +267,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
           facingMode: facingMode, 
           width: { ideal: 1080 }, 
           height: { ideal: 1920 },
-          frameRate: { ideal: 60, min: 30 }
+          frameRate: { ideal: 60 }
         },
         audio: true
       };
@@ -281,10 +281,10 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       setHasCameraAccess(true);
     } catch (err) {
       console.error("Camera access error:", err);
-      // Fallback to video only if mic fails
+      // Fallback to basic constraints if overconstrained
       try {
-        const constraints = { video: { facingMode: facingMode } };
-        const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+        const fallbackConstraints = { video: true, audio: true };
+        const newStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
         streamRef.current = newStream;
         setStream(newStream);
         if (videoRef.current) {
@@ -293,7 +293,21 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
         }
         setHasCameraAccess(true);
       } catch (err2) {
-        console.error("Camera fallback error:", err2);
+        console.error("Camera fallback 1 error:", err2);
+        // Last resort: just video
+        try {
+          const finalConstraints = { video: true };
+          const newStream = await navigator.mediaDevices.getUserMedia(finalConstraints);
+          streamRef.current = newStream;
+          setStream(newStream);
+          if (videoRef.current) {
+            videoRef.current.srcObject = newStream;
+            videoRef.current.play().catch(e => console.error(e));
+          }
+          setHasCameraAccess(true);
+        } catch (err3) {
+          console.error("All camera fallbacks failed:", err3);
+        }
       }
     }
   }, [facingMode]);
@@ -509,12 +523,14 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       {/* Header */}
       <div className="absolute top-0 w-full z-10 p-4 flex justify-between items-center bg-gradient-to-b from-black/60 to-transparent">
          {capturedMediaBlob ? (
-           <button onClick={resetCamera} className="w-10 h-10 bg-black/40 rounded-full flex items-center justify-center backdrop-blur"><X size={24} /></button>
+           <button onClick={resetCamera} className="w-12 h-12 bg-black/60 rounded-full flex items-center justify-center z-50 text-white cursor-pointer active:scale-95"><X size={28} /></button>
          ) : (
-           <button onClick={() => {
+           <button onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
               if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
               if (onClose) onClose();
-           }} className="w-10 h-10 bg-black/40 rounded-full flex items-center justify-center backdrop-blur"><X size={24} /></button>
+           }} className="w-12 h-12 bg-black/60 rounded-full flex items-center justify-center z-50 text-white cursor-pointer active:scale-95"><X size={28} /></button>
          )}
          <span className="font-bold tracking-wider">
            {capturedMediaBlob ? 'Preview' : (isFaceMeshLoading ? 'Loading AI...' : 'Camera')}
@@ -545,18 +561,18 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
           {!capturedMediaBlob ? (
              hasCameraAccess ? (
                <>
-                 {/* Hidden raw video feed */}
+                 {/* Visible raw video feed (behind canvas) to prevent occlusion culling on mobile */}
                  <video 
                    ref={videoRef} 
                    autoPlay 
                    playsInline 
                    muted 
-                   className="absolute opacity-0 pointer-events-none w-[1px] h-[1px]"
+                   className="absolute inset-0 w-full h-full object-cover opacity-1 z-0"
                  />
                  {/* Canvas that displays the final baked feed */}
                  <canvas
                    ref={canvasRef}
-                   className="w-full h-full object-cover"
+                   className="w-full h-full object-cover relative z-10"
                  />
                </>
              ) : (
