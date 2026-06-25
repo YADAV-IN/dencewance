@@ -2881,17 +2881,27 @@ app.post('/api/reels/:id/comments', async (req, res) => {
       return res.status(400).json({ error: 'Comment text is required.' });
     }
 
-    const newComment = await ReelComment.create({
+    const payload = {
       reel_id: req.params.id,
       user_id: user_id || '60c72b2f9b1d8e4b88a91b2c', // Fallback objectId for test
       author_name: author_name || 'Anonymous',
       author_handle: author_handle || '@anonymous',
-      author_avatar: author_avatar || '',
       text: text.trim()
-    });
+    };
     
+    if (author_avatar && typeof author_avatar === 'string' && author_avatar.trim() !== '') {
+      payload.author_avatar = author_avatar.trim();
+    }
+
+    const newComment = await ReelComment.create(payload);
+    
+    if (!newComment) {
+      return res.status(500).json({ error: 'Database failed to save the comment. Please try again later.' });
+    }
+
     res.status(201).json(newComment);
   } catch (error) {
+    console.error('Error posting comment:', error);
     res.status(500).json({ error: error.message });
   }
 });

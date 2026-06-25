@@ -8,7 +8,8 @@ import CommentsSection from './CommentsSection';
 import LikeButton from './LikeButton';
 import { trackEvent, sendContentReport, sendDeveloperReport } from '../utils/analyticsTracker';
 
-const REEL_PRELOAD_AHEAD = 1; // Kam kiya gaya hai taaki data kam consume ho
+const REEL_PRELOAD_AHEAD = 2; // Increased to 2 for smoother scrolling
+const REEL_KEEP_BEHIND = 1; // Keep 1 previous video loaded to prevent blanking on scroll up
 
 const getEmbedSource = (input) => {
   if (!input || typeof input !== 'string') return { type: 'unknown', src: '', id: '' };
@@ -408,7 +409,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                 const creatorInitial = (typeof item.creator_name === 'string' ? item.creator_name : 'A').charAt(0).toUpperCase();
                 const creatorAvatar = item.creator_avatar || '';
                 const shouldWarm = embed.type === 'video'
-                  && idx >= activeReelIndex
+                  && idx >= activeReelIndex - REEL_KEEP_BEHIND
                   && idx <= activeReelIndex + REEL_PRELOAD_AHEAD;
                 return (
                   <div
@@ -502,7 +503,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                             playsInline
                             muted={reelsMuted}
                             autoPlay={isActive && !isPaused}
-                            preload={shouldWarm ? 'auto' : 'none'}
+                            preload={isActive ? 'auto' : (shouldWarm ? 'metadata' : 'none')}
                             poster={item.cover_image_url ? resolveMediaUrl(item.cover_image_url) : undefined}
                             onLoadedMetadata={(event) => {
                               event.currentTarget.volume = 1;

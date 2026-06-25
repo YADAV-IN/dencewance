@@ -97,11 +97,20 @@ export default function CommentsSection({ reelId, userId, adminData, onNavigateT
 
       if (res.ok) {
         const comment = await res.json();
-        setComments([comment, ...comments]);
-        setNewComment('');
+        if (comment && (comment._id || comment.id)) {
+          setComments([comment, ...comments]);
+          setNewComment('');
+        } else {
+          console.error('Invalid comment returned from server:', comment);
+          alert('Failed to post comment due to an invalid server response. Please try again.');
+        }
+      } else {
+        console.error('Failed to post comment. Status:', res.status);
+        alert('Failed to post comment. Server returned status: ' + res.status);
       }
     } catch (err) {
       console.error('Failed to post comment:', err);
+      alert('An error occurred while posting your comment.');
     } finally {
       setPosting(false);
     }
