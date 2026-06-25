@@ -119,7 +119,11 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
     const video = videoRef.current;
     const canvas = canvasRef.current;
     // willReadFrequently forces CPU rendering which ensures captureStream() doesn't skip CSS filters due to hardware acceleration bugs on Chrome Android
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const ctx = canvas.getContext('2d', { willReadFrequently: true }) || canvas.getContext('2d');
+    if (!ctx) {
+      animationRef.current = requestAnimationFrame(renderLoop);
+      return;
+    }
     
     if (video.readyState >= video.HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0) {
       // Size canvas to video
@@ -265,9 +269,8 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       const constraints = {
         video: { 
           facingMode: facingMode, 
-          width: { ideal: 1080 }, 
-          height: { ideal: 1920 },
-          frameRate: { ideal: 60 }
+          width: { ideal: 1280 }, 
+          height: { ideal: 720 }
         },
         audio: true
       };
@@ -276,7 +279,9 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       setStream(newStream);
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
-        videoRef.current.play().catch(e => console.error(e));
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play().catch(e => console.error("Play error:", e));
+        };
       }
       setHasCameraAccess(true);
     } catch (err) {
@@ -289,7 +294,9 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
         setStream(newStream);
         if (videoRef.current) {
           videoRef.current.srcObject = newStream;
-          videoRef.current.play().catch(e => console.error(e));
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current.play().catch(e => console.error("Fallback 1 play error:", e));
+          };
         }
         setHasCameraAccess(true);
       } catch (err2) {
@@ -302,7 +309,9 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
           setStream(newStream);
           if (videoRef.current) {
             videoRef.current.srcObject = newStream;
-            videoRef.current.play().catch(e => console.error(e));
+            videoRef.current.onloadedmetadata = () => {
+              videoRef.current.play().catch(e => console.error("Fallback 2 play error:", e));
+            };
           }
           setHasCameraAccess(true);
         } catch (err3) {
