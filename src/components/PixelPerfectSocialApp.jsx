@@ -19,7 +19,8 @@ import {
   Heart,
   Share2,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  Settings
 } from 'lucide-react';
 
 import ReelsViewer from './ReelsViewer';

@@ -333,7 +333,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
         }
       }
     }
-  }, [facingMode]);
+  }, [facingMode, galleryVideoUrl]);
 
   useEffect(() => {
     if (!capturedMediaBlob) {
