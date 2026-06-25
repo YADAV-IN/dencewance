@@ -776,18 +776,26 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
 
               <div className="w-16 h-12 text-[10px] font-semibold text-gray-500 text-center flex items-center justify-center leading-tight">
                  {galleryVideoUrl ? (
-                   <button 
-                     onClick={(e) => {
-                        e.preventDefault();
-                        if(rawGalleryFile) {
-                          setCapturedMediaBlob(rawGalleryFile);
-                          setCapturedMediaUrl(galleryVideoUrl);
-                        }
-                     }}
-                     className="bg-pink-500 hover:bg-pink-400 text-white font-black px-4 py-3 rounded-full shadow-[0_0_15px_rgba(236,72,153,0.5)] text-sm whitespace-nowrap"
-                   >
-                     Post Video
-                   </button>
+                    <button 
+                      onClick={(e) => {
+                         e.preventDefault();
+                         if (isRecording) return;
+                         
+                         if (activeFilter.name !== 'None') {
+                            // Start processing video with filter
+                            startRecording();
+                         } else {
+                            // No filter, upload raw immediately
+                            if(rawGalleryFile) {
+                              setCapturedMediaBlob(rawGalleryFile);
+                              setCapturedMediaUrl(galleryVideoUrl);
+                            }
+                         }
+                      }}
+                      className={`${isRecording ? 'bg-zinc-600 text-zinc-300 shadow-none' : 'bg-pink-500 hover:bg-pink-400 text-white shadow-[0_0_15px_rgba(236,72,153,0.5)]'} font-black px-4 py-3 rounded-full text-sm whitespace-nowrap transition-all`}
+                    >
+                      {isRecording ? 'Processing...' : 'Post Video'}
+                    </button>
                  ) : (
                    <>Tap Photo<br/>Hold Video</>
                  )}
