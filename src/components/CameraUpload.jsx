@@ -534,6 +534,8 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       setCapturedMediaUrl(URL.createObjectURL(file));
       if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
     }
+    // Clear input so the same file can be selected again
+    e.target.value = null;
   };
 
   const resetCamera = () => {
@@ -772,18 +774,19 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
                  <div className={`w-16 h-16 rounded-full ${isRecording ? 'bg-red-500 scale-50' : 'bg-white'} transition-all duration-300`}></div>
               </button>
 
-              <div className="w-12 h-12 text-[10px] font-semibold text-gray-500 text-center flex items-center justify-center leading-tight">
+              <div className="w-16 h-12 text-[10px] font-semibold text-gray-500 text-center flex items-center justify-center leading-tight">
                  {galleryVideoUrl ? (
                    <button 
-                     onClick={() => {
+                     onClick={(e) => {
+                        e.preventDefault();
                         if(rawGalleryFile) {
                           setCapturedMediaBlob(rawGalleryFile);
                           setCapturedMediaUrl(galleryVideoUrl);
                         }
                      }}
-                     className="bg-white text-black font-bold px-3 py-1.5 rounded-full shadow-lg text-xs"
+                     className="bg-pink-500 hover:bg-pink-400 text-white font-black px-4 py-3 rounded-full shadow-[0_0_15px_rgba(236,72,153,0.5)] text-sm whitespace-nowrap"
                    >
-                     Next
+                     Post Video
                    </button>
                  ) : (
                    <>Tap Photo<br/>Hold Video</>

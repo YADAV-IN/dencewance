@@ -3499,18 +3499,40 @@ app.post('/api/music', upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'c
     }
 
     // Upload audio
+    let audioUrl = '';
     const audioFile = req.files['audio'][0];
-    const audioInput = InputFile.fromBuffer(audioFile.buffer, audioFile.originalname);
-    const audioAppwrite = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), audioInput);
-    const audioUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, audioAppwrite.$id);
+    
+    if (useOfflineFallback) {
+      const uploadsDir = path.resolve(process.cwd(), 'uploads');
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      
+      const safeName = `audio-${Date.now()}-${audioFile.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const fallbackPath = path.join(uploadsDir, safeName);
+      fs.writeFileSync(fallbackPath, audioFile.buffer);
+      audioUrl = `${process.env.API_BASE_URL || 'http://localhost:4000'}/uploads/${safeName}`;
+    } else {
+      const audioInput = InputFile.fromBuffer(audioFile.buffer, audioFile.originalname || 'audio.mp3');
+      const audioAppwrite = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), audioInput);
+      audioUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, audioAppwrite.$id);
+    }
 
     // Upload cover if exists
     let coverUrl = '';
     if (req.files['cover']) {
       const coverFile = req.files['cover'][0];
-      const coverInput = InputFile.fromBuffer(coverFile.buffer, coverFile.originalname);
-      const coverAppwrite = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), coverInput);
-      coverUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, coverAppwrite.$id);
+      if (useOfflineFallback) {
+        const uploadsDir = path.resolve(process.cwd(), 'uploads');
+        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+        
+        const safeName = `cover-${Date.now()}-${coverFile.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+        const fallbackPath = path.join(uploadsDir, safeName);
+        fs.writeFileSync(fallbackPath, coverFile.buffer);
+        coverUrl = `${process.env.API_BASE_URL || 'http://localhost:4000'}/uploads/${safeName}`;
+      } else {
+        const coverInput = InputFile.fromBuffer(coverFile.buffer, coverFile.originalname || 'cover.jpg');
+        const coverAppwrite = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), coverInput);
+        coverUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, coverAppwrite.$id);
+      }
     }
 
     const track = await MusicTrack.create({
