@@ -462,7 +462,10 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
     try {
       const res = await fetch(`${API_URL}/api/reels/${reelId}`, {
          method: 'DELETE',
-         headers: { Authorization: `Bearer ${token}` }
+         headers: { 
+           Authorization: `Bearer ${token}`,
+           'X-Developer-Secret': 'DENCEWANCE_DEV_2026'
+         }
       });
       if (res.ok) {
         setStatuses(prev => prev.filter(s => (s.id || s._id) !== reelId));

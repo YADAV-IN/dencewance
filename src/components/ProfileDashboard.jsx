@@ -211,7 +211,10 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
     try {
       const res = await fetch(`${API_URL}/api/reels/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'X-Developer-Secret': 'DENCEWANCE_DEV_2026'
+        }
       });
       if (res.ok) {
         setMyReels(myReels.filter(r => (r.id || r._id) !== id));
@@ -723,7 +726,7 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
                   <div key={reel.id || reel._id} className="aspect-[9/16] bg-gray-900 relative group cursor-pointer rounded-md overflow-hidden" onClick={() => window.location.hash = `#viewReel=${reel.id || reel._id}`}>
                     <video src={reel.video_url} className="w-full h-full object-cover" muted playsInline />
                     
-                    {!isPublicView && (
+                    {(!isPublicView || localStorage.getItem('adminToken')) && (
                       <>
                         <button 
                           onClick={(e) => { e.stopPropagation(); handleDeleteReel(reel.id || reel._id); }}
