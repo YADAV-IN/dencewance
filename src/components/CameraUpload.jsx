@@ -49,7 +49,12 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
         streamRef.current.getTracks().forEach(track => track.stop());
       }
       const constraints = {
-        video: { facingMode: facingMode, width: { ideal: 720 }, height: { ideal: 1280 } },
+        video: { 
+          facingMode: facingMode, 
+          width: { ideal: 1080 }, 
+          height: { ideal: 1920 },
+          frameRate: { ideal: 60, min: 30 }
+        },
         audio: true
       };
       const newStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -121,7 +126,16 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   const startRecording = () => {
     if (!streamRef.current) return;
     setRecordedChunks([]);
-    const recorder = new MediaRecorder(streamRef.current, { mimeType: 'video/webm', videoBitsPerSecond: 2500000 });
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    const mimeType = isSafari ? 'video/mp4' : 'video/webm';
+    
+    // Check if preferred type is supported, otherwise fallback
+    const options = { videoBitsPerSecond: 2500000 };
+    if (MediaRecorder.isTypeSupported(mimeType)) {
+      options.mimeType = mimeType;
+    }
+
+    const recorder = new MediaRecorder(streamRef.current, options);
     
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) setRecordedChunks(prev => [...prev, e.data]);
@@ -243,7 +257,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   const currentFilterCss = FILTERS[activeFilterIndex].css;
 
   return (
-    <div className="bg-black w-full h-full flex flex-col relative text-white animate-fade-in overflow-hidden">
+    <div className="bg-black w-full h-[100dvh] md:h-full flex flex-col relative text-white animate-fade-in overflow-hidden z-[100]">
       {/* Header */}
       <div className="absolute top-0 w-full z-10 p-4 flex justify-between items-center bg-gradient-to-b from-black/60 to-transparent">
          {capturedMediaBlob ? (
@@ -289,7 +303,10 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
               <img 
                 src={capturedMediaUrl} 
                 className="w-full h-full object-cover" 
-                style={{ filter: currentFilterCss }} 
+                style={{ 
+                  filter: currentFilterCss,
+                  transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' 
+                }} 
                 alt="Preview" 
               />
             ) : (
@@ -300,7 +317,10 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
                 playsInline 
                 controls
                 className="w-full h-full object-cover"
-                style={{ filter: currentFilterCss }} 
+                style={{ 
+                  filter: currentFilterCss,
+                  transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' 
+                }} 
               />
             )}
           </>
@@ -308,7 +328,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       </div>
 
       {/* Controls & Editor */}
-      <div className="w-full bg-black z-10 flex flex-col pb-6">
+      <div className="w-full bg-black z-10 flex flex-col pb-6 md:pb-8">
         
         {/* Filters Scroll */}
         <div className="w-full py-4 px-2 overflow-x-auto flex gap-3 snap-x hide-scrollbar">
