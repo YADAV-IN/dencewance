@@ -13,7 +13,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel, Report, AnalyticsEvent, AnalyticsError, DeveloperReport, useOfflineFallback, Pyq, Interaction, Follow } from './db.js';
+import { initDb, Admin, News, Reel, SiteSettings, Status, UserProfile, ReelComment, SavedReel, Report, AnalyticsEvent, AnalyticsError, DeveloperReport, useOfflineFallback, Pyq, Interaction, Follow, MusicTrack } from './db.js';
 import { storage as appwriteStorage, databases as appwriteDatabases, APPWRITE_DB_ID, ID, Query } from './appwrite.js';
 import { InputFile } from 'node-appwrite/file';
 import { requireAuth, signToken, verifyAndGetAdminId } from './middleware/auth.js';
@@ -601,7 +601,7 @@ app.post('/api/auth/oauth-sync', async (req, res) => {
         email: newEmail,
         phoneNumber: phoneNumber || '',
         username,
-        role: 'author',
+        role: 'admin',
         status: 'active',
         bio: 'Dancer on DenceWance',
         avatar_url: avatar_url || '',
@@ -1861,7 +1861,7 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
       }
     }
     if (!currentUser) {
-      currentUser = { _id: req.adminId, role: isDeveloperOverride ? 'developer' : 'author' };
+      currentUser = { _id: req.adminId, role: isDeveloperOverride ? 'developer' : 'admin' };
     }
 
     const reel = await Reel.findById(reelId);
@@ -2185,7 +2185,7 @@ app.delete('/api/news/:id', requireAuth, async (req, res) => {
     let currentUser = await Admin.findById(req.adminId);
     if (!currentUser) {
       // Fallback for appwrite users without Admin records
-      currentUser = { _id: req.adminId, role: 'author' };
+      currentUser = { _id: req.adminId, role: 'admin' };
     }
     
     // Check ownership
@@ -3472,6 +3472,76 @@ app.post('/api/developer-reports', async (req, res) => {
   } catch (err) {
     console.error('Developer report create error:', err);
     return res.status(500).json({ error: 'Failed to create developer report.' });
+  }
+});
+
+// ─── MUSIC LIBRARY ───
+app.get('/api/music', async (req, res) => {
+  try {
+    const tracks = await MusicTrack.find({ is_active: true }).sort({ created_at: -1 });
+    return res.json({ success: true, data: tracks });
+  } catch (err) {
+    console.error('Music fetch error:', err);
+    return res.status(500).json({ error: 'Failed to fetch music.' });
+  }
+});
+
+app.post('/api/music', upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), async (req, res) => {
+  try {
+    const secret = req.headers['x-developer-secret'] || req.body.developer_secret;
+    if (secret !== process.env.DEVELOPER_SECRET && secret !== 'DENCEWANCE_DEV_2026') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const { title, artist } = req.body;
+    if (!title || !req.files['audio']) {
+      return res.status(400).json({ error: 'Title and audio file are required.' });
+    }
+
+    // Upload audio
+    const audioFile = req.files['audio'][0];
+    const audioInput = InputFile.fromBuffer(audioFile.buffer, audioFile.originalname);
+    const audioAppwrite = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), audioInput);
+    const audioUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, audioAppwrite.$id);
+
+    // Upload cover if exists
+    let coverUrl = '';
+    if (req.files['cover']) {
+      const coverFile = req.files['cover'][0];
+      const coverInput = InputFile.fromBuffer(coverFile.buffer, coverFile.originalname);
+      const coverAppwrite = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), coverInput);
+      coverUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, coverAppwrite.$id);
+    }
+
+    const track = await MusicTrack.create({
+      title,
+      artist: artist || 'Unknown',
+      audio_url: audioUrl,
+      cover_image_url: coverUrl,
+      duration: 0,
+      is_active: true,
+      created_at: new Date().toISOString()
+    });
+
+    return res.json({ success: true, data: track });
+  } catch (err) {
+    console.error('Music create error:', err);
+    return res.status(500).json({ error: 'Failed to create music track.' });
+  }
+});
+
+app.delete('/api/music/:id', async (req, res) => {
+  try {
+    const secret = req.headers['x-developer-secret'];
+    if (secret !== process.env.DEVELOPER_SECRET && secret !== 'DENCEWANCE_DEV_2026') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    
+    await MusicTrack.delete(req.params.id);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Music delete error:', err);
+    return res.status(500).json({ error: 'Failed to delete music track.' });
   }
 });
 

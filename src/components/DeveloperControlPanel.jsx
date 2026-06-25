@@ -28,6 +28,13 @@ export default function CreateInstagramMenu({ token: propToken, onComplete }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatusText, setUploadStatusText] = useState('0%');
 
+  // Music State
+  const [musicTitle, setMusicTitle] = useState('');
+  const [musicArtist, setMusicArtist] = useState('');
+  const [musicFile, setMusicFile] = useState(null);
+  const [musicCover, setMusicCover] = useState(null);
+  const [musicTracks, setMusicTracks] = useState([]);
+
   // Uploader Identity
   const [uploaderType, setUploaderType] = useState('official');
   const [uploaderName, setUploaderName] = useState('');
@@ -147,6 +154,51 @@ export default function CreateInstagramMenu({ token: propToken, onComplete }) {
     window.dispatchEvent(new Event('openPyq'));
   };
 
+  const loadMusicTracks = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/music`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) setMusicTracks(data.data);
+      }
+    } catch (err) {
+      console.error('Failed to load music tracks', err);
+    }
+  };
+
+  React.useEffect(() => {
+    if (activeTab === 'music') {
+      loadMusicTracks();
+    }
+  }, [activeTab]);
+
+  const handleCreateMusic = async (e) => {
+    e.preventDefault();
+    if (!musicTitle || !musicFile) return alert("Title and Audio file are required!");
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('title', musicTitle);
+      formData.append('artist', musicArtist);
+      formData.append('audio', musicFile);
+      if (musicCover) formData.append('cover', musicCover);
+      formData.append('developer_secret', 'DENCEWANCE_DEV_2026');
+
+      const res = await fetch(`${API_URL}/api/music`, {
+        method: 'POST',
+        body: formData
+      });
+      if (!res.ok) throw new Error('Failed to upload music');
+      alert('Music Track Uploaded Successfully!');
+      setMusicTitle(''); setMusicArtist(''); setMusicFile(null); setMusicCover(null);
+      loadMusicTracks();
+    } catch (err) {
+      alert('Upload Error: ' + err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <div className="bg-black text-white w-full max-w-2xl mx-auto flex flex-col pb-20 mt-4 h-full">
       {!token && (
@@ -155,17 +207,18 @@ export default function CreateInstagramMenu({ token: propToken, onComplete }) {
         </div>
       )}
       <div className="flex font-semibold text-lg flex-1 justify-center mb-4">
-         New {activeTab === 'post' ? 'Post' : activeTab === 'reel' ? 'Video Story (Reel)' : 'Settings'}
+         New {activeTab === 'post' ? 'Post' : activeTab === 'reel' ? 'Video Story (Reel)' : activeTab === 'music' ? 'Music Track' : 'Settings'}
       </div>
 
       <div className="flex px-4 py-4 gap-4 justify-center border-b border-gray-800">
         <button onClick={()=>setActiveTab('post')} className={`px-4 py-2 rounded-full font-semibold text-sm transition ${activeTab==='post'?'bg-white text-black':'bg-gray-900 text-gray-300'}`}>Post</button>
         <button onClick={()=>setActiveTab('reel')} className={`px-4 py-2 rounded-full font-semibold text-sm transition ${activeTab==='reel'?'bg-white text-black':'bg-gray-900 text-gray-300'}`}>Video Story</button>
+        <button onClick={()=>setActiveTab('music')} className={`px-4 py-2 rounded-full font-semibold text-sm transition ${activeTab==='music'?'bg-white text-black':'bg-gray-900 text-gray-300'}`}>Music</button>
         <button onClick={()=>setActiveTab('settings')} className={`px-4 py-2 rounded-full font-semibold text-sm transition ${activeTab==='settings'?'bg-white text-black':'bg-gray-900 text-gray-300'}`}>Settings</button>
       </div>
 
       {/* Upload Identity Option */}
-      {activeTab !== 'settings' && (
+      {(activeTab === 'post' || activeTab === 'reel') && (
       <div className="flex flex-col gap-2 p-4 pt-1 mb-4 border-b border-gray-800">
         <label className="text-gray-400 text-xs font-bold tracking-wider uppercase">Posting As Profile</label>
         <div className="flex bg-gray-900 rounded-lg overflow-hidden border border-gray-800">
@@ -305,6 +358,73 @@ export default function CreateInstagramMenu({ token: propToken, onComplete }) {
             <button onClick={handleCreatePost} disabled={isUploading} className="w-full bg-blue-500 rounded-lg p-3 font-semibold disabled:opacity-50 mt-4">
               {isUploading ? `Uploading... ${uploadStatusText}` : 'Share Post'}
             </button>
+          </div>
+        ) : activeTab === 'music' ? (
+          <div className="flex flex-col gap-4 animate-fade-in">
+            <h3 className="text-xl font-bold mb-2 text-cyan-400">Add Music to Library</h3>
+            <div className="w-full aspect-square max-h-[200px] bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center relative border border-gray-800">
+              {musicCover ? (
+                <>
+                  <img src={URL.createObjectURL(musicCover)} className="w-full h-full object-cover" alt="Cover" />
+                  <button type="button" onClick={()=>{setMusicCover(null);}} className="absolute top-2 right-2 bg-black/60 rounded-full w-8 h-8 items-center text-white backdrop-blur">✕</button>
+                </>
+              ) : (
+                <label className="cursor-pointer flex flex-col items-center gap-2 text-gray-400 w-full h-full justify-center">
+                  <svg className="w-10 h-10 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                  <span className="font-semibold text-sm">Select Cover Image</span>
+                  <input type="file" accept="image/*" className="hidden" onChange={(e)=>{ if(e.target.files[0]) setMusicCover(e.target.files[0]); }} />
+                </label>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+               <input type="text" placeholder="Track Title *" value={musicTitle} onChange={e=>setMusicTitle(e.target.value)} className="bg-gray-900 border border-gray-800 rounded-lg p-3 text-white" />
+               <input type="text" placeholder="Artist Name" value={musicArtist} onChange={e=>setMusicArtist(e.target.value)} className="bg-gray-900 border border-gray-800 rounded-lg p-3 text-white" />
+            </div>
+
+            <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 flex flex-col items-center justify-center">
+               {musicFile ? (
+                 <div className="text-center">
+                   <div className="text-cyan-400 text-sm font-bold truncate max-w-[250px] mb-2">{musicFile.name}</div>
+                   <button onClick={()=>setMusicFile(null)} className="text-xs text-red-400 hover:text-red-300">Remove Audio</button>
+                 </div>
+               ) : (
+                 <label className="cursor-pointer text-cyan-400 font-bold flex flex-col items-center">
+                   <span className="text-2xl mb-1">🎵</span>
+                   <span>Select Audio File (.mp3) *</span>
+                   <input type="file" accept="audio/*" className="hidden" onChange={(e)=>{ if(e.target.files[0]) setMusicFile(e.target.files[0]); }} />
+                 </label>
+               )}
+            </div>
+
+            {isUploading && <div className="text-center text-sm font-bold text-cyan-400 mt-2">Uploading Track...</div>}
+
+            <button onClick={handleCreateMusic} disabled={isUploading} className="w-full bg-cyan-600 rounded-lg p-3 font-semibold disabled:opacity-50 mt-2">
+              {isUploading ? 'Uploading...' : 'Upload Music'}
+            </button>
+
+            <hr className="border-gray-800 my-4" />
+            <h3 className="text-lg font-bold text-cyan-400 mb-2">Library Tracks ({musicTracks.length})</h3>
+            <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto">
+              {musicTracks.map(track => (
+                <div key={track._id || track.id} className="flex items-center gap-3 bg-gray-900 p-2 rounded-lg border border-gray-800">
+                  <div className="w-10 h-10 bg-gray-800 rounded-md overflow-hidden shrink-0">
+                    {track.cover_image_url ? <img src={track.cover_image_url} alt="Cover" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-xl">🎵</div>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-white truncate">{track.title}</div>
+                    <div className="text-xs text-gray-400 truncate">{track.artist}</div>
+                  </div>
+                  <button onClick={async () => {
+                     if(window.confirm('Delete this track?')) {
+                        await fetch(`${API_URL}/api/music/${track._id || track.id}`, { method: 'DELETE', headers: { 'x-developer-secret': 'DENCEWANCE_DEV_2026' }});
+                        loadMusicTracks();
+                     }
+                  }} className="text-red-500 p-2 font-bold hover:bg-red-950 rounded-lg">✕</button>
+                </div>
+              ))}
+              {musicTracks.length === 0 && <div className="text-sm text-gray-500 text-center py-4">No music tracks in library</div>}
+            </div>
           </div>
         ) : (
           <div className="flex flex-col gap-4 animate-fade-in">

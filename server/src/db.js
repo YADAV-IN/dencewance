@@ -745,6 +745,7 @@ export const DeveloperReport = new Model('developer_reports');
 export const Pyq = new Model('pyq');
 export const Interaction = new Model('interactions');
 export const Follow = new Model('follows');
+export const MusicTrack = new Model('music_tracks');
 
 export const initDb = async () => {
   console.log('🚀 Appwrite DB Wrapper initialized. Overridden successfully!');

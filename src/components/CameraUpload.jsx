@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Camera, RefreshCw, Circle, Square, Video, Image as ImageIcon, Send, X, Check, LayoutGrid, Film } from 'lucide-react';
+import { Camera, RefreshCw, Circle, Square, Video, Image as ImageIcon, Send, X, Check, LayoutGrid, Film, Music } from 'lucide-react';
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
 import { buildCreatorIdentity } from '../utils/creatorIdentity';
+import MusicLibrarySelector from './MusicLibrarySelector';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -74,6 +75,15 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   const [uploadProgress, setUploadProgress] = useState(0);
   const [destinationType, setDestinationType] = useState('auto'); // 'auto', 'post', 'reel'
   const [isFaceMeshLoading, setIsFaceMeshLoading] = useState(false);
+  
+  // Music State
+  const [showMusicLibrary, setShowMusicLibrary] = useState(false);
+  const [selectedMusic, setSelectedMusic] = useState(null);
+  const audioContextRef = useRef(null);
+  const musicAudioRef = useRef(null);
+  
+  // Gallery Video State
+  const [galleryVideoUrl, setGalleryVideoUrl] = useState(null);
 
   const activeFilter = FILTERS[activeFilterIndex];
 
@@ -262,6 +272,10 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
 
   // Initialize Camera
   const startCamera = useCallback(async () => {
+    if (galleryVideoUrl) {
+      setHasCameraAccess(true);
+      return;
+    }
     try {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
@@ -333,7 +347,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
         clearTimeout(pressTimeoutRef.current);
       }
     };
-  }, [capturedMediaBlob, facingMode, startCamera]); 
+  }, [capturedMediaBlob, galleryVideoUrl, facingMode, startCamera]); 
 
   const toggleCamera = () => {
     setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
@@ -364,12 +378,66 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
     // Capture stream from canvas so filters are baked in!
     const canvasStream = canvasRef.current.captureStream(30); 
     
-    // Add audio track from original mic stream
-    if (streamRef.current) {
-       const audioTracks = streamRef.current.getAudioTracks();
-       if (audioTracks.length > 0) {
-          canvasStream.addTrack(audioTracks[0]);
-       }
+    // Restart gallery video if present
+    if (galleryVideoUrl && videoRef.current) {
+      videoRef.current.currentTime = 0;
+      videoRef.current.play().catch(e => console.error("Gallery video play error", e));
+    }
+
+    if (selectedMusic || galleryVideoUrl) {
+      // AudioContext Mix
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ac = audioContextRef.current;
+      if (ac.state === 'suspended') ac.resume();
+
+      const dest = ac.createMediaStreamDestination();
+
+      // Mix Mic OR Gallery Video Audio
+      let sourceStream = streamRef.current;
+      if (galleryVideoUrl && videoRef.current) {
+        sourceStream = videoRef.current.captureStream();
+      }
+
+      if (sourceStream) {
+        const audioTracks = sourceStream.getAudioTracks();
+        if (audioTracks.length > 0) {
+          try {
+            const micSource = ac.createMediaStreamSource(sourceStream);
+            micSource.connect(dest);
+          } catch(e) { console.error("Source mix error", e); }
+        }
+      }
+
+      // Mix Music
+      if (selectedMusic) {
+        if (!musicAudioRef.current) {
+           musicAudioRef.current = new Audio();
+           musicAudioRef.current.crossOrigin = "anonymous";
+           // Create source once
+           const musicSource = ac.createMediaElementSource(musicAudioRef.current);
+           musicSource.connect(dest);
+           musicSource.connect(ac.destination); // Output to speaker
+        }
+        
+        musicAudioRef.current.src = selectedMusic.audio_url;
+        musicAudioRef.current.currentTime = 0;
+        musicAudioRef.current.play().catch(e => console.error("Music play error", e));
+      }
+
+      const mixedTracks = dest.stream.getAudioTracks();
+      if (mixedTracks.length > 0) {
+        canvasStream.addTrack(mixedTracks[0]);
+      }
+    } else {
+      // Normal mic only (no gallery video, no music)
+      if (streamRef.current) {
+         const audioTracks = streamRef.current.getAudioTracks();
+         if (audioTracks.length > 0) {
+            canvasStream.addTrack(audioTracks[0]);
+         }
+      }
     }
 
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
@@ -400,6 +468,9 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       mediaRecorderRef.current.stop();
     }
     setIsRecording(false);
+    if (musicAudioRef.current) {
+      musicAudioRef.current.pause();
+    }
     setTimeout(() => {
       setMediaType('video');
       setDestinationType('reel');
@@ -408,8 +479,12 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
 
   const handlePointerDown = (e) => {
     e.preventDefault();
+    if (galleryVideoUrl) {
+      if (isRecording) stopRecording();
+      else startRecording();
+      return;
+    }
     if (pressTimeoutRef.current) clearTimeout(pressTimeoutRef.current);
-    
     pressTimeoutRef.current = setTimeout(() => {
       startRecording();
     }, 300); // 300ms hold starts video
@@ -417,6 +492,8 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
 
   const handlePointerUp = (e) => {
     e.preventDefault();
+    if (galleryVideoUrl) return; // Tap handles start/stop for gallery
+    
     if (pressTimeoutRef.current) {
       clearTimeout(pressTimeoutRef.current);
       pressTimeoutRef.current = null;
@@ -424,7 +501,6 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
     if (isRecording) {
       stopRecording();
     } else {
-      // Tap (under 300ms)
       capturePhoto();
     }
   };
@@ -441,21 +517,27 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    
     if (file.type.startsWith('video/')) {
+      // Instead of going to preview, load it into the canvas player!
+      const url = URL.createObjectURL(file);
+      setGalleryVideoUrl(url);
       setMediaType('video');
       setDestinationType('reel');
+      if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
     } else {
       setMediaType('image');
       setDestinationType('post');
+      setCapturedMediaBlob(file);
+      setCapturedMediaUrl(URL.createObjectURL(file));
+      if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
     }
-    setCapturedMediaBlob(file);
-    setCapturedMediaUrl(URL.createObjectURL(file));
-    if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
   };
 
   const resetCamera = () => {
     setCapturedMediaBlob(null);
     setCapturedMediaUrl('');
+    setGalleryVideoUrl(null);
     setMediaType(null);
     setCaption('');
     setUploadProgress(0);
@@ -541,9 +623,19 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
               if (onClose) onClose();
            }} className="w-12 h-12 bg-black/60 rounded-full flex items-center justify-center z-50 text-white cursor-pointer active:scale-95"><X size={28} /></button>
          )}
-         <span className="font-bold tracking-wider">
-           {capturedMediaBlob ? 'Preview' : (isFaceMeshLoading ? 'Loading AI...' : 'Camera')}
-         </span>
+         {!capturedMediaBlob ? (
+           <button 
+             onClick={() => setShowMusicLibrary(true)} 
+             className="flex items-center gap-2 bg-black/50 hover:bg-black/70 px-4 py-1.5 rounded-full backdrop-blur-md border border-white/10 transition-all active:scale-95"
+           >
+             <Music size={16} className={selectedMusic ? 'text-cyan-400' : 'text-white'} />
+             <span className={`text-sm font-bold tracking-wide truncate max-w-[120px] ${selectedMusic ? 'text-cyan-400' : 'text-white'}`}>
+               {selectedMusic ? selectedMusic.title : 'Add Music'}
+             </span>
+           </button>
+         ) : (
+           <span className="font-bold tracking-wider">Preview</span>
+         )}
          {!capturedMediaBlob && hasCameraAccess ? (
             <button onClick={toggleCamera} className="w-10 h-10 bg-black/40 rounded-full flex items-center justify-center backdrop-blur">
               <RefreshCw size={20} />
@@ -566,7 +658,14 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
                    ref={videoRef} 
                    autoPlay 
                    playsInline 
-                   muted 
+                   muted={!galleryVideoUrl} // Mute camera to prevent feedback, but allow gallery audio? Wait, we mix it via AudioContext so keep it muted!
+                   src={galleryVideoUrl || undefined}
+                   loop={!isRecording} // Loop while previewing, but not when recording
+                   onEnded={() => {
+                     if (isRecording) {
+                       stopRecording();
+                     }
+                   }}
                    className="absolute inset-0 w-full h-full object-cover opacity-1 z-0"
                  />
                  {/* Canvas that displays the final baked feed */}
@@ -670,7 +769,11 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
               </button>
 
               <div className="w-12 h-12 text-[10px] font-semibold text-gray-500 text-center flex items-center justify-center leading-tight">
-                 Tap Photo<br/>Hold Video
+                 {galleryVideoUrl ? (
+                   <>Tap to<br/>Record</>
+                 ) : (
+                   <>Tap Photo<br/>Hold Video</>
+                 )}
               </div>
            </div>
         ) : (
@@ -723,6 +826,11 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
         )}
 
       </div>
+      <MusicLibrarySelector 
+        isOpen={showMusicLibrary} 
+        onClose={() => setShowMusicLibrary(false)} 
+        onSelect={(track) => setSelectedMusic(track)} 
+      />
     </div>
   );
 }

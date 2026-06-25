@@ -1229,18 +1229,27 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               <div className="mt-3 text-gray-700 text-[13px] font-bold relative z-10 flex justify-between items-center">
                 <span>Welcome Back, {adminData?.name || 'Preetam'}! Let's Dance!</span>
                 {token && (
-                  <button 
-                    onClick={() => {
-                      localStorage.clear();
-                      setToken(null);
-                      setAdminId(null);
-                      setAdminData(null);
-                      setSelectedProfileId(null);
-                    }}
-                    className="text-red-500 hover:text-red-700 text-[10px] font-bold uppercase tracking-wider cursor-pointer"
-                  >
-                    Logout
-                  </button>
+                  <div className="flex gap-3 items-center">
+                    <button 
+                      onClick={() => setActiveTab('developer')}
+                      className="text-[#3A125E] hover:text-[#3A125E]/70 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Settings size={16} />
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Dev</span>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        localStorage.clear();
+                        setToken(null);
+                        setAdminId(null);
+                        setAdminData(null);
+                        setSelectedProfileId(null);
+                      }}
+                      className="text-red-500 hover:text-red-700 text-[10px] font-bold uppercase tracking-wider cursor-pointer"
+                    >
+                      Logout
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
