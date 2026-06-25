@@ -8,32 +8,32 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 const FILTERS = [
   // Classic
   { name: 'Normal', css: 'none', category: 'Classic' },
-  { name: 'Clarendon', css: 'contrast(1.2) saturate(1.3) sepia(0.1)', category: 'Classic' },
-  { name: 'Gingham', css: 'brightness(1.05) hue-rotate(350deg)', category: 'Classic' },
-  { name: 'Moon', css: 'grayscale(1) contrast(1.1) brightness(1.1)', category: 'Classic' },
-  { name: 'Lark', css: 'contrast(0.9) saturate(1.1) brightness(1.1)', category: 'Classic' },
-  { name: 'Reyes', css: 'sepia(0.2) brightness(1.1) contrast(0.8)', category: 'Classic' },
-  { name: 'Juno', css: 'saturate(1.4) contrast(1.1) sepia(0.1)', category: 'Classic' },
-  { name: 'Slumber', css: 'saturate(0.6) sepia(0.3) brightness(1.05)', category: 'Classic' },
-  { name: 'Crema', css: 'sepia(0.5) contrast(1.1) brightness(1.1)', category: 'Classic' },
-  { name: 'Ludwig', css: 'contrast(1.1) saturate(1.2) brightness(1.05)', category: 'Classic' },
+  { name: 'Clarendon', css: 'contrast(120%) saturate(130%) sepia(10%)', category: 'Classic' },
+  { name: 'Gingham', css: 'brightness(105%) hue-rotate(350deg)', category: 'Classic' },
+  { name: 'Moon', css: 'grayscale(100%) contrast(110%) brightness(110%)', category: 'Classic' },
+  { name: 'Lark', css: 'contrast(90%) saturate(110%) brightness(110%)', category: 'Classic' },
+  { name: 'Reyes', css: 'sepia(20%) brightness(110%) contrast(80%)', category: 'Classic' },
+  { name: 'Juno', css: 'saturate(140%) contrast(110%) sepia(10%)', category: 'Classic' },
+  { name: 'Slumber', css: 'saturate(60%) sepia(30%) brightness(105%)', category: 'Classic' },
+  { name: 'Crema', css: 'sepia(50%) contrast(110%) brightness(110%)', category: 'Classic' },
+  { name: 'Ludwig', css: 'contrast(110%) saturate(120%) brightness(105%)', category: 'Classic' },
   
   // Pro
-  { name: 'Cinematic', css: 'contrast(1.2) saturate(1.1) sepia(0.2) hue-rotate(-10deg)', category: 'Pro' },
-  { name: 'Moody', css: 'brightness(0.9) contrast(1.3) saturate(0.8)', category: 'Pro' },
-  { name: 'Vintage', css: 'sepia(0.4) contrast(1.1) brightness(0.9) hue-rotate(-20deg)', category: 'Pro' },
-  { name: 'Noir', css: 'grayscale(1) contrast(1.5)', category: 'Pro' },
-  { name: 'Warm', css: 'sepia(0.3) saturate(1.4) contrast(1.1)', category: 'Pro' },
+  { name: 'Cinematic', css: 'contrast(120%) saturate(110%) sepia(20%) hue-rotate(-10deg)', category: 'Pro' },
+  { name: 'Moody', css: 'brightness(90%) contrast(130%) saturate(80%)', category: 'Pro' },
+  { name: 'Vintage', css: 'sepia(40%) contrast(110%) brightness(90%) hue-rotate(-20deg)', category: 'Pro' },
+  { name: 'Noir', css: 'grayscale(100%) contrast(150%)', category: 'Pro' },
+  { name: 'Warm', css: 'sepia(30%) saturate(140%) contrast(110%)', category: 'Pro' },
   
   // Effects
-  { name: 'Cyberpunk', css: 'contrast(1.4) saturate(1.5) hue-rotate(45deg)', category: 'Effects' },
-  { name: 'Glitch', css: 'hue-rotate(90deg) saturate(2) contrast(1.2)', category: 'Effects' },
-  { name: 'Dreamy', css: 'blur(1px) contrast(1.1) brightness(1.1) saturate(1.2)', category: 'Effects' },
+  { name: 'Cyberpunk', css: 'contrast(140%) saturate(150%) hue-rotate(45deg)', category: 'Effects' },
+  { name: 'Glitch', css: 'hue-rotate(90deg) saturate(200%) contrast(120%)', category: 'Effects' },
+  { name: 'Dreamy', css: 'blur(1px) contrast(110%) brightness(110%) saturate(120%)', category: 'Effects' },
 
   // Face
-  { name: 'Cyber Visor', css: 'contrast(1.1) saturate(1.2)', category: 'Face' },
-  { name: 'Dog Mask', css: 'brightness(1.1)', category: 'Face' },
-  { name: 'Alien Warp', css: 'contrast(1.2)', category: 'Face' }
+  { name: 'Cyber Visor', css: 'contrast(110%) saturate(120%)', category: 'Face' },
+  { name: 'Dog Mask', css: 'brightness(110%)', category: 'Face' },
+  { name: 'Alien Warp', css: 'contrast(120%)', category: 'Face' }
 ];
 
 export default function CameraUpload({ token: propToken, onComplete, onClose }) {
@@ -91,13 +91,20 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
         minTrackingConfidence: 0.5
       });
       faceMesh.onResults((results) => {
-        setIsFaceMeshLoading(false);
         if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
           latestLandmarksRef.current = results.multiFaceLandmarks[0];
         } else {
           latestLandmarksRef.current = null;
         }
       });
+      
+      faceMesh.initialize().then(() => {
+        setIsFaceMeshLoading(false);
+      }).catch(err => {
+        console.error("FaceMesh init failed", err);
+        setIsFaceMeshLoading(false);
+      });
+
       faceMeshRef.current = faceMesh;
     }
   }, [activeCategory]);
@@ -111,7 +118,8 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
     
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    // willReadFrequently forces CPU rendering which ensures captureStream() doesn't skip CSS filters due to hardware acceleration bugs on Chrome Android
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     
     if (video.readyState >= video.HAVE_CURRENT_DATA) {
       // Size canvas to video
@@ -310,6 +318,9 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   const capturePhoto = () => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
+    
+    // Stop rendering to prevent black frames if video stream stops mid-capture
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
     
     canvas.toBlob((blob) => {
       setCapturedMediaBlob(blob);
@@ -538,7 +549,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
                    autoPlay 
                    playsInline 
                    muted 
-                   className="hidden"
+                   className="absolute opacity-0 pointer-events-none w-[1px] h-[1px]"
                  />
                  {/* Canvas that displays the final baked feed */}
                  <canvas
@@ -584,7 +595,11 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
              {['Classic', 'Pro', 'Effects', 'Face'].map(cat => (
                <button 
                   key={cat} 
-                  onClick={() => setActiveCategory(cat)}
+                  onClick={() => {
+                     setActiveCategory(cat);
+                     const firstIdx = FILTERS.findIndex(f => f.category === cat);
+                     if (firstIdx !== -1) setActiveFilterIndex(firstIdx);
+                  }}
                   className={`transition-colors ${activeCategory === cat ? 'text-white border-b-2 border-pink-500 pb-1' : 'hover:text-gray-300 pb-1'}`}
                >
                   {cat}
