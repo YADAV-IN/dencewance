@@ -312,7 +312,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
 
     const fetchAndFilterReels = () => {
       const now = Date.now();
-      return fetch(`${API_URL}/api/reels?limit=500&_t=${now}&viewer_id=${viewerId}`)
+      const reelsPromise = fetch(`${API_URL}/api/reels?limit=500&_t=${now}&viewer_id=${viewerId}`)
         .then(res => res.ok ? res.json() : { data: [] })
         .then(data => {
           if (data && Array.isArray(data.data)) {
@@ -339,22 +339,24 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
           }
         })
         .catch(err => console.error('Failed to load reels', err));
+
+      const statusPromise = fetch(`${API_URL}/api/global-status?_t=${now}`)
+        .then(res => res.ok ? res.json() : { data: [] })
+        .then(data => {
+          if (data && Array.isArray(data.data)) {
+            const limit = Number(localStorage.getItem('TRENDING_REELS_LIMIT')) || 12;
+            setStatuses(data.data.map(normalizeReelData).slice(0, limit));
+          }
+        })
+        .catch(err => console.error('Failed to load status', err));
+
+      return Promise.all([reelsPromise, statusPromise]);
     };
 
     window.addEventListener('trendingSettingsUpdated', fetchAndFilterReels);
 
     Promise.all([
-      // Fetch Statuses
-      fetch(`${API_URL}/api/global-status?_t=${now}`)
-        .then(res => res.ok ? res.json() : { data: [] })
-        .then(data => {
-          if (data && Array.isArray(data.data)) {
-            setStatuses(data.data.map(normalizeReelData));
-          }
-        })
-        .catch(err => console.error('Failed to load status', err)),
-
-      // Fetch Reels (Trending Filtering)
+      // Fetch Reels & Statuses (Trending Filtering)
       fetchAndFilterReels(),
 
       // Fetch Posts (News feed)
