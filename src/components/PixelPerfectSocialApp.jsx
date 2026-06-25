@@ -88,7 +88,8 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
   const [viewingMedia, setViewingMedia] = useState('reel');
   const [statuses, setStatuses] = useState([]);
-  const [reelsFeed, setReelsFeed] = useState([]);
+  const [reelsFeed, setReelsFeed] = useState([]); // Trending-limited for main page
+  const [allReelsFull, setAllReelsFull] = useState([]); // ALL reels for Clips viewer (unlimited scroll)
   const [feed, setFeed] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -311,7 +312,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
 
     const fetchAndFilterReels = () => {
       const now = Date.now();
-      return fetch(`${API_URL}/api/reels?limit=100&_t=${now}&viewer_id=${viewerId}`)
+      return fetch(`${API_URL}/api/reels?limit=500&_t=${now}&viewer_id=${viewerId}`)
         .then(res => res.ok ? res.json() : { data: [] })
         .then(data => {
           if (data && Array.isArray(data.data)) {
@@ -325,7 +326,16 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               return !reelTime || isNaN(reelTime) || reelTime >= timeThreshold;
             });
             allReels.sort((a, b) => (b.likes || 0) - (a.likes || 0));
-            setReelsFeed(allReels.slice(0, limit));
+            setReelsFeed(allReels.slice(0, limit)); // Trending limited for main page
+            
+            // Store ALL reels (no limit) for the full Clips viewer
+            const allNormalized = data.data.map(normalizeReelData);
+            allNormalized.sort((a, b) => {
+              const dateA = new Date(a.created_at || a.timestamp || 0).getTime();
+              const dateB = new Date(b.created_at || b.timestamp || 0).getTime();
+              return dateB - dateA; // newest first
+            });
+            setAllReelsFull(allNormalized);
           }
         })
         .catch(err => console.error('Failed to load reels', err));
@@ -441,6 +451,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
         if (item?.data) {
           const norm = normalizeReelData(item.data);
           setReelsFeed(prev => [norm, ...prev]);
+          setAllReelsFull(prev => [norm, ...prev]);
           setViewingMedia('reel');
           setActiveStoryIndex(0);
           setActiveTab('stories');
@@ -503,6 +514,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
       if (res.ok) {
         setStatuses(prev => prev.filter(s => (s.id || s._id) !== reelId));
         setReelsFeed(prev => prev.filter(r => (r.id || r._id) !== reelId));
+        setAllReelsFull(prev => prev.filter(r => (r.id || r._id) !== reelId));
         alert("Clip deleted successfully.");
         setActiveTab('home');
       } else {
@@ -519,6 +531,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
       const reelId = savedReel.id || savedReel._id || savedReel.$id;
       if (reelId) {
         setReelsFeed(prev => [normalizeReelData(savedReel), ...prev]);
+        setAllReelsFull(prev => [normalizeReelData(savedReel), ...prev]);
         openReelById(reelId);
       }
     } else {
@@ -944,7 +957,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               viewingMedia === 'search' ? searchResults.reels :
               viewingMedia === 'recommendation' ? recommendations.reels :
               viewingMedia === 'status' ? statuses :
-              reelsFeed
+              allReelsFull
             } 
             initialIndex={activeStoryIndex} 
             onClose={() => setActiveTab('home')}
