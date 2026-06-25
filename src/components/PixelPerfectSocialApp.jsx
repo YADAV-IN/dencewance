@@ -530,9 +530,17 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
       const savedReel = savedData.data || savedData;
       const reelId = savedReel.id || savedReel._id || savedReel.$id;
       if (reelId) {
-        setReelsFeed(prev => [normalizeReelData(savedReel), ...prev]);
-        setAllReelsFull(prev => [normalizeReelData(savedReel), ...prev]);
-        openReelById(reelId);
+        const norm = normalizeReelData(savedReel);
+        setReelsFeed(prev => [norm, ...prev]);
+        setAllReelsFull(prev => [norm, ...prev]);
+        
+        // Directly open the reel without stale closure issues
+        setViewingMedia('reel');
+        setActiveStoryIndex(0);
+        setActiveTab('stories');
+        
+        // Auto-fetch in background to sync all feeds globally
+        window.dispatchEvent(new Event('trendingSettingsUpdated'));
       }
     } else {
       // Reload posts
