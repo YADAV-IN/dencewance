@@ -555,18 +555,9 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       <div className="flex-1 w-full bg-zinc-950 relative flex items-center justify-center overflow-hidden">
         
         {/* Background blur for portrait card effect on preview */}
-        {capturedMediaBlob && (
-          <div 
-            className="absolute inset-0 opacity-40 scale-110 blur-2xl z-0" 
-            style={{
-              backgroundImage: `url(${mediaType === 'image' ? capturedMediaUrl : ''})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-            }}
-          />
-        )}
+        {/* Background blur for portrait card effect removed for full screen */}
 
-        <div className={`relative z-10 ${capturedMediaBlob ? 'w-[90%] max-w-sm aspect-[9/16] rounded-2xl overflow-hidden shadow-2xl border border-zinc-800' : 'w-full h-full'}`}>
+        <div className="relative z-10 w-full h-full">
           {!capturedMediaBlob ? (
              hasCameraAccess ? (
                <>
@@ -595,7 +586,8 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
               {mediaType === 'image' ? (
                 <img 
                   src={capturedMediaUrl} 
-                  className="w-full h-full object-contain bg-black/50" 
+                  className="w-full h-full object-cover bg-black/50" 
+                  style={{ filter: activeFilter.css }}
                   alt="Preview" 
                 />
               ) : (
@@ -605,7 +597,8 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
                   loop 
                   playsInline 
                   controls
-                  className="w-full h-full object-contain bg-black/50"
+                  className="w-full h-full object-cover bg-black/50"
+                  style={{ filter: activeFilter.css }}
                 />
               )}
             </>
@@ -617,7 +610,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       <div className="w-full bg-black z-20 flex flex-col pb-6 md:pb-8 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
         
         {/* Category Tabs */}
-        {!capturedMediaBlob && (
+        {/* Category Tabs */}
           <div className="flex justify-center gap-6 text-xs font-semibold pt-2 text-gray-500">
              {['Classic', 'Pro', 'Effects', 'Face'].map(cat => (
                <button 
@@ -633,10 +626,9 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
                </button>
              ))}
           </div>
-        )}
 
         {/* Filters Scroll */}
-        {!capturedMediaBlob && (
+        {/* Filters Scroll */}
           <div className="w-full py-4 px-2 overflow-x-auto flex gap-3 snap-x hide-scrollbar">
             {FILTERS.map((f, i) => f.category === activeCategory && (
                <button 
@@ -656,7 +648,6 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
                </button>
             ))}
           </div>
-        )}
 
         {/* Action Buttons */}
         {!capturedMediaBlob ? (

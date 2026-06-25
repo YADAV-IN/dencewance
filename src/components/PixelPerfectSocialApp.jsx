@@ -1076,7 +1076,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
 
         {/* Create/Add Tab (New Snapchat/Insta style camera) */}
         {activeTab === 'add' && (
-          <div className="absolute inset-0 z-[100] h-full w-full animate-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 z-[100] h-[100dvh] w-[100dvw] bg-black animate-in zoom-in-95 duration-200">
             <CameraUpload token={token} onComplete={handleUploadPanelComplete} onClose={() => setActiveTab('home')} />
           </div>
         )}
