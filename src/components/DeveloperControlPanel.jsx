@@ -41,6 +41,10 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
   const [musicCover, setMusicCover] = useState(null);
   const [musicTracks, setMusicTracks] = useState([]);
 
+  // Identities State
+  const [customIdentities, setCustomIdentities] = useState([]);
+  const [isLoadingIdentities, setIsLoadingIdentities] = useState(false);
+
   // Uploader Identity
   const [uploaderType, setUploaderType] = useState('official');
   const [uploaderName, setUploaderName] = useState('');
@@ -196,6 +200,96 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
     window.location.reload();
   };
 
+  const loadIdentities = async () => {
+    setIsLoadingIdentities(true);
+    try {
+      const [reelsRes, postsRes] = await Promise.all([
+        fetch(`${API_URL}/api/reels`),
+        fetch(`${API_URL}/api/posts`)
+      ]);
+      const reels = reelsRes.ok ? (await reelsRes.json()).data || [] : [];
+      const posts = postsRes.ok ? (await postsRes.json()).data || [] : [];
+      
+      const idMap = new Map();
+      
+      const processItems = (items) => {
+        items.forEach(item => {
+          const id = item.creator_id || (item.creator && (item.creator.id || item.creator._id));
+          if (!id) return;
+          if (!idMap.has(id)) {
+            idMap.set(id, {
+              id,
+              name: item.author_name || (item.creator && item.creator.name) || 'Unknown',
+              avatar: item.author_avatar || (item.creator && item.creator.avatar_url),
+              reelsCount: 0,
+              postsCount: 0
+            });
+          }
+        });
+      };
+      processItems(reels);
+      processItems(posts);
+      
+      reels.forEach(r => {
+        const id = r.creator_id || (r.creator && (r.creator.id || r.creator._id));
+        if (id && idMap.has(id)) idMap.get(id).reelsCount++;
+      });
+      posts.forEach(p => {
+        const id = p.creator_id || (p.creator && (p.creator.id || p.creator._id));
+        if (id && idMap.has(id)) idMap.get(id).postsCount++;
+      });
+      
+      setCustomIdentities(Array.from(idMap.values()));
+    } catch(err) {
+      console.error(err);
+    } finally {
+      setIsLoadingIdentities(false);
+    }
+  };
+
+  const handleDeleteSpecificIdentity = async (identityId) => {
+    if (!window.confirm('Are you sure you want to delete ALL posts and reels for this specific identity?')) return;
+    
+    setIsUploading(true);
+    try {
+        const [reelsRes, postsRes] = await Promise.all([
+            fetch(`${API_URL}/api/reels`),
+            fetch(`${API_URL}/api/posts`)
+        ]);
+        
+        if (reelsRes.ok) {
+            const reelsData = await reelsRes.json();
+            const myReels = (reelsData.data || []).filter(r => r.creator_id === identityId || (r.creator && (r.creator.id === identityId || r.creator._id === identityId)));
+            for (const reel of myReels) {
+                const rId = reel._id || reel.id;
+                await fetch(`${API_URL}/api/reels/${rId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            }
+        }
+        
+        if (postsRes.ok) {
+            const postsData = await postsRes.json();
+            const myPosts = (postsData.data || []).filter(p => p.creator_id === identityId || (p.creator && (p.creator.id === identityId || p.creator._id === identityId)));
+            for (const post of myPosts) {
+                const pId = post._id || post.id;
+                await fetch(`${API_URL}/api/posts/${pId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            }
+        }
+        alert('Content deleted for identity ' + identityId);
+        loadIdentities();
+    } catch(err) {
+        console.error(err);
+        alert('Error deleting: ' + err.message);
+    } finally {
+        setIsUploading(false);
+    }
+  };
+
   const loadMusicTracks = async () => {
     try {
       const res = await fetch(`${API_URL}/api/music`);
@@ -211,6 +305,8 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
   React.useEffect(() => {
     if (activeMenu === 'music') {
       loadMusicTracks();
+    } else if (activeMenu === 'identities') {
+      loadIdentities();
     }
   }, [activeMenu]);
 
@@ -273,6 +369,7 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
           <MenuButton id="music" icon={Music} label="Music Library" />
           <div className="pt-4 pb-2 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">System</div>
           <MenuButton id="settings" icon={Settings} label="Platform Settings" />
+          <MenuButton id="identities" icon={Users} label="Manage Identities" />
           <div className="pt-4 pb-2 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Advanced</div>
           <MenuButton id="magic" icon={Wand2} label="Magic System" />
         </div>
@@ -770,7 +867,52 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                   <Save size={16} /> Save Configuration
                 </button>
               </div>
+            </div>
+          )}
 
+          {/* IDENTITIES */}
+          {activeMenu === 'identities' && (
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4">
+              <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
+                <Users size={24} className="text-[#3A125E]" />
+                <div>
+                  <h3 className="text-lg font-black text-gray-900 tracking-tight">Manage Custom Identities</h3>
+                  <p className="text-xs text-gray-500 font-semibold">Delete content from specific custom names/IDs you created</p>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                {isLoadingIdentities ? (
+                  <div className="flex justify-center p-8 text-[#3A125E] animate-pulse">Loading identities...</div>
+                ) : (
+                  <div className="space-y-4">
+                    {customIdentities.map(identity => (
+                      <div key={identity.id} className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                        <div className="flex items-center gap-4">
+                          <img src={identity.avatar} alt="avatar" className="w-12 h-12 rounded-full border border-gray-300" onError={(e) => { e.target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${identity.name}` }} />
+                          <div>
+                            <h4 className="font-bold text-gray-900">{identity.name}</h4>
+                            <p className="text-xs text-gray-500 font-mono mt-0.5">{identity.id}</p>
+                            <div className="flex gap-3 mt-1 text-[10px] font-bold text-[#3A125E]">
+                              <span>{identity.postsCount} Posts</span>
+                              <span>{identity.reelsCount} Reels</span>
+                            </div>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => handleDeleteSpecificIdentity(identity.id)}
+                          className="px-4 py-2 bg-red-100 text-red-600 hover:bg-red-600 hover:text-white rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
+                        >
+                          <Trash2 size={16} /> Delete Identity Content
+                        </button>
+                      </div>
+                    ))}
+                    {customIdentities.length === 0 && (
+                      <div className="text-center p-8 text-gray-500 font-medium">No identities found.</div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
