@@ -308,6 +308,30 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
     const now = Date.now();
     const viewerId = localStorage.getItem('adminId') || '';
 
+    const fetchAndFilterReels = () => {
+      const now = Date.now();
+      return fetch(`${API_URL}/api/reels?limit=100&_t=${now}&viewer_id=${viewerId}`)
+        .then(res => res.ok ? res.json() : { data: [] })
+        .then(data => {
+          if (data && Array.isArray(data.data)) {
+            let allReels = data.data.map(normalizeReelData);
+            const limit = Number(localStorage.getItem('TRENDING_REELS_LIMIT')) || 12;
+            const hours = Number(localStorage.getItem('TRENDING_REELS_HOURS')) || 24;
+            const timeThreshold = Date.now() - (hours * 60 * 60 * 1000);
+            
+            allReels = allReels.filter(reel => {
+              const reelTime = new Date(reel.created_at || reel.timestamp || 0).getTime();
+              return !reelTime || isNaN(reelTime) || reelTime >= timeThreshold;
+            });
+            allReels.sort((a, b) => (b.likes || 0) - (a.likes || 0));
+            setReelsFeed(allReels.slice(0, limit));
+          }
+        })
+        .catch(err => console.error('Failed to load reels', err));
+    };
+
+    window.addEventListener('trendingSettingsUpdated', fetchAndFilterReels);
+
     Promise.all([
       // Fetch Statuses
       fetch(`${API_URL}/api/global-status?_t=${now}`)
@@ -319,15 +343,8 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
         })
         .catch(err => console.error('Failed to load status', err)),
 
-      // Fetch Reels
-      fetch(`${API_URL}/api/reels?limit=100&_t=${now}&viewer_id=${viewerId}`)
-        .then(res => res.ok ? res.json() : { data: [] })
-        .then(data => {
-          if (data && Array.isArray(data.data)) {
-            setReelsFeed(data.data.map(normalizeReelData));
-          }
-        })
-        .catch(err => console.error('Failed to load reels', err)),
+      // Fetch Reels (Trending Filtering)
+      fetchAndFilterReels(),
 
       // Fetch Posts (News feed)
       fetch(`${API_URL}/api/news`)
@@ -341,6 +358,10 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
     ]).finally(() => {
       setIsLoading(false);
     });
+
+    return () => {
+      window.removeEventListener('trendingSettingsUpdated', fetchAndFilterReels);
+    };
   }, []);
 
   // Fetch admin profile data if logged in
@@ -562,7 +583,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                 }
               `}</style>
               <h2 className="text-[#2B2315] font-sans font-bold text-base tracking-tight mb-4 flex items-center gap-1.5">
-                Explore the Latest Clips
+                Explore Trending Clips
               </h2>
 
               <div className="flex overflow-x-auto gap-4 py-2 px-1 scrollbar-hide scroll-smooth snap-x snap-mandatory transform-gpu" style={{ WebkitOverflowScrolling: 'touch' }}>

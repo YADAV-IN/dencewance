@@ -7,7 +7,11 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function CreateInstagramMenu({ token: propToken, onComplete }) {
   const token = propToken || localStorage.getItem('adminToken') || '';
-  const [activeTab, setActiveTab] = useState('post'); // 'post' or 'reel'
+  const [activeTab, setActiveTab] = useState('post'); // 'post', 'reel', 'settings'
+
+  // Settings State
+  const [trendingLimit, setTrendingLimit] = useState(Number(localStorage.getItem('TRENDING_REELS_LIMIT')) || 12);
+  const [trendingHours, setTrendingHours] = useState(Number(localStorage.getItem('TRENDING_REELS_HOURS')) || 24);
 
   // Post State
   const [postContent, setPostContent] = useState('');
@@ -128,6 +132,14 @@ export default function CreateInstagramMenu({ token: propToken, onComplete }) {
       }
   };
 
+  const handleSaveSettings = () => {
+    localStorage.setItem('TRENDING_REELS_LIMIT', trendingLimit);
+    localStorage.setItem('TRENDING_REELS_HOURS', trendingHours);
+    alert('Trending Settings Saved Globally (for this device)! Note: In a real backend, this would sync to all users.');
+    // Trigger a custom event to notify PixelPerfectSocialApp to reload reels if needed
+    window.dispatchEvent(new Event('trendingSettingsUpdated'));
+  };
+
   return (
     <div className="bg-black text-white w-full max-w-2xl mx-auto flex flex-col pb-20 mt-4 h-full">
       {!token && (
@@ -136,15 +148,17 @@ export default function CreateInstagramMenu({ token: propToken, onComplete }) {
         </div>
       )}
       <div className="flex font-semibold text-lg flex-1 justify-center mb-4">
-         New {activeTab === 'post' ? 'Post' : 'Video Story (Reel)'}
+         New {activeTab === 'post' ? 'Post' : activeTab === 'reel' ? 'Video Story (Reel)' : 'Settings'}
       </div>
 
       <div className="flex px-4 py-4 gap-4 justify-center border-b border-gray-800">
-        <button onClick={()=>setActiveTab('post')} className={`px-6 py-2 rounded-full font-semibold text-sm transition ${activeTab==='post'?'bg-white text-black':'bg-gray-900 text-gray-300'}`}>Post</button>
-        <button onClick={()=>setActiveTab('reel')} className={`px-6 py-2 rounded-full font-semibold text-sm transition ${activeTab==='reel'?'bg-white text-black':'bg-gray-900 text-gray-300'}`}>Video Story</button>
+        <button onClick={()=>setActiveTab('post')} className={`px-4 py-2 rounded-full font-semibold text-sm transition ${activeTab==='post'?'bg-white text-black':'bg-gray-900 text-gray-300'}`}>Post</button>
+        <button onClick={()=>setActiveTab('reel')} className={`px-4 py-2 rounded-full font-semibold text-sm transition ${activeTab==='reel'?'bg-white text-black':'bg-gray-900 text-gray-300'}`}>Video Story</button>
+        <button onClick={()=>setActiveTab('settings')} className={`px-4 py-2 rounded-full font-semibold text-sm transition ${activeTab==='settings'?'bg-white text-black':'bg-gray-900 text-gray-300'}`}>Settings</button>
       </div>
 
       {/* Upload Identity Option */}
+      {activeTab !== 'settings' && (
       <div className="flex flex-col gap-2 p-4 pt-1 mb-4 border-b border-gray-800">
         <label className="text-gray-400 text-xs font-bold tracking-wider uppercase">Posting As Profile</label>
         <div className="flex bg-gray-900 rounded-lg overflow-hidden border border-gray-800">
@@ -175,9 +189,45 @@ export default function CreateInstagramMenu({ token: propToken, onComplete }) {
           />
         )}
       </div>
+      )}
 
       <div className="p-4 pt-0 flex-1 overflow-y-auto">
-        {activeTab === 'post' ? (
+        {activeTab === 'settings' ? (
+          <div className="flex flex-col gap-6 animate-fade-in">
+            <h3 className="text-xl font-bold mb-2 text-cyan-400">Trending Clips Configuration</h3>
+            
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-semibold text-gray-300">Max Trending Clips (Limit)</label>
+              <input 
+                type="number" 
+                min="1" max="100"
+                value={trendingLimit} 
+                onChange={(e) => setTrendingLimit(Number(e.target.value))}
+                className="w-full bg-gray-900 text-white border border-gray-700 rounded-lg p-3 focus:outline-none focus:border-cyan-500" 
+              />
+              <p className="text-xs text-gray-500">Only this many clips will be shown in the trending section.</p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-semibold text-gray-300">Time Window (Hours)</label>
+              <input 
+                type="number" 
+                min="1" max="720"
+                value={trendingHours} 
+                onChange={(e) => setTrendingHours(Number(e.target.value))}
+                className="w-full bg-gray-900 text-white border border-gray-700 rounded-lg p-3 focus:outline-none focus:border-cyan-500" 
+              />
+              <p className="text-xs text-gray-500">Clips older than this will not be considered trending.</p>
+            </div>
+
+            <button 
+              onClick={handleSaveSettings}
+              className="mt-4 w-full bg-cyan-600 hover:bg-cyan-500 text-black font-bold py-3 rounded-xl transition"
+            >
+              Save Settings
+            </button>
+          </div>
+        ) : activeTab === 'post' ? (
           <div className="flex flex-col gap-4 animate-fade-in">
             <div className="w-full aspect-square bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center relative border border-gray-800">
               {postCoverPreview ? (
