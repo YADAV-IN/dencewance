@@ -716,7 +716,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       <div className="w-full bg-black z-20 flex flex-col pb-6 md:pb-8 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
         
         {/* Category Tabs */}
-        {/* Category Tabs */}
+        {!capturedMediaBlob && (
           <div className="flex justify-center gap-6 text-xs font-semibold pt-2 text-gray-500">
              {['Classic', 'Pro', 'Effects', 'Face'].map(cat => (
                <button 
@@ -732,9 +732,10 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
                </button>
              ))}
           </div>
+        )}
 
         {/* Filters Scroll */}
-        {/* Filters Scroll */}
+        {!capturedMediaBlob && (
           <div className="w-full py-4 px-2 overflow-x-auto flex gap-3 snap-x hide-scrollbar">
             {FILTERS.map((f, i) => f.category === activeCategory && (
                <button 
@@ -754,6 +755,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
                </button>
             ))}
           </div>
+        )}
 
         {/* Action Buttons */}
         {!capturedMediaBlob ? (

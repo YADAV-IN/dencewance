@@ -342,10 +342,14 @@ app.post('/api/reels/process', memoryUpload.single('video'), async (req, res) =>
        return res.send(req.file.buffer);
     }
 
+    // Add scaling to 720p to dramatically speed up processing
+    vf = `${vf},scale=720:-2`;
+
     ffmpeg(inputPath)
       .outputOptions([
-        '-b:v 8000k', // High quality bitrate
-        '-preset ultrafast'
+        '-b:v 2500k', // Lower bitrate for faster encode and smaller size
+        '-preset ultrafast',
+        '-threads 4' // Use multiple threads
       ])
       .videoFilters(vf)
       .save(outputPath)
