@@ -493,20 +493,27 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                           />
                         )
                       ) : embed.type === 'video' && item.video_url ? (
-                        <video
-                          ref={(el) => { if (el) reelVideoRefs.current[idx] = el; }}
-                          src={resolveMediaUrl(item.video_url)}
-                          className="reel-video-el"
-                          loop
-                          playsInline
-                          muted={reelsMuted}
-                          autoPlay={isActive && !isPaused}
-                          preload={shouldWarm ? 'auto' : 'metadata'}
-                          poster={item.cover_image_url ? resolveMediaUrl(item.cover_image_url) : undefined}
-                          onLoadedMetadata={(event) => {
-                            event.currentTarget.volume = 1;
-                          }}
-                        />
+                        (isActive || shouldWarm) ? (
+                          <video
+                            ref={(el) => { if (el) reelVideoRefs.current[idx] = el; }}
+                            src={resolveMediaUrl(item.video_url)}
+                            className="reel-video-el"
+                            loop
+                            playsInline
+                            muted={reelsMuted}
+                            autoPlay={isActive && !isPaused}
+                            preload={shouldWarm ? 'auto' : 'none'}
+                            poster={item.cover_image_url ? resolveMediaUrl(item.cover_image_url) : undefined}
+                            onLoadedMetadata={(event) => {
+                              event.currentTarget.volume = 1;
+                            }}
+                          />
+                        ) : (
+                          <div
+                            className="reel-cover-fallback"
+                            style={{ backgroundImage: `url(${resolveMediaUrl(item.cover_image_url)})` }}
+                          />
+                        )
                       ) : (
                         <div
                           className="reel-cover-fallback"

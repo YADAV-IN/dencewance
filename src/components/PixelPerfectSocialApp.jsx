@@ -953,7 +953,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                     <div>
                       <h3 className="font-extrabold text-[13px] text-[#3A125E] mb-3 uppercase tracking-wide">Recommended Clips</h3>
                       <div className="grid grid-cols-2 gap-3">
-                        {recommendations.reels.map((r, i) => (
+                        {recommendations.reels.slice(0, 4).map((r, i) => (
                           <div 
                             key={`rec-${i}`} 
                             className="bg-slate-900 aspect-[9/16] rounded-xl overflow-hidden relative cursor-pointer group shadow-sm"
