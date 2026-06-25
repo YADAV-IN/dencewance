@@ -1,0 +1,16 @@
+[
+  {
+    "reel_id": "123",
+    "user_id": "60c72b2f9b1d8e4b88a91b2c",
+    "author_name": "Test",
+    "author_handle": "@test",
+    "text": "test comment",
+    "created_at": "2026-06-25T05:33:34.437Z",
+    "updated_at": "2026-06-25T05:33:34.437Z",
+    "$id": "6a3cbdae002fa43afffb",
+    "_id": "6a3cbdae002fa43afffb",
+    "id": "6a3cbdae002fa43afffb",
+    "$createdAt": "2026-06-25T05:33:34.437Z",
+    "$updatedAt": "2026-06-25T05:33:34.437Z"
+  }
+]

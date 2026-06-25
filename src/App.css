@@ -4523,6 +4523,10 @@ body.standalone-mode .reel-top-overlay {
   scrollbar-width: none;
   background: #000;
   z-index: 901 !important;
+  -webkit-overflow-scrolling: touch;
+  will-change: scroll-position;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 .reels-container::-webkit-scrollbar {
   display: none;
@@ -4539,6 +4543,9 @@ body.standalone-mode .reel-top-overlay {
   display: flex;
   align-items: center;
   justify-content: center;
+  contain: layout style paint;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 /* Comments bottom sheet inside the reel frame */
@@ -4550,7 +4557,7 @@ body.standalone-mode .reel-top-overlay {
   height: 65% !important;
   width: 100% !important;
   background: rgba(13, 17, 28, 0.98) !important;
-  backdrop-filter: blur(12px) !important;
+  /* backdrop-filter removed for video playback performance */
   border-top: 1.5px solid rgba(0, 255, 255, 0.2) !important;
   border-radius: 20px 20px 0 0 !important;
   z-index: 100 !important;
@@ -4597,6 +4604,8 @@ body.standalone-mode .reel-top-overlay {
   background: #000;
   cursor: pointer;
   z-index: 1;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 .detail-video-container,
@@ -4619,6 +4628,11 @@ body.standalone-mode .reel-top-overlay {
   object-fit: cover;
   background-color: #000;
   display: block;
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .reel-youtube-logo-mask {

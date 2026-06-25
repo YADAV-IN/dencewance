@@ -1,6 +1,6 @@
 {
   "name": "codespaces-react",
-  "version": "1.0.242",
+  "version": "1.0.244",
   "engines": {
     "node": ">=20.0.0"
   },

@@ -136,7 +136,7 @@
   background: var(--header-bg);
   border-bottom: 1px solid var(--header-border);
   box-shadow: 0 4px 15px rgba(58, 18, 94, 0.1);
-  backdrop-filter: blur(30px);
+  
   z-index: 50;
 }
 
@@ -255,7 +255,7 @@
   display: none;
   flex-direction: column;
   box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(20px);
+  
   overflow-y: auto;
 }
 
@@ -321,7 +321,7 @@
   border-radius: 16px;
   border: 1px solid var(--border);
   box-shadow: var(--glass-shadow), var(--glass-glow);
-  backdrop-filter: blur(25px);
+  
 }
 
 .stories-container::-webkit-scrollbar { display: none; }
@@ -499,7 +499,7 @@
   padding: 20px;
   display: none;
   box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(25px);
+  
   overflow-y: auto;
 }
 
@@ -556,7 +556,7 @@
   position: absolute;
   bottom: 0; left: 0; right: 0;
   background: #fdfbf7; /* Light cream background */
-  backdrop-filter: blur(30px);
+  
   border-top: 1px solid rgba(0,0,0,0.05);
   display: flex;
   justify-content: space-around;
@@ -652,7 +652,7 @@
   align-items: center;
   gap: 6px;
   transition: all 0.25s ease;
-  backdrop-filter: blur(8px);
+  
   margin-right: 8px;
 }
 
@@ -706,7 +706,7 @@
   color: #fff;
   font-size: 1.1rem;
   transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
+  
 }
 
 .search-input:focus {
@@ -840,7 +840,7 @@
   font-size: 0.8rem;
   font-weight: bold;
   z-index: 2;
-  backdrop-filter: blur(5px);
+  
 }
 
 .search-reel-cover {
@@ -1008,7 +1008,7 @@
 .historical-theme.mode-desktop .top-nav-bar {
   background: rgba(8, 10, 20, 0.8) !important;
   border-bottom: 1px solid rgba(0, 240, 255, 0.1) !important;
-  backdrop-filter: blur(35px) !important;
+  
   box-shadow: 0 4px 25px rgba(0,0,0,0.4) !important;
 }
 
@@ -1323,3 +1323,5 @@
   letter-spacing: 0.5px;
 }
 
+. r e e l - v i d e o - e l   {   w i l l - c h a n g e :   t r a n s f o r m ;   t r a n s f o r m :   t r a n s l a t e Z ( 0 ) ;   - w e b k i t - t r a n s f o r m :   t r a n s l a t e Z ( 0 ) ;   } 
+ 

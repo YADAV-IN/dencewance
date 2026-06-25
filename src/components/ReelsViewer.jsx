@@ -164,7 +164,6 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const reels = Array.isArray(fallbackData) ? fallbackData : [];
   const reelItems = reels;
   const currentPageKey = 'videos';
-  console.log("Rendering ReelsViewer, total reels:", reels.length);
 
   const [activeReelIndex, setActiveReelIndex] = useState(initialIndex);
   const [reelsMuted, setReelsMuted] = useState(false); // Changed to false by default as requested
@@ -318,51 +317,49 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
     return () => observer.disconnect();
   }, [currentPageKey, reels.length]);
 
-  // Sync play/pause strictly to activeReelIndex
+  // Sync play/pause strictly to activeReelIndex (using refs for performance)
   useEffect(() => {
-    if (currentPageKey !== 'videos' || !reelsContainerRef.current) return;
-    const frames = reelsContainerRef.current.querySelectorAll('.reel-frame');
-    frames.forEach((frame) => {
-      const idx = parseInt(frame.dataset.reelIdx, 10);
-      if (Number.isNaN(idx)) return;
+    if (currentPageKey !== 'videos') return;
+
+    // Pause/mute all non-active native videos via refs
+    Object.entries(reelVideoRefs.current).forEach(([idxStr, videoEl]) => {
+      const idx = Number(idxStr);
+      if (!videoEl || Number.isNaN(idx)) return;
       const isActive = idx === activeReelIndex;
-      const videoEl = frame.querySelector('video');
-      const iframeEl = frame.querySelector('iframe');
-      if (videoEl) {
-        videoEl.muted = isActive ? reelsMuted : true;
-        if (isActive && !reelPaused.has(idx)) {
-          videoEl.play().catch(() => {});
-        } else {
-          videoEl.pause();
-        }
+      videoEl.muted = isActive ? reelsMuted : true;
+      if (isActive && !reelPaused.has(idx)) {
+        videoEl.play().catch(() => {});
+      } else if (!isActive) {
+        videoEl.pause();
       }
-      if (iframeEl) {
-        if (isActive && !reelPaused.has(idx)) {
-          syncYouTubePlaybackState(iframeEl, { shouldMute: reelsMuted, shouldPlay: true });
-        } else {
-          postYouTubeCommand(iframeEl, 'stopVideo');
-          syncYouTubePlaybackState(iframeEl, { shouldMute: true, shouldPlay: false });
-        }
+    });
+
+    // Sync YouTube iframes via refs
+    Object.entries(reelYouTubeRefs.current).forEach(([idxStr, iframeEl]) => {
+      const idx = Number(idxStr);
+      if (!iframeEl || Number.isNaN(idx)) return;
+      const isActive = idx === activeReelIndex;
+      if (isActive && !reelPaused.has(idx)) {
+        syncYouTubePlaybackState(iframeEl, { shouldMute: reelsMuted, shouldPlay: true });
+      } else if (!isActive) {
+        postYouTubeCommand(iframeEl, 'stopVideo');
+        syncYouTubePlaybackState(iframeEl, { shouldMute: true, shouldPlay: false });
       }
     });
   }, [activeReelIndex, reelPaused, currentPageKey, reelsMuted]);
 
-  // Sync mute state to all native video elements in reels
+  // Sync mute state to all native video elements in reels (using refs for performance)
   useEffect(() => {
-    if (currentPageKey !== 'videos' || !reelsContainerRef.current) return;
-    const frames = reelsContainerRef.current.querySelectorAll('.reel-frame');
-    frames.forEach((frame) => {
-      const idx = parseInt(frame.dataset.reelIdx, 10);
-      if (Number.isNaN(idx)) return;
-      const isActive = idx === activeReelIndex;
-      const videoEl = frame.querySelector('video');
-      if (videoEl) {
-        videoEl.muted = isActive ? reelsMuted : true;
-      }
-      const iframeEl = frame.querySelector('iframe');
-      if (iframeEl) {
-        syncYouTubeAudioState(iframeEl, isActive ? reelsMuted : true);
-      }
+    if (currentPageKey !== 'videos') return;
+    Object.entries(reelVideoRefs.current).forEach(([idxStr, videoEl]) => {
+      const idx = Number(idxStr);
+      if (!videoEl || Number.isNaN(idx)) return;
+      videoEl.muted = idx === activeReelIndex ? reelsMuted : true;
+    });
+    Object.entries(reelYouTubeRefs.current).forEach(([idxStr, iframeEl]) => {
+      const idx = Number(idxStr);
+      if (!iframeEl || Number.isNaN(idx)) return;
+      syncYouTubeAudioState(iframeEl, idx === activeReelIndex ? reelsMuted : true);
     });
   }, [reelsMuted, currentPageKey, activeReelIndex]);
 
@@ -460,7 +457,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                                 shouldPlay: isActive && !isPaused,
                               });
                             }}
-                            src={`${embed.src}?autoplay=${isActive ? 1 : 0}&mute=${isActive ? (reelsMuted ? 1 : 0) : 1}&loop=1&playlist=${embed.id}&controls=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&fs=0&disablekb=1&vq=hd1080&enablejsapi=1&origin=${window.location.origin}`}
+                            src={`${embed.src}?autoplay=${isActive ? 1 : 0}&mute=${isActive ? (reelsMuted ? 1 : 0) : 1}&loop=1&playlist=${embed.id}&controls=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&fs=0&disablekb=1&vq=hd720&enablejsapi=1&origin=${window.location.origin}`}
                             title={item.title}
                             frameBorder="0"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -573,7 +570,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       {/* Top right Settings cog dropdown */}
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', pointerEvents: 'auto', position: 'relative' }}>
                         <button 
-                          className="w-9 h-9 rounded-full bg-black/35 text-white flex items-center justify-center border border-white/10 backdrop-blur-md cursor-pointer hover:bg-black/60 transition-colors"
+                          className="w-9 h-9 rounded-full bg-black/35 text-white flex items-center justify-center border border-white/10  cursor-pointer hover:bg-black/60 transition-colors"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -584,7 +581,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                         </button>
                         
                         {activeDropdownIndex === idx && (
-                          <div className="absolute right-0 top-11 bg-black/85 border border-white/15 rounded-xl p-1.5 shadow-2xl z-[150] min-w-[130px] backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-150" onClick={(e) => e.stopPropagation()}>
+                          <div className="absolute right-0 top-11 bg-black/85 border border-white/15 rounded-xl p-1.5 shadow-2xl z-[150] min-w-[130px]  animate-in fade-in slide-in-from-top-2 duration-150" onClick={(e) => e.stopPropagation()}>
                              {((adminData?.role === 'admin' || adminData?.role === 'superadmin') || (item.creator_id && item.creator_id === localStorage.getItem('adminId')) || (adminData && (item.creator_id === adminData.id || item.creator_id === adminData._id || (item.creator_name && item.creator_name === adminData.name)))) && onDelete ? (
                               <button 
                                 className="w-full text-left px-3 py-2 text-xs font-bold text-red-400 hover:bg-red-950/40 rounded-lg flex items-center gap-2 cursor-pointer transition-colors"
