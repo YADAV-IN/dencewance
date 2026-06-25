@@ -530,7 +530,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   return (
     <div className="bg-black w-full h-[100dvh] md:h-full flex flex-col relative text-white animate-fade-in overflow-hidden z-[100]">
       {/* Header */}
-      <div className="absolute top-0 w-full z-10 p-4 flex justify-between items-center bg-gradient-to-b from-black/60 to-transparent">
+      <div className="absolute top-0 w-full z-50 p-4 flex justify-between items-center bg-gradient-to-b from-black/60 to-transparent">
          {capturedMediaBlob ? (
            <button onClick={resetCamera} className="w-12 h-12 bg-black/60 rounded-full flex items-center justify-center z-50 text-white cursor-pointer active:scale-95"><X size={28} /></button>
          ) : (
