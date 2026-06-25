@@ -214,13 +214,13 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
       
       const processItems = (items) => {
         items.forEach(item => {
-          const id = item.creator_id || (item.creator && (item.creator.id || item.creator._id));
+          const id = item.creator_id || item.author_id || (item.creator && (item.creator.id || item.creator._id));
           if (!id) return;
           if (!idMap.has(id)) {
             idMap.set(id, {
               id,
-              name: item.author_name || (item.creator && item.creator.name) || 'Unknown',
-              avatar: item.author_avatar || (item.creator && item.creator.avatar_url),
+              name: item.creator_name || item.author_name || (item.creator && item.creator.name) || 'Unknown',
+              avatar: item.creator_avatar || item.author_avatar || item.source || (item.creator && item.creator.avatar_url) || '',
               reelsCount: 0,
               postsCount: 0
             });
@@ -231,11 +231,11 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
       processItems(posts);
       
       reels.forEach(r => {
-        const id = r.creator_id || (r.creator && (r.creator.id || r.creator._id));
+        const id = r.creator_id || r.author_id || (r.creator && (r.creator.id || r.creator._id));
         if (id && idMap.has(id)) idMap.get(id).reelsCount++;
       });
       posts.forEach(p => {
-        const id = p.creator_id || (p.creator && (p.creator.id || p.creator._id));
+        const id = p.creator_id || p.author_id || (p.creator && (p.creator.id || p.creator._id));
         if (id && idMap.has(id)) idMap.get(id).postsCount++;
       });
       

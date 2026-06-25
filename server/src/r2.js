@@ -57,3 +57,14 @@ export const deleteR2ObjectByKey = async (key) => {
   await s3Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET_NAME, Key: key }));
   return true;
 };
+
+export const uploadR2Object = async (key, buffer, contentType) => {
+  if (!s3Client) throw new Error('R2 not configured');
+  await s3Client.send(new PutObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+  }));
+  return R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${key}` : `https://${R2_BUCKET_NAME}.${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`;
+};

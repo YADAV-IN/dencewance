@@ -7,7 +7,7 @@ import cors from 'cors';
 import multer from 'multer';
 import multerS3 from 'multer-s3';
 import { cacheRoute, clearCache } from './utils/redis.js';
-import { s3Client, hasR2Config as oldHasR2Config, generatePresignedUrl, listAllR2Files } from './r2.js';
+import { s3Client, hasR2Config as oldHasR2Config, generatePresignedUrl, listAllR2Files, uploadR2Object } from './r2.js';
 const hasR2Config = oldHasR2Config;
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -21,6 +21,11 @@ import { slugify } from './utils/slug.js';
 import { getReadingTime } from './utils/readingTime.js';
 import { deleteR2ObjectByKey } from './r2.js';
 import { deleteStoredMedia, deleteMultipleFiles } from './utils/deletion.js';
+import fs from 'fs';
+import ffmpeg from 'fluent-ffmpeg';
+import ffmpegStatic from 'ffmpeg-static';
+
+ffmpeg.setFfmpegPath(ffmpegStatic);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -254,6 +259,12 @@ const packetUpload = multer({
   limits: { fileSize: 50 * 1024 * 1024 },
 });
 
+// memoryUpload is used for endpoints that process buffers directly (FFmpeg filtering and Music tracks)
+const memoryUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 200 * 1024 * 1024 },
+});
+
 app.get('/', (req, res) => res.json({status: 'OK', message: 'Backend is running! Open Frontend on Port 3000'}));
 
 app.use(cors({
@@ -277,6 +288,83 @@ app.use('/api/posts', (req, res, next) => {
   next();
 });
 
+// FFmpeg Video Processing Endpoint
+app.post('/api/reels/process', memoryUpload.single('video'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No video uploaded' });
+  const filterName = req.body.filter || 'None';
+  if (filterName === 'None' || filterName === 'Normal') {
+    res.setHeader('Content-Type', req.file.mimetype || 'video/mp4');
+    return res.send(req.file.buffer);
+  }
+
+  try {
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    const inputPath = path.join(uploadsDir, `temp-in-${Date.now()}.mp4`);
+    const outputPath = path.join(uploadsDir, `temp-out-${Date.now()}.mp4`);
+    fs.writeFileSync(inputPath, req.file.buffer);
+
+    let vf = '';
+    const normFilter = String(filterName).toLowerCase();
+    
+    if (normFilter === 'b&w' || normFilter === 'noir' || normFilter === 'moon') {
+      vf = 'format=gray,eq=contrast=1.2:brightness=0.02';
+    } else if (normFilter === 'sepia' || normFilter === 'vintage' || normFilter === 'crema' || normFilter === 'reyes') {
+      vf = 'colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131';
+    } else if (normFilter === 'vibrant' || normFilter === 'juno' || normFilter === 'lark' || normFilter === 'ludwig') {
+      vf = 'eq=saturation=1.4:contrast=1.1';
+    } else if (normFilter === 'clarendon') {
+      vf = 'eq=contrast=1.2:saturation=1.3:brightness=0.02';
+    } else if (normFilter === 'gingham') {
+      vf = 'hue=h=-10,eq=brightness=1.05';
+    } else if (normFilter === 'slumber') {
+      vf = 'eq=saturation=0.7:brightness=1.02';
+    } else if (normFilter === 'cinematic') {
+      vf = 'eq=contrast=1.2:saturation=1.1,hue=h=-5';
+    } else if (normFilter === 'moody') {
+      vf = 'eq=brightness=-0.05:contrast=1.3:saturation=0.8';
+    } else if (normFilter === 'warm') {
+      vf = 'eq=contrast=1.05:saturation=1.2,colorchannelmixer=1:0:0:0:0:1:0:0:0:0:0.9:0';
+    } else if (normFilter === 'cyberpunk') {
+      vf = 'eq=contrast=1.3:saturation=1.5,hue=h=30';
+    } else if (normFilter === 'glitch') {
+      vf = 'hue=h=90,eq=saturation=1.8:contrast=1.2';
+    } else if (normFilter === 'dreamy') {
+      vf = 'eq=contrast=1.05:brightness=1.05:saturation=1.2';
+    }
+
+    if (!vf) {
+       res.setHeader('Content-Type', req.file.mimetype || 'video/mp4');
+       fs.unlinkSync(inputPath);
+       return res.send(req.file.buffer);
+    }
+
+    ffmpeg(inputPath)
+      .outputOptions([
+        '-b:v 8000k', // High quality bitrate
+        '-preset ultrafast'
+      ])
+      .videoFilters(vf)
+      .save(outputPath)
+      .on('end', () => {
+         const outBuffer = fs.readFileSync(outputPath);
+         res.setHeader('Content-Type', 'video/mp4');
+         res.send(outBuffer);
+         try { fs.unlinkSync(inputPath); fs.unlinkSync(outputPath); } catch(e) {}
+      })
+      .on('error', (err) => {
+         console.error('FFmpeg error:', err);
+         res.status(500).json({ error: 'Failed to process video' });
+         try { fs.unlinkSync(inputPath); } catch(e) {}
+      });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Appwrite Reverse Proxy Route
 app.all('/v1/*', async (req, res) => {
   try {
@@ -298,6 +386,13 @@ app.all('/v1/*', async (req, res) => {
 
     // We can't easily proxy multipart/form-data using standard fetch if body is already parsed by multer.
     // Assuming standard JSON requests for most Appwrite calls (except storage which might go direct or fail).
+    
+    // Fallback logic inside Proxy
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      if (req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
+        // Safe to proxy JSON
+      }
+    }
     const options = {
       method: req.method,
       headers: headers,
@@ -3486,7 +3581,7 @@ app.get('/api/music', async (req, res) => {
   }
 });
 
-app.post('/api/music', upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), async (req, res) => {
+app.post('/api/music', memoryUpload.fields([{ name: 'audio', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), async (req, res) => {
   try {
     const secret = req.headers['x-developer-secret'] || req.body.developer_secret;
     if (secret !== process.env.DEVELOPER_SECRET && secret !== 'DENCEWANCE_DEV_2026') {
@@ -3494,7 +3589,7 @@ app.post('/api/music', upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'c
     }
 
     const { title, artist } = req.body;
-    if (!title || !req.files['audio']) {
+    if (!title || !req.files || !req.files['audio']) {
       return res.status(400).json({ error: 'Title and audio file are required.' });
     }
 
@@ -3510,7 +3605,18 @@ app.post('/api/music', upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'c
       const fallbackPath = path.join(uploadsDir, safeName);
       fs.writeFileSync(fallbackPath, audioFile.buffer);
       audioUrl = `${process.env.API_BASE_URL || 'http://localhost:4000'}/uploads/${safeName}`;
-    } else {
+    } else if (hasR2Config) {
+      try {
+        const timestamp = Date.now();
+        const ext = audioFile.originalname ? audioFile.originalname.split('.').pop() : 'mp3';
+        const key = `users/music/${timestamp}-${Math.round(Math.random() * 1e9)}.${ext}`;
+        audioUrl = await uploadR2Object(key, audioFile.buffer, audioFile.mimetype || 'audio/mpeg');
+      } catch (uploadErr) {
+        console.warn('Music R2 upload failed, falling back to Appwrite:', uploadErr?.message || uploadErr);
+      }
+    }
+
+    if (!audioUrl) {
       const audioInput = InputFile.fromBuffer(audioFile.buffer, audioFile.originalname || 'audio.mp3');
       const audioAppwrite = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), audioInput);
       audioUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, audioAppwrite.$id);
@@ -3528,7 +3634,18 @@ app.post('/api/music', upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'c
         const fallbackPath = path.join(uploadsDir, safeName);
         fs.writeFileSync(fallbackPath, coverFile.buffer);
         coverUrl = `${process.env.API_BASE_URL || 'http://localhost:4000'}/uploads/${safeName}`;
-      } else {
+      } else if (hasR2Config) {
+        try {
+          const timestamp = Date.now();
+          const ext = coverFile.originalname ? coverFile.originalname.split('.').pop() : 'jpg';
+          const key = `users/music/covers/${timestamp}-${Math.round(Math.random() * 1e9)}.${ext}`;
+          coverUrl = await uploadR2Object(key, coverFile.buffer, coverFile.mimetype || 'image/jpeg');
+        } catch (uploadErr) {
+          console.warn('Cover R2 upload failed, falling back to Appwrite:', uploadErr?.message || uploadErr);
+        }
+      }
+
+      if (!coverUrl) {
         const coverInput = InputFile.fromBuffer(coverFile.buffer, coverFile.originalname || 'cover.jpg');
         const coverAppwrite = await appwriteStorage.createFile(APPWRITE_BUCKET_ID, ID.unique(), coverInput);
         coverUrl = buildAppwriteFileViewUrl(APPWRITE_BUCKET_ID, coverAppwrite.$id);
@@ -3559,7 +3676,7 @@ app.delete('/api/music/:id', async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
     
-    await MusicTrack.delete(req.params.id);
+    await MusicTrack.findByIdAndDelete(req.params.id);
     return res.json({ success: true });
   } catch (err) {
     console.error('Music delete error:', err);

@@ -61,10 +61,13 @@ export const buildCreatorIdentity = ({
   const anonymousId = getOrCreatePersistentId(LOCAL_KEYS.anonymous, 'anon', seed);
   const developerId = getOrCreatePersistentId(LOCAL_KEYS.developer, 'dev', seed);
   const genericId = `creator_${stableHash(seed || name || handle || Date.now()).slice(0, 10)}`;
+  
+  const stableName = name ? name.trim() : '';
+  const customId = stableName ? `custom_${stableHash(stableName).slice(0, 10)}` : '';
 
   const officialId = activeUploader || adminId || (adminToken ? adminId : '') || genericId;
-  const developerIdentityId = activeUploader || developerId || genericId;
-  const anonymousIdentityId = anonymousId || genericId;
+  const developerIdentityId = stableName ? customId : (activeUploader || developerId || genericId);
+  const anonymousIdentityId = stableName ? customId : (anonymousId || genericId);
 
   const base = {
     creator_avatar: avatar || '',
@@ -79,7 +82,7 @@ export const buildCreatorIdentity = ({
       return {
         ...base,
         creator_mode: 'anonymous',
-        creator_id: anonymousIdentityId,
+        creator_id: stableName ? customId : anonymousIdentityId,
         creator_name: displayName,
         creator_handle: handle || `anon-${stableHash(seed || displayName).slice(0, 8)}`,
       };
@@ -104,7 +107,7 @@ export const buildCreatorIdentity = ({
     return {
       ...base,
       creator_mode: 'developer',
-      creator_id: developerIdentityId,
+      creator_id: stableName ? customId : developerIdentityId,
       creator_name: displayName,
       creator_handle: handle || slugify(displayName, 'developer'),
     };
@@ -115,7 +118,7 @@ export const buildCreatorIdentity = ({
     return {
       ...base,
       creator_mode: 'male',
-      creator_id: genericId,
+      creator_id: stableName ? customId : genericId,
       creator_name: displayName,
       creator_handle: handle || slugify(displayName, 'denceboy'),
       creator_avatar: avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`,
@@ -127,7 +130,7 @@ export const buildCreatorIdentity = ({
     return {
       ...base,
       creator_mode: 'female',
-      creator_id: genericId,
+      creator_id: stableName ? customId : genericId,
       creator_name: displayName,
       creator_handle: handle || slugify(displayName, 'dencegirl'),
       creator_avatar: avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`,
@@ -138,7 +141,7 @@ export const buildCreatorIdentity = ({
   return {
     ...base,
     creator_mode: 'anonymous',
-    creator_id: anonymousIdentityId,
+    creator_id: stableName ? customId : anonymousIdentityId,
     creator_name: displayName,
     creator_handle: handle || `anon-${stableHash(seed || displayName).slice(0, 8)}`,
   };

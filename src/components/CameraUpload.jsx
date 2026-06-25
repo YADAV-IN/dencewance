@@ -72,6 +72,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   const [activeFilterIndex, setActiveFilterIndex] = useState(0);
   const [caption, setCaption] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isProcessingBackend, setIsProcessingBackend] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [destinationType, setDestinationType] = useState('auto'); // 'auto', 'post', 'reel'
   const [isFaceMeshLoading, setIsFaceMeshLoading] = useState(false);
@@ -777,12 +778,38 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
               <div className="w-16 h-12 text-[10px] font-semibold text-gray-500 text-center flex items-center justify-center leading-tight">
                  {galleryVideoUrl ? (
                     <button 
-                      onClick={(e) => {
+                      onClick={async (e) => {
                          e.preventDefault();
-                         if (isRecording) return;
+                         if (isRecording || isProcessingBackend) return;
                          
-                         if (activeFilter.name !== 'None') {
-                            // Start processing video with filter
+                         if (activeFilter.category !== 'Face' && galleryVideoUrl) {
+                            // Use Backend FFmpeg for high quality color filters!
+                            setIsProcessingBackend(true);
+                            try {
+                               const formData = new FormData();
+                               formData.append('video', rawGalleryFile);
+                               formData.append('filter', activeFilter.name);
+                               
+                               const res = await fetch(`${API_URL}/api/reels/process`, {
+                                  method: 'POST',
+                                  body: formData
+                               });
+                               
+                               if (res.ok) {
+                                  const blob = await res.blob();
+                                  setCapturedMediaBlob(blob);
+                                  setCapturedMediaUrl(URL.createObjectURL(blob));
+                               } else {
+                                  startRecording(); // fallback
+                               }
+                            } catch(err) {
+                               console.error(err);
+                               startRecording(); // fallback
+                            } finally {
+                               setIsProcessingBackend(false);
+                            }
+                         } else if (activeFilter.name !== 'None') {
+                            // Face filters MUST use canvas
                             startRecording();
                          } else {
                             // No filter, upload raw immediately
@@ -792,9 +819,9 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
                             }
                          }
                       }}
-                      className={`${isRecording ? 'bg-zinc-600 text-zinc-300 shadow-none' : 'bg-pink-500 hover:bg-pink-400 text-white shadow-[0_0_15px_rgba(236,72,153,0.5)]'} font-black px-4 py-3 rounded-full text-sm whitespace-nowrap transition-all`}
+                      className={`${(isRecording || isProcessingBackend) ? 'bg-zinc-600 text-zinc-300 shadow-none' : 'bg-pink-500 hover:bg-pink-400 text-white shadow-[0_0_15px_rgba(236,72,153,0.5)]'} font-black px-4 py-3 rounded-full text-sm whitespace-nowrap transition-all`}
                     >
-                      {isRecording ? 'Processing...' : 'Post Video'}
+                      {(isRecording || isProcessingBackend) ? 'Processing...' : 'Post Video'}
                     </button>
                  ) : (
                    <>Tap Photo<br/>Hold Video</>
