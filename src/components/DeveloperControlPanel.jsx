@@ -676,6 +676,35 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                   </div>
                 </div>
 
+                <hr className="border-gray-100" />
+
+                {/* Section 3 */}
+                <div>
+                  <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <User size={16} className="text-red-500" /> Identity Management
+                  </h4>
+                  
+                  <div className="flex items-center justify-between bg-red-50 border border-red-100 rounded-xl p-5">
+                    <div>
+                      <label className="text-sm font-bold text-red-900 block">Delete Developer Profile</label>
+                      <p className="text-xs text-red-700 mt-1">Clears the developer identity from your browser so you can create a fresh one.</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to delete your Developer Identity?')) {
+                          localStorage.removeItem('dwDeveloperCreatorId');
+                          localStorage.removeItem('activeUploader');
+                          alert('Developer Identity deleted. Please refresh.');
+                          window.location.reload();
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded shadow transition-colors flex items-center gap-2"
+                    >
+                      <Trash2 size={14} /> Delete Profile
+                    </button>
+                  </div>
+                </div>
+  
               </div>
 
               <div className="p-4 bg-gray-50 border-t border-gray-200 flex justify-end">

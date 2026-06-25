@@ -566,7 +566,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
         <header className="sticky top-0 z-50 bg-[#FAF7EE] border-b border-gray-200/60 px-4 py-3 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => setActiveTab('home')}>
             <span className="font-serif font-black text-[22px] italic tracking-wide text-[#2B2315] leading-none">
-              Dence Wance
+              dencewance
             </span>
           </div>
 

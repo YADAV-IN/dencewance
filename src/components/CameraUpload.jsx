@@ -83,7 +83,8 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   const musicAudioRef = useRef(null);
   
   // Gallery Video State
-  const [galleryVideoUrl, setGalleryVideoUrl] = useState(null);
+  const [galleryVideoUrl, setGalleryVideoUrl] = useState('');
+  const [rawGalleryFile, setRawGalleryFile] = useState(null);
 
   const activeFilter = FILTERS[activeFilterIndex];
 
@@ -522,6 +523,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       // Instead of going to preview, load it into the canvas player!
       const url = URL.createObjectURL(file);
       setGalleryVideoUrl(url);
+      setRawGalleryFile(file);
       setMediaType('video');
       setDestinationType('reel');
       if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
@@ -537,7 +539,9 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   const resetCamera = () => {
     setCapturedMediaBlob(null);
     setCapturedMediaUrl('');
-    setGalleryVideoUrl(null);
+    setGalleryVideoUrl('');
+    setRawGalleryFile(null);
+    setSelectedMusic(null);
     setMediaType(null);
     setCaption('');
     setUploadProgress(0);
@@ -770,7 +774,17 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
 
               <div className="w-12 h-12 text-[10px] font-semibold text-gray-500 text-center flex items-center justify-center leading-tight">
                  {galleryVideoUrl ? (
-                   <>Tap to<br/>Record</>
+                   <button 
+                     onClick={() => {
+                        if(rawGalleryFile) {
+                          setCapturedMediaBlob(rawGalleryFile);
+                          setCapturedMediaUrl(galleryVideoUrl);
+                        }
+                     }}
+                     className="bg-white text-black font-bold px-3 py-1.5 rounded-full shadow-lg text-xs"
+                   >
+                     Next
+                   </button>
                  ) : (
                    <>Tap Photo<br/>Hold Video</>
                  )}

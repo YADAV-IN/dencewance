@@ -33,7 +33,7 @@ const stableHash = (input = '') => {
 const slugify = (value = '', fallback = 'creator') => {
   const slug = String(value || '')
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/[^a-z0-9_.]+/g, '') // Remove anything that isn't alphanumeric, underscore, or dot (no hyphens for spaces)
     .replace(/^-+|-+$/g, '');
   return slug || fallback;
 };
