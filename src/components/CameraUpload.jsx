@@ -22,6 +22,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   const token = propToken || localStorage.getItem('adminToken') || '';
   const videoRef = useRef(null);
   const mediaRecorderRef = useRef(null);
+  const streamRef = useRef(null);
   
   const [stream, setStream] = useState(null);
   const [facingMode, setFacingMode] = useState('user'); // 'user' or 'environment'
@@ -44,14 +45,15 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   // Initialize Camera
   const startCamera = useCallback(async () => {
     try {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
       }
       const constraints = {
-        video: { facingMode: facingMode, width: { ideal: 1080 }, height: { ideal: 1920 } },
+        video: { facingMode: facingMode, width: { ideal: 720 }, height: { ideal: 1280 } },
         audio: true
       };
       const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = newStream;
       setStream(newStream);
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
@@ -63,6 +65,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       try {
         const constraints = { video: { facingMode: facingMode } };
         const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+        streamRef.current = newStream;
         setStream(newStream);
         if (videoRef.current) {
           videoRef.current.srcObject = newStream;
@@ -80,9 +83,11 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       startCamera();
     }
     return () => {
-      if (stream) stream.getTracks().forEach(track => track.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
     };
-  }, [capturedMediaBlob, facingMode]); 
+  }, [capturedMediaBlob, facingMode, startCamera]); 
 
   const toggleCamera = () => {
     setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
@@ -114,9 +119,9 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   };
 
   const startRecording = () => {
-    if (!stream) return;
+    if (!streamRef.current) return;
     setRecordedChunks([]);
-    const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+    const recorder = new MediaRecorder(streamRef.current, { mimeType: 'video/webm', videoBitsPerSecond: 2500000 });
     
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) setRecordedChunks(prev => [...prev, e.data]);
@@ -146,7 +151,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
        const blob = new Blob(recordedChunks, { type: 'video/webm' });
        setCapturedMediaBlob(blob);
        setCapturedMediaUrl(URL.createObjectURL(blob));
-       if (stream) stream.getTracks().forEach(track => track.stop());
+       if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
     }
   }, [recordedChunks, isRecording, mediaType]);
 
@@ -160,7 +165,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
     }
     setCapturedMediaBlob(file);
     setCapturedMediaUrl(URL.createObjectURL(file));
-    if (stream) stream.getTracks().forEach(track => track.stop());
+    if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
   };
 
   const resetCamera = () => {
@@ -244,7 +249,10 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
          {capturedMediaBlob ? (
            <button onClick={resetCamera} className="w-10 h-10 bg-black/40 rounded-full flex items-center justify-center backdrop-blur"><X size={24} /></button>
          ) : (
-           <button onClick={() => onClose && onClose()} className="w-10 h-10 bg-black/40 rounded-full flex items-center justify-center backdrop-blur"><X size={24} /></button>
+           <button onClick={() => {
+              if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
+              if (onClose) onClose();
+           }} className="w-10 h-10 bg-black/40 rounded-full flex items-center justify-center backdrop-blur"><X size={24} /></button>
          )}
          <span className="font-bold tracking-wider">{capturedMediaBlob ? 'Preview' : 'Camera'}</span>
          {!capturedMediaBlob && hasCameraAccess ? (

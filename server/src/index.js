@@ -1862,7 +1862,7 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
 
     const reelOwnerId = String(reel.creator_id || reel.creatorId || reel.uploaderId || '').trim();
     const reelOwnerHandle = String(reel.creator_handle || '').trim().toLowerCase();
-    const currentUserId = String(currentUser._id || '').trim();
+    const currentUserId = String(currentUser._id || req.adminId || '').trim();
     const currentUserHandle = String(currentUser.handle || currentUser.username || currentUser.name || '').trim().toLowerCase();
     const ownsReel = reelOwnerId && reelOwnerId === currentUserId;
     const matchesLegacyIdentity = !reelOwnerId && (reelOwnerHandle && reelOwnerHandle === currentUserHandle);
@@ -2173,8 +2173,11 @@ app.put('/api/news/:id', requireAuth, async (req, res) => {
 app.delete('/api/news/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const currentUser = await Admin.findById(req.adminId);
-    if (!currentUser) return res.status(404).json({ error: 'User not found.' });
+    let currentUser = await Admin.findById(req.adminId);
+    if (!currentUser) {
+      // Fallback for appwrite users without Admin records
+      currentUser = { _id: req.adminId, role: 'author' };
+    }
     
     // Check ownership
     const news = await News.findById(id);
