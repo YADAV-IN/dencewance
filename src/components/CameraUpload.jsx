@@ -6,15 +6,24 @@ import { buildCreatorIdentity } from '../utils/creatorIdentity';
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 const FILTERS = [
-  { name: 'Normal', css: 'none' },
-  { name: 'Cinematic', css: 'contrast(1.2) saturate(1.1) sepia(0.2) hue-rotate(-10deg)' },
-  { name: 'Moody', css: 'brightness(0.9) contrast(1.3) saturate(0.8)' },
-  { name: 'Vintage', css: 'sepia(0.4) contrast(1.1) brightness(0.9) hue-rotate(-20deg)' },
-  { name: 'Cyberpunk', css: 'contrast(1.4) saturate(1.5) hue-rotate(45deg)' },
-  { name: 'Noir', css: 'grayscale(1) contrast(1.5)' },
-  { name: 'Glitch', css: 'hue-rotate(90deg) saturate(2) contrast(1.2)' },
-  { name: 'Dreamy', css: 'blur(1px) contrast(1.1) brightness(1.1) saturate(1.2)' },
-  { name: 'Warm', css: 'sepia(0.3) saturate(1.4) contrast(1.1)' }
+  { name: 'Normal', css: 'none', category: 'Classic' },
+  { name: 'Clarendon', css: 'contrast(1.2) saturate(1.3) sepia(0.1)', category: 'Classic' },
+  { name: 'Gingham', css: 'brightness(1.05) hue-rotate(350deg)', category: 'Classic' },
+  { name: 'Moon', css: 'grayscale(1) contrast(1.1) brightness(1.1)', category: 'Classic' },
+  { name: 'Lark', css: 'contrast(0.9) saturate(1.1) brightness(1.1)', category: 'Classic' },
+  { name: 'Reyes', css: 'sepia(0.2) brightness(1.1) contrast(0.8)', category: 'Classic' },
+  { name: 'Juno', css: 'saturate(1.4) contrast(1.1) sepia(0.1)', category: 'Classic' },
+  { name: 'Slumber', css: 'saturate(0.6) sepia(0.3) brightness(1.05)', category: 'Classic' },
+  { name: 'Crema', css: 'sepia(0.5) contrast(1.1) brightness(1.1)', category: 'Classic' },
+  { name: 'Ludwig', css: 'contrast(1.1) saturate(1.2) brightness(1.05)', category: 'Classic' },
+  { name: 'Cinematic', css: 'contrast(1.2) saturate(1.1) sepia(0.2) hue-rotate(-10deg)', category: 'Pro' },
+  { name: 'Moody', css: 'brightness(0.9) contrast(1.3) saturate(0.8)', category: 'Pro' },
+  { name: 'Vintage', css: 'sepia(0.4) contrast(1.1) brightness(0.9) hue-rotate(-20deg)', category: 'Pro' },
+  { name: 'Noir', css: 'grayscale(1) contrast(1.5)', category: 'Pro' },
+  { name: 'Warm', css: 'sepia(0.3) saturate(1.4) contrast(1.1)', category: 'Pro' },
+  { name: 'Cyberpunk', css: 'contrast(1.4) saturate(1.5) hue-rotate(45deg)', category: 'Effects' },
+  { name: 'Glitch', css: 'hue-rotate(90deg) saturate(2) contrast(1.2)', category: 'Effects' },
+  { name: 'Dreamy', css: 'blur(1px) contrast(1.1) brightness(1.1) saturate(1.2)', category: 'Effects' }
 ];
 
 export default function CameraUpload({ token: propToken, onComplete, onClose }) {
@@ -37,6 +46,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   const [capturedMediaUrl, setCapturedMediaUrl] = useState('');
   
   // Editor state
+  const [activeCategory, setActiveCategory] = useState('Classic');
   const [activeFilterIndex, setActiveFilterIndex] = useState(0);
   const [caption, setCaption] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -378,9 +388,22 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       {/* Controls & Editor */}
       <div className="w-full bg-black z-20 flex flex-col pb-6 md:pb-8 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
         
+        {/* Category Tabs */}
+        <div className="flex justify-center gap-6 text-xs font-semibold pt-2 text-gray-500">
+           {['Classic', 'Pro', 'Effects'].map(cat => (
+             <button 
+                key={cat} 
+                onClick={() => setActiveCategory(cat)}
+                className={`transition-colors ${activeCategory === cat ? 'text-white border-b-2 border-pink-500 pb-1' : 'hover:text-gray-300 pb-1'}`}
+             >
+                {cat}
+             </button>
+           ))}
+        </div>
+
         {/* Filters Scroll */}
-        <div className="w-full py-4 px-2 overflow-x-auto flex gap-3 snap-x hide-scrollbar">
-          {FILTERS.map((f, i) => (
+        <div className="w-full py-2 px-2 overflow-x-auto flex gap-3 snap-x hide-scrollbar">
+          {FILTERS.map((f, i) => f.category === activeCategory && (
              <button 
                 key={f.name}
                 onClick={() => setActiveFilterIndex(i)}
