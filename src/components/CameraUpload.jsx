@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Camera, RefreshCw, Circle, Square, Video, Image as ImageIcon, Send, X, Check } from 'lucide-react';
+import { Camera, RefreshCw, Circle, Square, Video, Image as ImageIcon, Send, X, Check, LayoutGrid, Film } from 'lucide-react';
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
 import { buildCreatorIdentity } from '../utils/creatorIdentity';
 
@@ -7,15 +7,14 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 
 const FILTERS = [
   { name: 'Normal', css: 'none' },
-  { name: 'Clarendon', css: 'contrast(1.2) saturate(1.3) sepia(0.1)' },
-  { name: 'Gingham', css: 'brightness(1.05) hue-rotate(350deg)' },
-  { name: 'Moon', css: 'grayscale(1) contrast(1.1) brightness(1.1)' },
-  { name: 'Lark', css: 'contrast(0.9) saturate(1.1) brightness(1.1)' },
-  { name: 'Reyes', css: 'sepia(0.2) brightness(1.1) contrast(0.8)' },
-  { name: 'Juno', css: 'saturate(1.4) contrast(1.1) sepia(0.1)' },
-  { name: 'Slumber', css: 'saturate(0.6) sepia(0.3) brightness(1.05)' },
-  { name: 'Crema', css: 'sepia(0.5) contrast(1.1) brightness(1.1)' },
-  { name: 'Ludwig', css: 'contrast(1.1) saturate(1.2) brightness(1.05)' }
+  { name: 'Cinematic', css: 'contrast(1.2) saturate(1.1) sepia(0.2) hue-rotate(-10deg)' },
+  { name: 'Moody', css: 'brightness(0.9) contrast(1.3) saturate(0.8)' },
+  { name: 'Vintage', css: 'sepia(0.4) contrast(1.1) brightness(0.9) hue-rotate(-20deg)' },
+  { name: 'Cyberpunk', css: 'contrast(1.4) saturate(1.5) hue-rotate(45deg)' },
+  { name: 'Noir', css: 'grayscale(1) contrast(1.5)' },
+  { name: 'Glitch', css: 'hue-rotate(90deg) saturate(2) contrast(1.2)' },
+  { name: 'Dreamy', css: 'blur(1px) contrast(1.1) brightness(1.1) saturate(1.2)' },
+  { name: 'Warm', css: 'sepia(0.3) saturate(1.4) contrast(1.1)' }
 ];
 
 export default function CameraUpload({ token: propToken, onComplete, onClose }) {
@@ -23,6 +22,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   const videoRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
+  const pressTimeoutRef = useRef(null);
   
   const [stream, setStream] = useState(null);
   const [facingMode, setFacingMode] = useState('user'); // 'user' or 'environment'
@@ -41,6 +41,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   const [caption, setCaption] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [destinationType, setDestinationType] = useState('auto'); // 'auto', 'post', 'reel'
 
   // Initialize Camera
   const startCamera = useCallback(async () => {
@@ -78,7 +79,6 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
         setHasCameraAccess(true);
       } catch (err2) {
         console.error("Camera fallback error:", err2);
-        // Do not alert aggressively, just rely on file upload fallback
       }
     }
   }, [facingMode]);
@@ -90,6 +90,9 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (pressTimeoutRef.current) {
+        clearTimeout(pressTimeoutRef.current);
       }
     };
   }, [capturedMediaBlob, facingMode, startCamera]); 
@@ -119,6 +122,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       setCapturedMediaBlob(blob);
       setCapturedMediaUrl(URL.createObjectURL(blob));
       setMediaType('image');
+      setDestinationType('post');
       if (stream) stream.getTracks().forEach(track => track.stop());
     }, 'image/jpeg', 0.9);
   };
@@ -129,8 +133,8 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
     const mimeType = isSafari ? 'video/mp4' : 'video/webm';
     
-    // Check if preferred type is supported, otherwise fallback
-    const options = { videoBitsPerSecond: 2500000 };
+    // Increased quality to 3.5Mbps for better visual fidelity
+    const options = { videoBitsPerSecond: 3500000 };
     if (MediaRecorder.isTypeSupported(mimeType)) {
       options.mimeType = mimeType;
     }
@@ -142,7 +146,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
     };
     
     recorder.onstop = () => {
-      // Logic handled in useEffect below
+      // Handled in useEffect
     };
     
     mediaRecorderRef.current = recorder;
@@ -151,12 +155,36 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      setTimeout(() => {
-        setMediaType('video');
-      }, 500);
+    }
+    setIsRecording(false);
+    setTimeout(() => {
+      setMediaType('video');
+      setDestinationType('reel');
+    }, 500);
+  };
+
+  const handlePointerDown = (e) => {
+    e.preventDefault();
+    if (pressTimeoutRef.current) clearTimeout(pressTimeoutRef.current);
+    
+    pressTimeoutRef.current = setTimeout(() => {
+      startRecording();
+    }, 300); // 300ms hold starts video
+  };
+
+  const handlePointerUp = (e) => {
+    e.preventDefault();
+    if (pressTimeoutRef.current) {
+      clearTimeout(pressTimeoutRef.current);
+      pressTimeoutRef.current = null;
+    }
+    if (isRecording) {
+      stopRecording();
+    } else {
+      // Tap (under 300ms)
+      capturePhoto();
     }
   };
 
@@ -174,8 +202,10 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
     if (!file) return;
     if (file.type.startsWith('video/')) {
       setMediaType('video');
+      setDestinationType('reel');
     } else {
       setMediaType('image');
+      setDestinationType('post');
     }
     setCapturedMediaBlob(file);
     setCapturedMediaUrl(URL.createObjectURL(file));
@@ -189,6 +219,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
     setCaption('');
     setUploadProgress(0);
     setRecordedChunks([]);
+    setDestinationType('auto');
     startCamera();
   };
 
@@ -196,8 +227,10 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
     if (!capturedMediaBlob) return;
     setIsUploading(true);
     
+    // Determine the actual destination based on user choice, not just mediaType
+    const isDestReel = destinationType === 'reel';
+    const endpoint = isDestReel ? '/api/reels' : '/api/news';
     const isVideo = mediaType === 'video';
-    const endpoint = isVideo ? '/api/reels' : '/api/news';
     
     try {
       const bucketId = import.meta.env.VITE_APPWRITE_BUCKET_ID || 'media';
@@ -216,7 +249,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
         name: ''
       });
 
-          const payload = isVideo 
+      const payload = isDestReel 
         ? {
             title: caption.slice(0, 20) || 'My Reel',
             caption: caption,
@@ -277,58 +310,73 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       </div>
 
       {/* Viewfinder / Preview Area */}
-      <div className="flex-1 w-full bg-zinc-900 relative flex items-center justify-center overflow-hidden">
-        {!capturedMediaBlob ? (
-           hasCameraAccess ? (
-             <video 
-               ref={videoRef} 
-               autoPlay 
-               playsInline 
-               muted 
-               className="w-full h-full object-cover"
-               style={{ 
-                 transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
-                 filter: currentFilterCss
-               }}
-             />
-           ) : (
-             <div className="text-zinc-500 flex flex-col items-center">
-                <Camera size={48} className="mb-4 opacity-50" />
-                <p>Camera access denied or unavailable</p>
-             </div>
-           )
-        ) : (
-          <>
-            {mediaType === 'image' ? (
-              <img 
-                src={capturedMediaUrl} 
-                className="w-full h-full object-cover" 
-                style={{ 
-                  filter: currentFilterCss,
-                  transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' 
-                }} 
-                alt="Preview" 
-              />
-            ) : (
-              <video 
-                src={capturedMediaUrl} 
-                autoPlay 
-                loop 
-                playsInline 
-                controls
-                className="w-full h-full object-cover"
-                style={{ 
-                  filter: currentFilterCss,
-                  transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' 
-                }} 
-              />
-            )}
-          </>
+      <div className="flex-1 w-full bg-zinc-950 relative flex items-center justify-center overflow-hidden">
+        
+        {/* Background blur for portrait card effect on preview */}
+        {capturedMediaBlob && (
+          <div 
+            className="absolute inset-0 opacity-40 scale-110 blur-2xl z-0" 
+            style={{
+              backgroundImage: `url(${mediaType === 'image' ? capturedMediaUrl : ''})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
+          />
         )}
+
+        <div className={`relative z-10 ${capturedMediaBlob ? 'w-[90%] max-w-sm aspect-[9/16] rounded-2xl overflow-hidden shadow-2xl border border-zinc-800' : 'w-full h-full'}`}>
+          {!capturedMediaBlob ? (
+             hasCameraAccess ? (
+               <video 
+                 ref={videoRef} 
+                 autoPlay 
+                 playsInline 
+                 muted 
+                 className="w-full h-full object-cover"
+                 style={{ 
+                   transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+                   filter: currentFilterCss
+                 }}
+               />
+             ) : (
+               <div className="w-full h-full text-zinc-500 flex flex-col items-center justify-center bg-zinc-900">
+                  <Camera size={48} className="mb-4 opacity-50" />
+                  <p>Camera access denied or unavailable</p>
+               </div>
+             )
+          ) : (
+            <>
+              {mediaType === 'image' ? (
+                <img 
+                  src={capturedMediaUrl} 
+                  className="w-full h-full object-contain bg-black/50" 
+                  style={{ 
+                    filter: currentFilterCss,
+                    // REMOVED transform scaleX(-1) so text is readable
+                  }} 
+                  alt="Preview" 
+                />
+              ) : (
+                <video 
+                  src={capturedMediaUrl} 
+                  autoPlay 
+                  loop 
+                  playsInline 
+                  controls
+                  className="w-full h-full object-contain bg-black/50"
+                  style={{ 
+                    filter: currentFilterCss,
+                    // REMOVED transform scaleX(-1) so text is readable
+                  }} 
+                />
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Controls & Editor */}
-      <div className="w-full bg-black z-10 flex flex-col pb-6 md:pb-8">
+      <div className="w-full bg-black z-20 flex flex-col pb-6 md:pb-8 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
         
         {/* Filters Scroll */}
         <div className="w-full py-4 px-2 overflow-x-auto flex gap-3 snap-x hide-scrollbar">
@@ -360,21 +408,38 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
 
               {/* Shutter Button */}
               <button 
-                 onMouseDown={startRecording}
-                 onMouseUp={stopRecording}
-                 onMouseLeave={stopRecording}
-                 onTouchStart={startRecording}
-                 onTouchEnd={stopRecording}
-                 onClick={capturePhoto} 
-                 className={`w-20 h-20 rounded-full border-4 flex items-center justify-center transition-all ${isRecording ? 'border-red-500 scale-125' : 'border-white'}`}
+                 onPointerDown={handlePointerDown}
+                 onPointerUp={handlePointerUp}
+                 onPointerLeave={handlePointerUp}
+                 onContextMenu={(e) => e.preventDefault()} // Prevent context menu on long press
+                 className={`w-20 h-20 rounded-full border-4 flex items-center justify-center transition-all ${isRecording ? 'border-red-500 scale-125' : 'border-white'} touch-none`}
               >
-                 <div className={`w-16 h-16 rounded-full ${isRecording ? 'bg-red-500' : 'bg-white'}`}></div>
+                 <div className={`w-16 h-16 rounded-full ${isRecording ? 'bg-red-500 scale-50' : 'bg-white'} transition-all duration-300`}></div>
               </button>
 
-              <div className="w-12 h-12"></div>
+              <div className="w-12 h-12 text-[10px] font-semibold text-gray-500 text-center flex items-center justify-center">
+                 Tap for Photo<br/>Hold for Video
+              </div>
            </div>
         ) : (
            <div className="px-4 py-2 flex flex-col gap-4">
+              
+              {/* Destination Toggle */}
+              <div className="flex bg-zinc-900 rounded-lg p-1 w-full max-w-[200px] mx-auto mb-2">
+                 <button 
+                   onClick={() => setDestinationType('post')}
+                   className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-xs font-semibold rounded-md transition-all ${destinationType === 'post' ? 'bg-white text-black shadow' : 'text-gray-400'}`}
+                 >
+                   <LayoutGrid size={14} /> Post
+                 </button>
+                 <button 
+                   onClick={() => setDestinationType('reel')}
+                   className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-xs font-semibold rounded-md transition-all ${destinationType === 'reel' ? 'bg-white text-black shadow' : 'text-gray-400'}`}
+                 >
+                   <Film size={14} /> Clip
+                 </button>
+              </div>
+
               <div className="flex gap-2">
                  <textarea 
                    placeholder="Add a caption..." 
@@ -387,7 +452,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
               {isUploading ? (
                  <div className="w-full mb-2">
                     <div className="flex justify-between text-xs text-gray-400 mb-1">
-                       <span>Publishing to Feed...</span>
+                       <span>Publishing...</span>
                        <span className="font-bold text-white text-sm">{uploadProgress}%</span>
                     </div>
                     <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
@@ -399,7 +464,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
                    onClick={handlePublish}
                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-pink-500/30"
                  >
-                   Share to Story/Feed <Send size={18} />
+                   Share <Send size={18} />
                  </button>
               )}
            </div>
