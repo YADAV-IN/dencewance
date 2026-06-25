@@ -697,7 +697,7 @@ class Model {
           }
         }
         console.error(`[Appwrite] Create Error in ${this.collectionId}:`, err);
-        return null;
+        throw err;
       }
     };
     return tryInsert(payload);
