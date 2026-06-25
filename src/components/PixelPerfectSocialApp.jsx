@@ -97,6 +97,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
   const [recommendations, setRecommendations] = useState({ tags: [], reels: [] });
   const [postLikes, setPostLikes] = useState({});
   const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [showPyqBubble, setShowPyqBubble] = useState(localStorage.getItem('SHOW_PYQ_BUBBLE') === 'true');
 
   useEffect(() => {
     const checkMobile = () => {
@@ -359,8 +360,19 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
       setIsLoading(false);
     });
 
+    const updatePyqSettings = () => {
+      setShowPyqBubble(localStorage.getItem('SHOW_PYQ_BUBBLE') === 'true');
+    };
+    const handleOpenPyq = () => {
+      setActiveTab('pyq');
+    };
+    window.addEventListener('pyqSettingsUpdated', updatePyqSettings);
+    window.addEventListener('openPyq', handleOpenPyq);
+
     return () => {
       window.removeEventListener('trendingSettingsUpdated', fetchAndFilterReels);
+      window.removeEventListener('pyqSettingsUpdated', updatePyqSettings);
+      window.removeEventListener('openPyq', handleOpenPyq);
     };
   }, []);
 
@@ -535,21 +547,23 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
           </div>
 
           <div className="flex items-center gap-[12px]">
-            <div className="relative cursor-pointer w-9 h-9 rounded-full bg-black/5 border border-black/5 flex items-center justify-center hover:bg-black/10 transition-colors" onClick={() => setActiveTab('messages')}>
-              <MessageSquare size={18} className="text-[#2B2315]" />
-              <span className="absolute -top-1 -right-1 bg-[#FFD700] text-[#3A125E] text-[9px] font-extrabold w-4.5 h-4.5 rounded-full flex items-center justify-center border border-white">1</span>
+            <div className="relative cursor-pointer w-9 h-9 rounded-full bg-[#FAF7EE] flex items-center justify-center border border-[#2B2315]/30 hover:bg-black/5 transition-colors shrink-0" onClick={() => setActiveTab('messages')}>
+              <MessageSquare size={16} className="text-[#2B2315]" />
+              <span className="absolute -top-1 -right-1 bg-[#FFD700] text-[#3A125E] text-[9px] font-extrabold w-4.5 h-4.5 rounded-full flex items-center justify-center border border-[#FAF7EE]">1</span>
             </div>
-            <div className="relative cursor-pointer w-9 h-9 rounded-full bg-black/5 border border-black/5 flex items-center justify-center hover:bg-black/10 transition-colors">
-              <Bell size={18} className="text-[#2B2315]" />
-              <span className="absolute -top-1 -right-1 bg-[#FFD700] text-[#3A125E] text-[9px] font-extrabold w-4.5 h-4.5 rounded-full flex items-center justify-center border border-white">3</span>
+            <div className="relative cursor-pointer w-9 h-9 rounded-full bg-[#FAF7EE] flex items-center justify-center border border-[#2B2315]/30 hover:bg-black/5 transition-colors shrink-0">
+              <Bell size={16} className="text-[#2B2315]" />
+              <span className="absolute -top-1 -right-1 bg-[#FFD700] text-[#3A125E] text-[9px] font-extrabold w-4.5 h-4.5 rounded-full flex items-center justify-center border border-[#FAF7EE]">3</span>
             </div>
 
-            <button 
-              onClick={() => setActiveTab('pyq')}
-              className="w-9 h-9 rounded-full bg-[#FAF7EE] text-[#2B2315] font-serif font-black italic text-[11px] flex items-center justify-center border border-[#2B2315]/30 hover:bg-black/5 transition-colors cursor-pointer select-none shrink-0"
-            >
-              PYQ
-            </button>
+            {showPyqBubble && (
+              <button 
+                onClick={() => setActiveTab('pyq')}
+                className="w-9 h-9 rounded-full bg-[#FAF7EE] text-[#2B2315] font-serif font-black italic text-[11px] flex items-center justify-center border border-[#2B2315]/30 hover:bg-black/5 transition-colors cursor-pointer select-none shrink-0 shadow-sm"
+              >
+                PYQ
+              </button>
+            )}
 
             {setViewMode && !isMobileDevice && (
               <button 

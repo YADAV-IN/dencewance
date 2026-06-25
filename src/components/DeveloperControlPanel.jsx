@@ -12,6 +12,7 @@ export default function CreateInstagramMenu({ token: propToken, onComplete }) {
   // Settings State
   const [trendingLimit, setTrendingLimit] = useState(Number(localStorage.getItem('TRENDING_REELS_LIMIT')) || 12);
   const [trendingHours, setTrendingHours] = useState(Number(localStorage.getItem('TRENDING_REELS_HOURS')) || 24);
+  const [showPyqBubble, setShowPyqBubble] = useState(localStorage.getItem('SHOW_PYQ_BUBBLE') === 'true');
 
   // Post State
   const [postContent, setPostContent] = useState('');
@@ -135,9 +136,15 @@ export default function CreateInstagramMenu({ token: propToken, onComplete }) {
   const handleSaveSettings = () => {
     localStorage.setItem('TRENDING_REELS_LIMIT', trendingLimit);
     localStorage.setItem('TRENDING_REELS_HOURS', trendingHours);
-    alert('Trending Settings Saved Globally (for this device)! Note: In a real backend, this would sync to all users.');
+    localStorage.setItem('SHOW_PYQ_BUBBLE', showPyqBubble);
+    alert('Settings Saved Globally (for this device)! Note: In a real backend, this would sync to all users.');
     // Trigger a custom event to notify PixelPerfectSocialApp to reload reels if needed
     window.dispatchEvent(new Event('trendingSettingsUpdated'));
+    window.dispatchEvent(new Event('pyqSettingsUpdated'));
+  };
+
+  const handleOpenPyq = () => {
+    window.dispatchEvent(new Event('openPyq'));
   };
 
   return (
@@ -219,6 +226,30 @@ export default function CreateInstagramMenu({ token: propToken, onComplete }) {
               />
               <p className="text-xs text-gray-500">Clips older than this will not be considered trending.</p>
             </div>
+
+            <hr className="border-gray-800 my-2" />
+            
+            <h3 className="text-xl font-bold text-cyan-400">PYQ Feature Configuration</h3>
+            
+            <div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-lg p-4">
+              <div>
+                <label className="text-sm font-semibold text-gray-300 block">Enable PYQ Bubble</label>
+                <p className="text-xs text-gray-500 mt-1">Show floating PYQ button on screen</p>
+              </div>
+              <button
+                onClick={() => setShowPyqBubble(!showPyqBubble)}
+                className={`w-12 h-6 rounded-full relative transition-colors ${showPyqBubble ? 'bg-cyan-500' : 'bg-gray-700'}`}
+              >
+                <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${showPyqBubble ? 'translate-x-7' : 'translate-x-1'}`} />
+              </button>
+            </div>
+            
+            <button 
+              onClick={handleOpenPyq}
+              className="w-full border border-gray-600 hover:bg-gray-800 text-gray-300 font-bold py-3 rounded-xl transition"
+            >
+              Open PYQ Page Directly
+            </button>
 
             <button 
               onClick={handleSaveSettings}
