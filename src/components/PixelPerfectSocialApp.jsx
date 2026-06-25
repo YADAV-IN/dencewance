@@ -562,7 +562,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                 Explore the Latest Clips
               </h2>
 
-              <div className="flex overflow-x-auto gap-4 pb-2 scrollbar-hide">
+              <div className="flex overflow-x-auto gap-4 py-2 px-1 scrollbar-hide scroll-smooth snap-x snap-mandatory transform-gpu" style={{ WebkitOverflowScrolling: 'touch' }}>
 
                 {/* Status List */}
                 {statuses.length > 0 ? (
@@ -601,7 +601,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                           setActiveStoryIndex(i);
                           setActiveTab('stories');
                         }}
-                        className="flex flex-col items-center shrink-0 cursor-pointer select-none group"
+                        className="flex flex-col items-center shrink-0 cursor-pointer select-none group snap-center transform-gpu"
                       >
                         <div className={`w-[114px] h-[182px] ${theme.wrapperClass}`}>
                           <div className={theme.innerBg}>
@@ -672,7 +672,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                   })
                 ) : (
                   Array(3).fill(0).map((_, idx) => (
-                    <div key={idx} className="flex flex-col items-center shrink-0 animate-pulse">
+                    <div key={idx} className="flex flex-col items-center shrink-0 animate-pulse snap-center transform-gpu">
                       <div className="w-[114px] h-[182px] rounded-[24px] bg-black/5"></div>
                     </div>
                   ))
