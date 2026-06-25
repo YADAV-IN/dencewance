@@ -148,6 +148,54 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
     window.dispatchEvent(new Event('pyqSettingsUpdated'));
   };
 
+  const handleDeleteDeveloperIdentity = async () => {
+    if (!window.confirm('Are you sure you want to delete your Developer Identity and ALL associated posts and clips?')) return;
+    
+    const developerId = localStorage.getItem('activeUploader') || localStorage.getItem('dwDeveloperCreatorId');
+    
+    if (developerId) {
+        setIsUploading(true);
+        try {
+            // Fetch and delete reels
+            const reelsRes = await fetch(`${API_URL}/api/reels`);
+            if (reelsRes.ok) {
+                const reelsData = await reelsRes.json();
+                const myReels = (reelsData.data || []).filter(r => r.creator_id === developerId || (r.creator && (r.creator.id === developerId || r.creator._id === developerId)));
+                for (const reel of myReels) {
+                    const rId = reel._id || reel.id;
+                    await fetch(`${API_URL}/api/reels/${rId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                }
+            }
+            
+            // Fetch and delete posts
+            const postsRes = await fetch(`${API_URL}/api/posts`);
+            if (postsRes.ok) {
+                const postsData = await postsRes.json();
+                const myPosts = (postsData.data || []).filter(p => p.creator_id === developerId || (p.creator && (p.creator.id === developerId || p.creator._id === developerId)));
+                for (const post of myPosts) {
+                    const pId = post._id || post.id;
+                    await fetch(`${API_URL}/api/posts/${pId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error deleting data:', error);
+        } finally {
+            setIsUploading(false);
+        }
+    }
+    
+    localStorage.removeItem('dwDeveloperCreatorId');
+    localStorage.removeItem('activeUploader');
+    alert('Developer Identity and data deleted. Please refresh.');
+    window.location.reload();
+  };
+
   const loadMusicTracks = async () => {
     try {
       const res = await fetch(`${API_URL}/api/music`);
@@ -305,6 +353,20 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                   <p className="text-sm text-gray-500 font-semibold">Published Reels</p>
                   <p className="text-2xl font-black text-gray-900">842</p>
                 </div>
+              </div>
+
+              {/* Quick Deletion Action */}
+              <div className="col-span-1 md:col-span-2 lg:col-span-3 bg-red-50 p-6 rounded-2xl border border-red-100 shadow-sm mt-4 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+                <div className="relative z-10 flex-1">
+                  <h3 className="text-xl font-black text-red-900 mb-2">Clean Up Developer Data</h3>
+                  <p className="text-red-700 text-sm max-w-md">Quickly delete your developer identity and all associated posts & clips from the database in one click.</p>
+                </div>
+                <button 
+                  onClick={handleDeleteDeveloperIdentity}
+                  className="relative z-10 px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30 flex items-center gap-2 whitespace-nowrap shrink-0"
+                >
+                  <Trash2 size={18} /> Delete My ID & Data
+                </button>
               </div>
               
               <div className="col-span-1 md:col-span-2 lg:col-span-3 bg-gradient-to-br from-[#3A125E] to-[#240b3b] p-6 rounded-2xl text-white shadow-xl mt-4 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
@@ -690,14 +752,7 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                       <p className="text-xs text-red-700 mt-1">Clears the developer identity from your browser so you can create a fresh one.</p>
                     </div>
                     <button
-                      onClick={() => {
-                        if (window.confirm('Are you sure you want to delete your Developer Identity?')) {
-                          localStorage.removeItem('dwDeveloperCreatorId');
-                          localStorage.removeItem('activeUploader');
-                          alert('Developer Identity deleted. Please refresh.');
-                          window.location.reload();
-                        }
-                      }}
+                      onClick={handleDeleteDeveloperIdentity}
                       className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded shadow transition-colors flex items-center gap-2"
                     >
                       <Trash2 size={14} /> Delete Profile
