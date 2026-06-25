@@ -121,7 +121,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
     // willReadFrequently forces CPU rendering which ensures captureStream() doesn't skip CSS filters due to hardware acceleration bugs on Chrome Android
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     
-    if (video.readyState >= video.HAVE_CURRENT_DATA) {
+    if (video.readyState >= video.HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0) {
       // Size canvas to video
       if (canvas.width !== video.videoWidth) {
          canvas.width = video.videoWidth;
@@ -276,6 +276,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
       setStream(newStream);
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
+        videoRef.current.play().catch(e => console.error(e));
       }
       setHasCameraAccess(true);
     } catch (err) {
@@ -288,6 +289,7 @@ export default function CameraUpload({ token: propToken, onComplete, onClose }) 
         setStream(newStream);
         if (videoRef.current) {
           videoRef.current.srcObject = newStream;
+          videoRef.current.play().catch(e => console.error(e));
         }
         setHasCameraAccess(true);
       } catch (err2) {
