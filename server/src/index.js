@@ -1849,10 +1849,19 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
   try {
     log(`🚀 REEL DELETION START: ${reelId}`);
 
+    const isDeveloperOverride = req.headers['x-developer-secret'] === 'DENCEWANCE_DEV_2026';
+
     // Permission check
-    let currentUser = await Admin.findById(req.adminId);
+    let currentUser = null;
+    if (!isDeveloperOverride) {
+      try {
+        currentUser = await Admin.findById(req.adminId);
+      } catch (err) {
+        log(`Warning: Admin.findById failed for id ${req.adminId} - ${err.message}`);
+      }
+    }
     if (!currentUser) {
-      currentUser = { _id: req.adminId, role: 'author' };
+      currentUser = { _id: req.adminId, role: isDeveloperOverride ? 'developer' : 'author' };
     }
 
     const reel = await Reel.findById(reelId);
@@ -1866,8 +1875,6 @@ app.delete('/api/reels/:id', requireAuth, async (req, res) => {
     const currentUserHandle = String(currentUser.handle || currentUser.username || currentUser.name || '').trim().toLowerCase();
     const ownsReel = reelOwnerId && reelOwnerId === currentUserId;
     const matchesLegacyIdentity = !reelOwnerId && (reelOwnerHandle && reelOwnerHandle === currentUserHandle);
-
-    const isDeveloperOverride = req.headers['x-developer-secret'] === 'DENCEWANCE_DEV_2026';
 
     if (!isDeveloperOverride && currentUser.role !== 'admin' && currentUser.role !== 'superadmin' && currentUser.role !== 'developer' && !ownsReel && !matchesLegacyIdentity) {
       return res.status(403).json({ error: 'Permission denied to delete this reel.' });
