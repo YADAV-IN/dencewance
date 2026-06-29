@@ -63,6 +63,30 @@ const resolveMediaUrl = (url) => {
   return `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
+const getSmokeGradient = (story) => {
+  const title = String(story.title || '').toLowerCase();
+  const caption = String(story.caption || '').toLowerCase();
+  const text = title + ' ' + caption;
+  
+  if (text.includes('dark') || text.includes('black') || text.includes('charcoal') || text.includes('night') || text.includes('darkness')) {
+    return 'radial-gradient(circle at center, rgba(30, 30, 30, 0.85) 0%, rgba(15, 15, 15, 0.95) 50%, transparent 80%)';
+  }
+  if (text.includes('white') || text.includes('light') || text.includes('bright') || text.includes('grey') || text.includes('gray')) {
+    return 'radial-gradient(circle at center, rgba(240, 240, 240, 0.85) 0%, rgba(180, 180, 180, 0.6) 50%, transparent 80%)';
+  }
+  
+  // Create dynamic triadic colorful smoke colors based on a hash of the title / creator
+  const seed = story.title || story.creator_name || String(story.id || 'dencewance');
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue1 = Math.abs(hash) % 360;
+  const hue2 = (hue1 + 120) % 360; // 120 degrees apart for high contrast colourful blend
+  
+  return `radial-gradient(circle at center, hsla(${hue1}, 90%, 60%, 0.75) 0%, hsla(${hue2}, 85%, 50%, 0.6) 45%, transparent 80%)`;
+};
+
 export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMode }) {
   const getRefinedAvatar = (nameOrHandle, avatarUrl) => {
     if (avatarUrl && typeof avatarUrl === 'string' && avatarUrl.trim() !== '' && 
@@ -85,7 +109,13 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName || 'U')}&background=random`;
   };
 
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState(() => {
+    if (localStorage.getItem('just_logged_in_admin') === 'true') {
+      localStorage.removeItem('just_logged_in_admin');
+      return 'developer';
+    }
+    return 'home';
+  });
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
   const [viewingMedia, setViewingMedia] = useState('reel');
   const [statuses, setStatuses] = useState([]);
@@ -100,6 +130,8 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
   const [postLikes, setPostLikes] = useState({});
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [showPyqBubble, setShowPyqBubble] = useState(localStorage.getItem('SHOW_PYQ_BUBBLE') === 'true');
+  const [enableSmokeTheme, setEnableSmokeTheme] = useState(localStorage.getItem('ENABLE_SMOKE_THEME') === 'true');
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -116,17 +148,20 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
 
   // Profile Specific State
   const [profileViewMode, setProfileViewMode] = useState('dashboard'); // 'dashboard' or 'content'
-  const [profileActiveTab, setProfileActiveTab] = useState('grid'); // 'grid' or 'list'
+  const [profileActiveTab, setProfileActiveTab] = useState('grid'); // 'grid', 'list', or 'similar'
   const [adminData, setAdminData] = useState(null);
+  const [allUsers, setAllUsers] = useState([]);
   const [selectedProfileId, setSelectedProfileId] = useState(null);
   const [showStorageManager, setShowStorageManager] = useState(false);
   const [storageUsageSummary, setStorageUsageSummary] = useState(null);
   const [openMenuFor, setOpenMenuFor] = useState(null);
+  const [isBioExpanded, setIsBioExpanded] = useState(false);
 
   // Edit Profile Modal states
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [editName, setEditName] = useState('');
   const [editBio, setEditBio] = useState('');
+  const [editTags, setEditTags] = useState('');
   const [editUsername, setEditUsername] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
   const [usernameStatus, setUsernameStatus] = useState({ checking: false, available: null, reason: '' });
@@ -137,6 +172,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
   const openEditProfileModal = () => {
     setEditName(adminData?.name || '');
     setEditBio(adminData?.bio || '');
+    setEditTags(adminData?.tags?.join(', ') || '');
     setEditUsername(adminData?.username || adminData?.email?.split('@')[0] || '');
     setEditAvatar(adminData?.avatar_url || '');
     setUsernameStatus({ checking: false, available: true, reason: 'Current username' });
@@ -251,7 +287,8 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
         body: JSON.stringify({
           name: editName,
           bio: editBio,
-          username: editUsername,
+          tags: editTags.split(',').map(t => t.trim()).filter(Boolean),
+          username: editUsername.trim().toLowerCase(),
           avatar_url: editAvatar
         })
       });
@@ -265,7 +302,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
           localStorage.setItem('userHandle', updatedUser.username || updatedUser.email?.split('@')[0] || '');
           localStorage.setItem('userAvatar', updatedUser.avatar_url || '');
           
-          setReelsFeed(prev => prev.map(reel => {
+          setReelsFeed(prev => (prev || []).map(reel => {
             if (reel.creator_id === adminId) {
               return {
                 ...reel,
@@ -277,7 +314,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
             return reel;
           }));
           
-          setFeed(prev => prev.map(post => {
+          setFeed(prev => (prev || []).map(post => {
             if (post.author_id === adminId) {
               return {
                 ...post,
@@ -373,18 +410,36 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
       setIsLoading(false);
     });
 
+    // Real-time silent update polling every 4 seconds
+    const interval = setInterval(() => {
+      fetchAndFilterReels();
+      fetch(`${API_URL}/api/news`)
+        .then(res => res.ok ? res.json() : { data: [] })
+        .then(data => {
+          if (data && Array.isArray(data.data)) {
+            setFeed(data.data);
+          }
+        });
+    }, 4000);
+
     const updatePyqSettings = () => {
       setShowPyqBubble(localStorage.getItem('SHOW_PYQ_BUBBLE') === 'true');
+    };
+    const updateSmokeTheme = () => {
+      setEnableSmokeTheme(localStorage.getItem('ENABLE_SMOKE_THEME') === 'true');
     };
     const handleOpenPyq = () => {
       setActiveTab('pyq');
     };
     window.addEventListener('pyqSettingsUpdated', updatePyqSettings);
+    window.addEventListener('smokeThemeUpdated', updateSmokeTheme);
     window.addEventListener('openPyq', handleOpenPyq);
 
     return () => {
+      clearInterval(interval);
       window.removeEventListener('trendingSettingsUpdated', fetchAndFilterReels);
       window.removeEventListener('pyqSettingsUpdated', updatePyqSettings);
+      window.removeEventListener('smokeThemeUpdated', updateSmokeTheme);
       window.removeEventListener('openPyq', handleOpenPyq);
     };
   }, []);
@@ -396,6 +451,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
         .then(r => r.json())
         .then(data => {
           const list = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+          setAllUsers(list);
           const me = list.find(a => a._id === adminId || a.id === adminId);
           if (me) {
             setAdminData(me);
@@ -619,6 +675,20 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                 .circular-glow-pulse {
                   animation: circleGlowPulse 2.5s infinite ease-in-out;
                 }
+                @keyframes smokeAmbient {
+                  0% { transform: scale(1) translate(0, 0) rotate(0deg); opacity: 0.3; filter: hue-rotate(0deg); }
+                  50% { transform: scale(1.5) translate(-10%, -10%) rotate(180deg); opacity: 0.6; filter: hue-rotate(180deg); }
+                  100% { transform: scale(1) translate(0, 0) rotate(360deg); opacity: 0.3; filter: hue-rotate(360deg); }
+                }
+                .smoke-layer {
+                  position: absolute;
+                  inset: -50%;
+                  animation: smokeAmbient 10s infinite linear alternate;
+                  pointer-events: none;
+                  z-index: 0;
+                  mix-blend-mode: normal;
+                  filter: blur(12px);
+                }
               `}</style>
               <h2 className="text-[#2B2315] font-sans font-bold text-base tracking-tight mb-4 flex items-center gap-1.5">
                 Explore Trending Clips
@@ -668,6 +738,12 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                         <div className={`w-[114px] h-[182px] ${theme.wrapperClass}`}>
                           <div className={theme.innerBg}>
                             <div className={theme.innerBorder}>
+                              {enableSmokeTheme && (
+                                <div 
+                                  className="smoke-layer" 
+                                  style={{ background: getSmokeGradient(story) }}
+                                ></div>
+                              )}
                               
                               {/* Refined Circular Avatar with Story-style border */}
                               <div className="absolute top-2 left-2 w-[26px] h-[26px] rounded-full p-[1.2px] bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] shadow-[0_2px_6px_rgba(0,0,0,0.25)] flex items-center justify-center z-20">
@@ -791,7 +867,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                               }}
                             >
                               {post.author_name || 'PREETAM SINGH YADAV'}
-                              <GoldVerifiedBadge size={16} />
+                              {((post.author_id === adminId && adminData?.is_verified) || post.author_is_verified) && <GoldVerifiedBadge size={16} />}
                             </h3>
                             <span className="text-gray-400 font-semibold text-[11px] mt-0.5">
                               {new Date(post.published_at || post.created_at || Date.now()).toLocaleDateString()} • Pre-recorded
@@ -1022,12 +1098,26 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                               setActiveTab('stories');
                             }}
                           >
-                            <SkeletonImage 
-                              src={resolveMediaUrl(r.cover_image_url)} 
-                              alt="Reel Cover" 
-                              className="w-full h-full object-cover opacity-85 group-hover:scale-102 transition-transform duration-300"
-                              wrapperStyle={{ width: '100%', height: '100%', display: 'block' }}
-                            />
+                            {r.cover_image_url ? (
+                              <SkeletonImage 
+                                src={resolveMediaUrl(r.cover_image_url)} 
+                                alt="Reel Cover" 
+                                className="w-full h-full object-cover opacity-85 group-hover:scale-102 transition-transform duration-300"
+                                wrapperStyle={{ width: '100%', height: '100%', display: 'block' }}
+                              />
+                            ) : r.video_url ? (
+                              <video 
+                                src={resolveMediaUrl(r.video_url)} 
+                                className="w-full h-full object-cover opacity-85 group-hover:scale-102 transition-transform duration-300" 
+                                preload="metadata"
+                                playsInline
+                                muted
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-[#3A125E]/20 flex items-center justify-center">
+                                <Music size={14} className="text-white/20" />
+                              </div>
+                            )}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent flex flex-col justify-end p-2.5">
                               <span className="text-white text-[11px] font-bold truncate">{r.title || 'Routine'}</span>
                               <span className="text-[#FFD700] text-[9px] font-semibold mt-0.5">@{r.creator_name || 'Dancer'}</span>
@@ -1086,12 +1176,26 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                               setActiveTab('stories');
                             }}
                           >
-                            <SkeletonImage 
-                              src={resolveMediaUrl(r.cover_image_url)} 
-                              alt="Reel Cover" 
-                              className="w-full h-full object-cover opacity-85 group-hover:scale-102 transition-transform duration-300"
-                              wrapperStyle={{ width: '100%', height: '100%', display: 'block' }}
-                            />
+                            {r.cover_image_url ? (
+                              <SkeletonImage 
+                                src={resolveMediaUrl(r.cover_image_url)} 
+                                alt="Reel Cover" 
+                                className="w-full h-full object-cover opacity-85 group-hover:scale-102 transition-transform duration-300"
+                                wrapperStyle={{ width: '100%', height: '100%', display: 'block' }}
+                              />
+                            ) : r.video_url ? (
+                              <video 
+                                src={resolveMediaUrl(r.video_url)} 
+                                className="w-full h-full object-cover opacity-85 group-hover:scale-102 transition-transform duration-300" 
+                                preload="metadata"
+                                playsInline
+                                muted
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-[#3A125E]/20 flex items-center justify-center">
+                                <Music size={14} className="text-white/20" />
+                              </div>
+                            )}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent flex flex-col justify-end p-2.5">
                               <span className="text-white text-[11px] font-bold truncate">{r.title}</span>
                               <span className="text-[#FFD700] text-[9px] font-semibold mt-0.5">@{r.creator_name}</span>
@@ -1119,7 +1223,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                               <img src={getRefinedAvatar(u.name || u.username || 'User', u.avatar_url)} alt="Avatar" className="w-full h-full object-cover" />
                             </div>
                             <div className="flex flex-col">
-                              <span className="text-[#3A125E] font-bold text-xs flex items-center gap-1 uppercase">{u.name} <GoldVerifiedBadge size={14} /></span>
+                              <span className="text-[#3A125E] font-bold text-xs flex items-center gap-1 uppercase">{u.name} {u.is_verified && <GoldVerifiedBadge size={14} />}</span>
                               <span className="text-gray-400 font-semibold text-[10px] mt-0.5">@{u.handle || 'dancer'}</span>
                             </div>
                           </div>
@@ -1174,357 +1278,283 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                   setToken(newToken);
                   setAdminId(newProfile.id || newProfile._id);
                   setAdminData(newProfile);
+                  localStorage.setItem('just_logged_in_admin', 'true');
+                  window.location.reload();
                 }}
               />
             </div>
           ) : (
-            <div className="p-4 pb-24 flex flex-col gap-4 animate-in fade-in duration-200">
-            {/* View Mode Toggle: Dashboard vs Grid layout */}
-            <div className="flex bg-[#3A125E]/5 border border-[#3A125E]/10 rounded-xl p-1 shrink-0">
+            <div className="p-4 pb-24 flex flex-col gap-5 animate-in fade-in duration-200">
+            
+            {/* Unified Creator Identity Card */}
+            <div className="bg-white rounded-[24px] p-5 shadow-[0_8px_30px_rgba(58,18,94,0.02)] border border-[#3A125E]/15 overflow-hidden text-[#2B2315] relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/[0.02] rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
+              
+              <div className="flex gap-4 relative z-10 items-start">
+                <div className="flex flex-col items-center gap-2.5 shrink-0 pt-1 w-[94px]">
+                  {/* Glowing Avatar */}
+                  <div className="w-[84px] h-[84px] rounded-[24px] p-[2.5px] bg-gradient-to-tr from-[#9B51E0] via-[#D4AF37] to-[#00FFFF] shadow-[0_8px_20px_rgba(58,18,94,0.12)] shrink-0 flex items-center justify-center relative overflow-hidden group">
+                    <div className="w-full h-full rounded-[21px] overflow-hidden bg-white">
+                      <img 
+                        src={getRefinedAvatar(adminData?.name || adminData?.username || 'Admin', adminData?.avatar_url)} 
+                        alt="Profile Avatar" 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Username Badge under Avatar */}
+                  <div className="bg-[#3A125E]/5 px-2 py-1.5 rounded-[12px] border border-[#3A125E]/10 flex items-center justify-center shadow-sm w-full">
+                    <span className="text-[#3A125E]/80 font-black text-[11px] lowercase break-all text-center leading-tight">
+                      @{adminData?.username || adminData?.email?.split('@')[0] || 'username'}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col justify-start flex-1 min-w-0 pt-1">
+                  <div className="flex items-center gap-1.5">
+                    <h2 className="font-sans font-black text-[13px] text-[#3A125E] leading-tight uppercase tracking-normal truncate">
+                      {adminData?.name || 'Creator'}
+                    </h2>
+                    {adminData?.is_verified && <GoldVerifiedBadge size={16} className="shrink-0" />}
+                  </div>
+                  
+                  <p className="text-[#3A125E]/60 font-extrabold text-[10px] uppercase tracking-wider mt-1">
+                    {adminData?.role ? adminData.role : ''}
+                  </p>
+                  
+                  {/* Expandable Bio block */}
+                  {adminData?.bio && (
+                    <div className="mt-2.5 relative">
+                      <p 
+                        onClick={() => setIsBioExpanded(!isBioExpanded)}
+                        className={`text-[#2B2315]/85 text-[11.5px] font-medium leading-relaxed italic cursor-pointer transition-all duration-300 ${isBioExpanded ? '' : 'line-clamp-2'}`}
+                      >
+                        "{adminData.bio}"
+                      </p>
+                      {!isBioExpanded && adminData.bio.length > 80 && (
+                        <button 
+                          onClick={() => setIsBioExpanded(true)}
+                          className="text-[#9B51E0] text-[9.5px] font-bold hover:underline mt-0.5"
+                        >
+                          Show more
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Tags block */}
+                  {adminData?.tags && adminData.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {adminData.tags.map((tag, idx) => (
+                        <span key={idx} className="px-1.5 py-0.5 bg-[#3A125E]/5 text-[#3A125E] text-[8.5px] font-bold rounded uppercase tracking-wider border border-[#3A125E]/10">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Stats Row inline */}
+                  <div className="flex gap-4 mt-3 pt-3 border-t border-[#3A125E]/10">
+                    <div className="flex flex-col">
+                      <span className="text-[12px] font-black text-[#3A125E]">
+                        {(allReelsFull.filter(r => String(r.creator_id) === String(adminId) || r.creator_name === adminData?.name)).length}
+                      </span>
+                      <span className="text-[8.5px] font-bold text-gray-400 uppercase tracking-wider">Clips</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[12px] font-black text-[#3A125E]">{adminData?.followers || 0}</span>
+                      <span className="text-[8.5px] font-bold text-gray-400 uppercase tracking-wider">Followers</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[12px] font-black text-[#3A125E]">{adminData?.following || 0}</span>
+                      <span className="text-[8.5px] font-bold text-gray-400 uppercase tracking-wider">Following</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status tag */}
+              <div className="mt-4 pt-3 border-t border-[#3A125E]/10 flex items-center justify-between">
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 text-[8.5px] font-bold uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Active Creator
+                </div>
+                <span className="text-[9px] font-bold text-gray-400 uppercase">📅 Joined 4/18/2026</span>
+              </div>
+            </div>
+
+            {/* Quick Actions Row */}
+            <div className="grid grid-cols-3 gap-3 shrink-0">
               <button 
-                onClick={() => setProfileViewMode('dashboard')}
-                className={`flex-1 py-2 text-[10.5px] font-bold tracking-wider uppercase rounded-lg transition-all cursor-pointer ${profileViewMode === 'dashboard' ? 'bg-[#3A125E] text-white shadow-md' : 'text-gray-500 hover:text-[#3A125E]'}`}
+                onClick={() => setActiveTab('add')}
+                className="flex items-center justify-center gap-1.5 py-3 rounded-xl bg-[#3A125E] text-white text-[10px] font-black uppercase tracking-wider shadow-[0_4px_12px_rgba(58,18,94,0.15)] cursor-pointer hover:bg-[#3A125E]/90 transition-all"
               >
-                Dashboard View
+                <Play size={12} fill="white" />
+                New Routine
               </button>
               <button 
-                onClick={() => setProfileViewMode('content')}
-                className={`flex-1 py-2 text-[10.5px] font-bold tracking-wider uppercase rounded-lg transition-all cursor-pointer ${profileViewMode === 'content' ? 'bg-[#3A125E] text-white shadow-md' : 'text-gray-500 hover:text-[#3A125E]'}`}
+                onClick={openEditProfileModal}
+                className="flex items-center justify-center gap-1.5 py-3 rounded-xl bg-white border border-[#3A125E]/15 text-[#3A125E] text-[10px] font-black uppercase tracking-wider cursor-pointer hover:bg-gray-50 transition-all"
               >
-                Grid & Connections
+                <UserCog size={12} />
+                Edit Profile
+              </button>
+              <button 
+                onClick={() => setShowSettingsModal(true)}
+                className="flex items-center justify-center gap-1.5 py-3 rounded-xl bg-white border border-[#3A125E]/15 text-[#3A125E] text-[10px] font-black uppercase tracking-wider cursor-pointer hover:bg-gray-50 transition-all"
+              >
+                <Settings size={12} />
+                Settings
               </button>
             </div>
 
-            {/* Profile Identity Card */}
-            <div className="bg-white rounded-[24px] p-4 shadow-[0_8px_30px_rgba(58,18,94,0.03)] relative border border-gray-100 overflow-hidden shrink-0">
-              {/* Subtle watermark background pattern */}
-              <div 
-                className="absolute inset-0 opacity-[0.03] pointer-events-none rounded-[24px]" 
-                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M54.627 0l.83.83-53.797 53.8-2.49-2.49L54.627 0z' fill='%233A125E' fill-opacity='1' fill-rule='evenodd'/%3E%3C/svg%3E")` }}>
+            {/* Content Tabs Navigation */}
+            <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgba(58,18,94,0.02)] border border-[#3A125E]/15 flex flex-col overflow-hidden">
+              <div className="flex border-b border-gray-100 shrink-0 bg-gray-50/50">
+                <button 
+                  onClick={() => setProfileActiveTab('grid')}
+                  className={`flex-1 py-3 text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer ${profileActiveTab === 'grid' ? 'text-[#3A125E] border-b-3 border-[#3A125E]' : 'text-gray-400'}`}
+                >
+                  My Clips Grid
+                </button>
+                <button 
+                  onClick={() => setProfileActiveTab('list')}
+                  className={`flex-1 py-3 text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer ${profileActiveTab === 'list' ? 'text-[#3A125E] border-b-3 border-[#3A125E]' : 'text-gray-400'}`}
+                >
+                  Connections List
+                </button>
+                <button 
+                  onClick={() => setProfileActiveTab('similar')}
+                  className={`flex-1 py-3 text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer ${profileActiveTab === 'similar' ? 'text-[#3A125E] border-b-3 border-[#3A125E]' : 'text-gray-400'}`}
+                >
+                  Tag Connections
+                </button>
               </div>
-              
-              <div className="flex gap-4 relative z-10">
-                <div className="w-[84px] h-[84px] rounded-[18px] overflow-hidden border-2 border-gray-100 shadow-sm shrink-0">
-                  <img 
-                    src={getRefinedAvatar(adminData?.name || adminData?.username || 'Admin', adminData?.avatar_url)} 
-                    alt="Profile Avatar" 
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="flex flex-col justify-center flex-1">
-                  <div className="flex items-start justify-between">
-                    <h2 className="font-black text-[15px] text-[#3A125E] leading-[1.2] uppercase tracking-wide">
-                      {adminData?.name || 'PREETAM SINGH YADAV'}
-                    </h2>
-                    <GoldVerifiedBadge size={18} className="shrink-0 mt-0.5" />
+
+              <div className="p-3">
+                {profileActiveTab === 'grid' ? (
+                  /* Professional Full Width Clips Grid */
+                  <div className="grid grid-cols-3 gap-2">
+                    {(() => {
+                      const myReels = allReelsFull.filter(r => String(r.creator_id) === String(adminId) || r.creator_name === adminData?.name);
+                      return myReels.length > 0 ? (
+                        myReels.map((item, idx) => (
+                          <div 
+                            key={item.id || idx} 
+                            className="aspect-[3/4] bg-slate-900 rounded-lg overflow-hidden relative cursor-pointer group shadow-sm"
+                            onClick={() => {
+                              setViewingMedia('reel');
+                              setActiveStoryIndex(idx);
+                              setActiveTab('stories');
+                            }}
+                          >
+                            {item.cover_image_url ? (
+                              <img src={resolveMediaUrl(item.cover_image_url)} alt="Thumbnail" className="w-full h-full object-cover" />
+                            ) : item.video_url ? (
+                              <video 
+                                src={resolveMediaUrl(item.video_url)} 
+                                className="w-full h-full object-cover" 
+                                preload="metadata"
+                                playsInline
+                                muted
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-[#3A125E]/20 flex items-center justify-center">
+                                <Music size={14} className="text-white/20" />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-black/10 z-5"></div>
+                            <div className="absolute inset-0 flex items-center justify-center z-10">
+                              <div className="w-6.5 h-6.5 rounded-full bg-black/30 border border-white/40 backdrop-blur-xs flex items-center justify-center text-white/95 group-hover:scale-105 transition-transform duration-200">
+                                <Play size={10} fill="white" className="ml-0.5" />
+                              </div>
+                            </div>
+                            <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/85 via-black/30 to-transparent flex flex-col z-10 leading-tight">
+                              <span className="text-white/70 text-[6.5px] uppercase font-semibold">Views</span>
+                              <span className="text-white text-[9px] font-black">{item.views ? (item.views > 999 ? (item.views/1000).toFixed(1) + 'k' : item.views) : '0'}</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="col-span-3 text-center py-8 text-gray-400 font-bold uppercase text-[10px]">No clips uploaded yet</div>
+                      );
+                    })()}
                   </div>
-                  <p className="text-gray-400 font-semibold text-[11px] mt-1.5">
-                    4/18/2026 • Recorded
-                  </p>
-                  <p className="text-[#3A125E]/60 font-bold text-[11.5px] mt-0.5">
-                    {adminData?.role ? adminData.role.toUpperCase() : 'RAMLAL ANAND COLLEGE'}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="mt-3 text-gray-700 text-[13px] font-bold relative z-10 flex justify-between items-center">
-                <span>Welcome Back, {adminData?.name || 'Preetam'}! Let's Dance!</span>
-                {token && (
-                  <div className="flex gap-3 items-center">
-                    <button 
-                      onClick={() => setActiveTab('developer')}
-                      className="text-[#3A125E] hover:text-[#3A125E]/70 flex items-center gap-1 cursor-pointer"
-                    >
-                      <Settings size={16} />
-                      <span className="text-[10px] font-bold uppercase tracking-wider">Dev</span>
-                    </button>
-                    <button 
-                      onClick={() => {
-                        localStorage.clear();
-                        setToken(null);
-                        setAdminId(null);
-                        setAdminData(null);
-                        setSelectedProfileId(null);
-                      }}
-                      className="text-red-500 hover:text-red-700 text-[10px] font-bold uppercase tracking-wider cursor-pointer"
-                    >
-                      Logout
-                    </button>
+                ) : profileActiveTab === 'list' ? (
+                  /* Connections List View (Followers & Following split inside) */
+                  <div className="flex gap-4">
+                    {/* Followers Column */}
+                    <div className="flex-1 flex flex-col gap-2">
+                      <h4 className="text-[#3A125E] font-black text-[9.5px] uppercase tracking-wider pb-1 border-b border-gray-100">Followers</h4>
+                      {adminData?.followers_list && adminData.followers_list.length > 0 ? (
+                        adminData.followers_list.map((f, i) => (
+                          <div key={i} className="flex items-center gap-2 py-1.5">
+                            <div className="w-[30px] h-[30px] rounded-full overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
+                              <img src={getRefinedAvatar(f.name || f.handle || 'User', f.avatar_url)} alt="avatar" className="w-full h-full object-cover" />
+                            </div>
+                            <div className="flex flex-col min-w-0 flex-1 leading-none">
+                              <span className="text-[#3A125E] font-black text-[10px] truncate">@{f.username || f.handle || 'user'}</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-[9px] text-gray-400 font-bold uppercase py-4 text-center">No followers</div>
+                      )}
+                    </div>
+
+                    {/* Following Column */}
+                    <div className="flex-1 flex flex-col gap-2 border-l border-gray-100 pl-4">
+                      <h4 className="text-[#3A125E] font-black text-[9.5px] uppercase tracking-wider pb-1 border-b border-gray-100">Following</h4>
+                      {adminData?.following_list && adminData.following_list.length > 0 ? (
+                        adminData.following_list.map((f, i) => (
+                          <div key={i} className="flex items-center gap-2 py-1.5">
+                            <div className="w-[30px] h-[30px] rounded-full overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
+                              <img src={getRefinedAvatar(f.name || f.handle || 'User', f.avatar_url)} alt="avatar" className="w-full h-full object-cover" />
+                            </div>
+                            <div className="flex flex-col min-w-0 flex-1 leading-none">
+                              <span className="text-[#3A125E] font-black text-[10px] truncate">@{f.username || f.handle || 'user'}</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-[9px] text-gray-400 font-bold uppercase py-4 text-center">Not following</div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  /* Similar Creators Tab */
+                  <div className="flex flex-col gap-2">
+                    <h4 className="text-[#3A125E] font-black text-[9.5px] uppercase tracking-wider pb-1 border-b border-gray-100">Suggested by Tags</h4>
+                    {(() => {
+                      if (!adminData?.tags || adminData.tags.length === 0) {
+                        return <div className="text-[9px] text-gray-400 font-bold uppercase py-4 text-center">Add tags to your profile to see similar creators.</div>;
+                      }
+                      const similar = allUsers.filter(u => u.id !== adminId && u._id !== adminId && u.tags && u.tags.some(t => adminData.tags.includes(t)));
+                      if (similar.length === 0) {
+                         return <div className="text-[9px] text-gray-400 font-bold uppercase py-4 text-center">No similar creators found yet.</div>;
+                      }
+                      return similar.map((u, i) => (
+                        <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+                          <div className="w-[40px] h-[40px] rounded-full overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
+                            <img src={getRefinedAvatar(u.name || u.username || 'User', u.avatar_url)} alt="avatar" className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex flex-col min-w-0 flex-1 leading-none">
+                            <span className="text-[#3A125E] font-black text-[12px] truncate">{u.name || u.username || 'Creator'}</span>
+                            <span className="text-gray-400 font-bold text-[9px] truncate mt-1">
+                              Matches: {u.tags.filter(t => adminData.tags.includes(t)).join(', ')}
+                            </span>
+                          </div>
+                          <button className="px-3 py-1.5 bg-[#3A125E]/5 text-[#3A125E] rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-[#3A125E]/10 transition-colors cursor-pointer">
+                            Follow
+                          </button>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 )}
               </div>
             </div>
-
-            {/* Profile View Content Area */}
-            {profileViewMode === 'dashboard' ? (
-              // SUB-VIEW A: Dashboard View (matching Screen 3)
-              <div className="flex flex-col gap-4 animate-in fade-in duration-200">
-                {/* Stats Row */}
-                {(() => {
-                  const myReels = reelsFeed.filter(r => r.creator_id === adminId || r.creator_name === adminData?.name);
-                  const myPosts = feed.filter(p => p.author_id === adminId);
-                  const totalLikes = myReels.reduce((sum, r) => sum + (r.likes || 0), 0);
-                  return (
-                    <div className="flex gap-2">
-                      <div className="flex-grow flex-1 bg-[#FFD700] rounded-[16px] p-3 flex flex-col relative overflow-hidden shadow-[0_4px_15px_rgba(255,215,0,0.25)] border border-[#FFD700]/10">
-                        <span className="text-[#3A125E] text-[10px] font-extrabold mb-1.5 uppercase tracking-wide opacity-80">Total Clips</span>
-                        <span className="text-[#3A125E] text-lg font-black leading-none">{myReels.length}</span>
-                        <Activity size={36} className="absolute -right-2.5 -bottom-2.5 text-[#3A125E]/10" strokeWidth={3} />
-                      </div>
-                      <div className="flex-grow flex-1 bg-[#3A125E] rounded-[16px] p-3 flex flex-col relative overflow-hidden shadow-[0_4px_15px_rgba(58,18,94,0.15)]">
-                        <span className="text-white/80 text-[10px] font-semibold mb-1.5 uppercase tracking-wide">Feed Posts</span>
-                        <span className="text-white text-lg font-black leading-none">{myPosts.length}</span>
-                        <Users size={32} className="absolute -right-2 -bottom-2 text-white/5" />
-                      </div>
-                      <div className="flex-grow flex-grow-0 w-[110px] bg-[#3A125E] rounded-[16px] p-3 flex flex-col relative overflow-hidden shadow-[0_4px_15px_rgba(58,18,94,0.15)]">
-                        <span className="text-white/80 text-[10px] font-semibold mb-1.5 uppercase tracking-wide">Clips Likes</span>
-                        <span className="text-white text-lg font-black leading-none">{totalLikes}</span>
-                        <TrendingUp size={32} className="absolute -right-2 -bottom-2 text-white/5" />
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Performance Chart Card */}
-                <div className="bg-white rounded-[24px] p-4 shadow-[0_8px_30px_rgba(58,18,94,0.03)] border border-gray-100 flex flex-col">
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-extrabold text-[#3A125E] text-[13.5px] uppercase tracking-wide">Performance Chart</h3>
-                    <span className="text-[12px] font-bold text-emerald-500">+250 Growth</span>
-                  </div>
-                  
-                  {/* Chart Placeholder Area (Gold-Purple Area Chart) */}
-                  <div className="h-[110px] w-full relative mb-1.5 flex items-end">
-                    <div 
-                      className="w-full h-[75%] bg-gradient-to-t from-[#3A125E]/20 to-[#FFD700]/10 rounded-t-lg relative overflow-hidden" 
-                      style={{ clipPath: 'polygon(0 100%, 0 80%, 20% 65%, 40% 72%, 60% 35%, 80% 25%, 100% 8%, 100% 100%)' }}
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-t from-white to-transparent opacity-60"></div>
-                    </div>
-                    <svg className="absolute inset-0 h-full w-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
-                      <path d="M0 80 C 10 70 20 65 30 68 C 40 72 50 50 60 35 C 70 20 80 25 100 8" fill="none" stroke="url(#chartGrad)" strokeWidth="3.5" strokeLinecap="round"/>
-                      <defs>
-                        <linearGradient id="chartGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor="#3A125E" />
-                          <stop offset="100%" stopColor="#FFD700" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                  </div>
-                  
-                  <div className="flex justify-between text-[10px] text-gray-400 font-extrabold uppercase tracking-wide mb-5">
-                    <span>Last</span>
-                    <span>30 days</span>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex justify-around items-center gap-3">
-                    <button 
-                      onClick={() => setActiveTab('add')}
-                      className="flex flex-col items-center gap-2 group cursor-pointer"
-                    >
-                      <div className="w-[46px] h-[46px] rounded-full bg-[#FF7675] text-white flex items-center justify-center shadow-[0_4px_15px_rgba(255,118,117,0.35)] group-hover:scale-105 transition-transform duration-200">
-                        <Play fill="white" size={18} className="ml-0.5" />
-                      </div>
-                      <span className="text-[10px] font-bold text-center text-[#3A125E] leading-tight uppercase tracking-wider">Upload New<br/>Routine (+)</span>
-                    </button>
-                    <button 
-                      onClick={openEditProfileModal}
-                      className="flex flex-col items-center gap-2 group cursor-pointer"
-                    >
-                      <div className="w-[46px] h-[46px] rounded-full border border-gray-100 text-[#3A125E] flex items-center justify-center bg-gray-50 shadow-xs group-hover:bg-gray-100 transition-colors duration-200">
-                        <UserCog size={18} />
-                      </div>
-                      <span className="text-[10px] font-bold text-center text-[#3A125E] leading-tight uppercase tracking-wider">Edit Profile<br/>(👤)</span>
-                    </button>
-                    <button className="flex flex-col items-center gap-2 group cursor-pointer">
-                      <div className="w-[46px] h-[46px] rounded-full border border-gray-100 text-[#3A125E] flex items-center justify-center bg-gray-50 shadow-xs group-hover:bg-gray-100 transition-colors duration-200">
-                        <BarChart2 size={18} />
-                      </div>
-                      <span className="text-[10px] font-bold text-center text-[#3A125E] leading-tight uppercase tracking-wider">View Insights<br/>&nbsp;</span>
-                    </button>
-                    <button 
-                      onClick={() => setActiveTab('developer')}
-                      className="flex flex-col items-center gap-2 group cursor-pointer"
-                    >
-                      <div className="w-[46px] h-[46px] rounded-full border border-gray-100 text-[#3A125E] flex items-center justify-center bg-gray-50 shadow-xs group-hover:bg-gray-100 transition-colors duration-200">
-                        <User size={18} />
-                      </div>
-                      <span className="text-[10px] font-bold text-center text-[#3A125E] leading-tight uppercase tracking-wider">Developer<br/>Panel</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Single Post Preview Card at bottom */}
-                <div className="bg-white rounded-[20px] p-3 shadow-[0_4px_18px_rgba(58,18,94,0.02)] border border-gray-100 flex items-center gap-3.5 relative overflow-hidden group">
-                  <div className="w-[60px] h-[60px] rounded-xl overflow-hidden bg-slate-900 shrink-0 relative">
-                    <div className="absolute inset-0 bg-black/10 z-10"></div>
-                    <div className="absolute inset-0 flex items-center justify-center z-15">
-                      <Play size={14} fill="white" className="text-white ml-0.5" />
-                    </div>
-                    {reelsFeed.length > 0 && reelsFeed[0].cover_image_url && (
-                      <img src={resolveMediaUrl(reelsFeed[0].cover_image_url)} alt="Thumbnail" className="w-full h-full object-cover" />
-                    )}
-                  </div>
-                  <div className="flex-1 flex justify-between items-center pr-1.5">
-                    <div className="flex gap-4">
-                      <div className="flex flex-col">
-                        <span className="text-gray-400 font-extrabold text-[9px] uppercase tracking-wider">Views</span>
-                        <span className="text-[#3A125E] font-black text-sm">5.2k</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-gray-400 font-extrabold text-[9px] uppercase tracking-wider">Likes</span>
-                        <span className="text-[#3A125E] font-black text-sm">310</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-gray-400 font-extrabold text-[9px] uppercase tracking-wider">Comments</span>
-                        <span className="text-[#3A125E] font-black text-sm">25</span>
-                      </div>
-                    </div>
-                    <GoldVerifiedBadge size={18} />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              // SUB-VIEW B: Grid & Connections View (matching Screen 2)
-              <div className="flex flex-col gap-4 animate-in fade-in duration-200">
-                {/* Alternative Stats Row */}
-                {(() => {
-                  const myReels = reelsFeed.filter(r => r.creator_id === adminId || r.creator_name === adminData?.name);
-                  const myPosts = feed.filter(p => p.author_id === adminId);
-                  const totalRoutinesCount = myReels.length + myPosts.length;
-                  return (
-                    <div className="flex gap-2">
-                      <div className="flex-grow flex-1 bg-[#1A3B47] text-white rounded-[16px] p-3 flex flex-col justify-center relative overflow-hidden shadow-md">
-                        <span className="text-white/60 text-[9px] font-extrabold uppercase tracking-wide">Posts</span>
-                        <span className="text-white text-xl font-black mt-0.5">{totalRoutinesCount}</span>
-                        <Play size={26} className="absolute right-2.5 bottom-2.5 text-white/10" fill="currentColor" />
-                      </div>
-                      <div className="flex-grow flex-1 bg-[#D4AF37] text-[#3A125E] rounded-[16px] p-3 flex flex-col justify-center relative overflow-hidden shadow-md">
-                        <span className="text-[#3A125E]/60 text-[9px] font-extrabold uppercase tracking-wide">Followers</span>
-                        <span className="text-[#3A125E] text-xl font-black mt-0.5">{adminData?.followers || 0}</span>
-                        <Users size={26} className="absolute right-2.5 bottom-2.5 text-[#3A125E]/10" />
-                      </div>
-                      <div className="flex-grow flex-grow-0 w-[110px] bg-[#B38F24] text-white rounded-[16px] p-3 flex flex-col justify-center relative overflow-hidden shadow-md">
-                        <span className="text-white/60 text-[9px] font-extrabold uppercase tracking-wide">Following</span>
-                        <span className="text-white text-xl font-black mt-0.5">{adminData?.following || 0}</span>
-                        <Share2 size={24} className="absolute right-2.5 bottom-2.5 text-white/10" />
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Profile Grid content box */}
-                <div className="bg-white rounded-[24px] shadow-[0_8px_30px_rgba(58,18,94,0.03)] border border-gray-100 flex flex-col overflow-hidden">
-                  <div className="bg-gray-50/50 py-3 text-center border-b border-gray-100">
-                    <span className="text-[#3A125E] font-black text-xs uppercase tracking-widest">Profile Content</span>
-                  </div>
-
-                  <div className="flex border-b border-gray-100 shrink-0">
-                    <button 
-                      onClick={() => setProfileActiveTab('grid')}
-                      className={`flex-1 py-3 text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer ${profileActiveTab === 'grid' ? 'text-[#3A125E] border-b-3 border-[#3A125E]' : 'text-gray-400 border-b-3 border-transparent'}`}
-                    >
-                      Recent Posts (Grid)
-                    </button>
-                    <button 
-                      onClick={() => setProfileActiveTab('list')}
-                      className={`flex-1 py-3 text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer ${profileActiveTab === 'list' ? 'text-[#3A125E] border-b-3 border-[#3A125E]' : 'text-gray-400 border-b-3 border-transparent'}`}
-                    >
-                      Connections (List)
-                    </button>
-                  </div>
-
-                  <div className="p-3">
-                    {profileActiveTab === 'grid' ? (
-                      // Grid View Layout split: Grid on left 2/3, Connections on right 1/3
-                      <div className="flex gap-3">
-                        {/* 3x3 Grid (left 2/3 width) */}
-                        <div className="w-[62%] grid grid-cols-3 gap-2">
-                          {(reelsFeed.length > 0 ? reelsFeed.slice(0, 9) : Array(9).fill(0)).map((item, idx) => (
-                            <div 
-                              key={item.id || idx} 
-                              className="aspect-[3/4] bg-slate-900 rounded-lg overflow-hidden relative cursor-pointer group shadow-sm"
-                              onClick={() => {
-                                if (item.id) {
-                                  setViewingMedia('reel');
-                                  setActiveStoryIndex(idx);
-                                  setActiveTab('stories');
-                                }
-                              }}
-                            >
-                              {item.cover_image_url ? (
-                                <img src={resolveMediaUrl(item.cover_image_url)} alt="Thumbnail" className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full bg-[#3A125E]/20 flex items-center justify-center">
-                                  <Music size={14} className="text-white/20" />
-                                </div>
-                              )}
-                              <div className="absolute inset-0 bg-black/10 z-5"></div>
-                              <div className="absolute inset-0 flex items-center justify-center z-10">
-                                <div className="w-6.5 h-6.5 rounded-full bg-black/30 border border-white/40 backdrop-blur-xs flex items-center justify-center text-white/95 group-hover:scale-105 transition-transform duration-200">
-                                  <Play size={10} fill="white" className="ml-0.5" />
-                                </div>
-                              </div>
-                              <div className="absolute bottom-0 left-0 right-0 p-1 bg-gradient-to-t from-black/85 via-black/30 to-transparent flex flex-col z-10 leading-tight">
-                                <span className="text-white/70 text-[6.5px] uppercase font-semibold">Views</span>
-                                <span className="text-white text-[9.5px] font-black">{item.views ? (item.views > 999 ? (item.views/1000).toFixed(1) + 'k' : item.views) : '5k'}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Connections List (right 1/3 width) */}
-                        <div className="w-[38%] flex flex-col gap-3.5 border-l border-gray-100 pl-3">
-                          {/* Followers list */}
-                          <div className="flex flex-col gap-1.5">
-                            <h4 className="text-[#3A125E] font-black text-[9.5px] uppercase tracking-wider mb-0.5">Followers</h4>
-                            {adminData?.followers_list && adminData.followers_list.length > 0 ? (
-                              adminData.followers_list.map((f, i) => (
-                                <div key={i} className="flex items-center gap-1.5 border-b border-gray-50/50 pb-1.5 last:border-0 last:pb-0">
-                                  <div className="w-[28px] h-[28px] rounded-full overflow-hidden bg-gray-100 border border-gray-200/50 shadow-xs shrink-0">
-                                    <img src={getRefinedAvatar(f.name || f.handle || 'User', f.avatar_url)} alt="avatar" className="w-full h-full object-cover" />
-                                  </div>
-                                  <div className="flex flex-col min-w-0 flex-1 leading-none">
-                                    <span className="text-gray-400 font-extrabold text-[7px] uppercase truncate mb-0.5">Handle</span>
-                                    <span className="text-[#3A125E] font-black text-[9px] truncate">@{f.handle || 'dancer'}</span>
-                                  </div>
-                                </div>
-                              ))
-                            ) : (
-                              <div className="text-[9px] text-gray-400 font-bold uppercase text-center py-2">No followers yet</div>
-                            )}
-                          </div>
-
-                          <div className="border-t border-gray-100 pt-2.5 flex flex-col gap-1.5">
-                            <h4 className="text-[#3A125E] font-black text-[9.5px] uppercase tracking-wider mb-0.5">Following</h4>
-                            {adminData?.following_list && adminData.following_list.length > 0 ? (
-                              adminData.following_list.map((f, i) => (
-                                <div key={i} className="flex items-center gap-1.5 border-b border-gray-50/50 pb-1.5 last:border-0 last:pb-0">
-                                  <div className="w-[28px] h-[28px] rounded-full overflow-hidden bg-gray-100 border border-gray-200/50 shadow-xs shrink-0">
-                                    <img src={getRefinedAvatar(f.name || f.handle || 'User', f.avatar_url)} alt="avatar" className="w-full h-full object-cover" />
-                                  </div>
-                                  <div className="flex flex-col min-w-0 flex-1 leading-none">
-                                    <span className="text-gray-400 font-extrabold text-[7px] uppercase truncate mb-0.5">Handle</span>
-                                    <span className="text-[#3A125E] font-black text-[9px] truncate">@{f.handle || 'dancer'}</span>
-                                  </div>
-                                </div>
-                              ))
-                            ) : (
-                              <div className="text-[9px] text-gray-400 font-bold uppercase text-center py-2">Not following anyone</div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="p-8 text-center text-gray-400 font-semibold text-xs leading-normal">
-                         Archival connection list is stored in Appwrite Database. Log into uploader to view relationships.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-            
           </div>
           )
         )}
@@ -1732,6 +1762,18 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               />
             </div>
 
+            {/* Tags */}
+            <div className="mb-5">
+              <label className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-1 block">Tags (comma separated)</label>
+              <input 
+                type="text"
+                placeholder="e.g. Dancer, HipHop, Choreographer" 
+                className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white w-full focus:outline-none focus:border-purple-500/50 transition" 
+                value={editTags} 
+                onChange={e => setEditTags(e.target.value)} 
+              />
+            </div>
+
             {/* Save Button */}
             <button 
               onClick={handleSaveEditProfile} 
@@ -1744,6 +1786,103 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
             >
               {isSavingProfile ? 'Saving...' : 'Save Changes'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* User Settings Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-[#FAF7EE] w-full max-w-sm rounded-[24px] border border-gray-200 p-6 flex flex-col gap-4 shadow-2xl relative text-[#2B2315]">
+            <button 
+              onClick={() => setShowSettingsModal(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-black font-bold text-lg"
+            >
+              ✕
+            </button>
+            
+            <h2 className="text-lg font-serif font-black italic tracking-wide mb-2 flex items-center gap-2">
+              <Settings size={20} className="text-[#3A125E]" /> App Settings
+            </h2>
+            
+            <div className="flex flex-col gap-2.5">
+              {/* Theme Selector */}
+              <div className="flex justify-between items-center bg-white/50 p-3 rounded-xl border border-black/5">
+                <span className="text-xs font-bold uppercase tracking-wider">Ambient Smoke Theme</span>
+                <button
+                  onClick={() => {
+                    const newVal = !enableSmokeTheme;
+                    setEnableSmokeTheme(newVal);
+                    localStorage.setItem('ENABLE_SMOKE_THEME', String(newVal));
+                    window.dispatchEvent(new Event('smokeThemeUpdated'));
+                  }}
+                  className={`w-12 h-6 rounded-full relative transition-colors shadow-inner ${enableSmokeTheme ? 'bg-[#3A125E]' : 'bg-gray-300'}`}
+                >
+                  <div className={`w-4 h-4 rounded-full bg-white absolute top-1 shadow-sm transition-transform ${enableSmokeTheme ? 'translate-x-7' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {/* Cache clear option */}
+              <button 
+                onClick={() => {
+                  if (window.confirm("Clear local cache & reset settings?")) {
+                    localStorage.removeItem('dencewance_view_mode');
+                    localStorage.removeItem('ENABLE_SMOKE_THEME');
+                    alert("Cache cleared successfully! Reloading...");
+                    window.location.reload();
+                  }
+                }}
+                className="w-full text-left bg-white/50 hover:bg-black/5 p-3 rounded-xl border border-black/5 text-xs font-extrabold uppercase tracking-wide flex items-center justify-between"
+              >
+                <span>Clear Cache & Data</span>
+                <span>🧹</span>
+              </button>
+
+              {/* View Mode Toggle */}
+              {setViewMode && !isMobileDevice && (
+                <button 
+                  onClick={() => {
+                    setViewMode(viewMode === 'desktop' ? 'phone' : 'desktop');
+                    setShowSettingsModal(false);
+                  }}
+                  className="w-full text-left bg-white/50 hover:bg-black/5 p-3 rounded-xl border border-black/5 text-xs font-extrabold uppercase tracking-wide flex items-center justify-between"
+                >
+                  <span>Toggle PC / Mobile Frame</span>
+                  <span>{viewMode === 'desktop' ? '📱 Mobile' : '💻 PC'}</span>
+                </button>
+              )}
+
+              {/* Admin developer dashboard route - ONLY if admin token is present */}
+              {token && adminId && (
+                <button 
+                  onClick={() => {
+                    setActiveTab('developer');
+                    setShowSettingsModal(false);
+                  }}
+                  className="w-full text-left bg-gradient-to-r from-purple-500/10 to-indigo-500/10 hover:from-purple-500/25 hover:to-indigo-500/25 p-3 rounded-xl border border-purple-500/20 text-xs font-extrabold uppercase tracking-wide text-purple-950 flex items-center justify-between"
+                >
+                  <span>🔓 Developer Control Console</span>
+                  <span>⚙️</span>
+                </button>
+              )}
+
+              {/* Logout button */}
+              {token && (
+                <button 
+                  onClick={() => {
+                    localStorage.removeItem('adminToken');
+                    localStorage.removeItem('adminId');
+                    localStorage.removeItem('userName');
+                    localStorage.removeItem('userHandle');
+                    localStorage.removeItem('userAvatar');
+                    window.location.reload();
+                  }}
+                  className="w-full text-center bg-red-500/10 hover:bg-red-500/25 text-red-700 p-3 rounded-xl border border-red-500/20 text-xs font-extrabold uppercase tracking-wide transition mt-2"
+                >
+                  Log Out
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

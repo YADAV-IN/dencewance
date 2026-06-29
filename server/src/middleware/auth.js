@@ -20,10 +20,14 @@ export const verifyAndGetAdminId = async (token) => {
         // If this looks like an Appwrite userId, try to resolve Admin by Appwrite email
         if (decoded.userId) {
           try {
-            const appUser = await appwriteUsers.get(decoded.userId);
+            const withTimeout = (promise, ms) => Promise.race([
+              promise,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))
+            ]);
+            const appUser = await withTimeout(appwriteUsers.get(decoded.userId), 3000);
             const email = appUser?.email;
             if (email) {
-              const admin = await Admin.findOne({ email });
+              const admin = await withTimeout(Admin.findOne({ email }), 3000);
               if (admin && admin._id) {
                 console.log('DEBUG: verifyAndGetAdminId mapped Appwrite user to Admin id=', String(admin._id));
                 return String(admin._id);

@@ -426,7 +426,38 @@ class Model {
           const result = await databases.listDocuments(DB_ID, that.collectionId, queries);
           resolve(result.documents.map(d => that._map(d)));
         } catch (err) {
-          if (reject) reject(err);
+          console.error(`Appwrite query failed, using local fallback for ${that.collectionId}`, err.message);
+          try {
+            let list = readFallbackData(that.collectionId).map(mapFallbackDoc);
+            if (query && typeof query === 'object') {
+              list = list.filter(doc => matchesQuery(doc, query));
+            }
+            if (this._sort) {
+              const sortFields = Object.entries(this._sort);
+              list.sort((a, b) => {
+                for (const [key, dir] of sortFields) {
+                  const field = normalizeFieldName(key);
+                  const valA = a[field];
+                  const valB = b[field];
+                  if (valA < valB) return dir === -1 || dir === 'desc' ? 1 : -1;
+                  if (valA > valB) return dir === -1 || dir === 'desc' ? -1 : 1;
+                }
+                return 0;
+              });
+            } else {
+              list.sort((a, b) => {
+                const timeA = new Date(a.created_at || a.$createdAt || 0).getTime();
+                const timeB = new Date(b.created_at || b.$createdAt || 0).getTime();
+                return timeB - timeA;
+              });
+            }
+            const skip = this._skip || 0;
+            const limit = this._limit || list.length;
+            const sliced = list.slice(skip, skip + limit);
+            resolve(sliced.map(d => that._map(d)));
+          } catch (fallbackErr) {
+            if (reject) reject(fallbackErr);
+          }
         }
       }
     };

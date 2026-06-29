@@ -535,6 +535,117 @@ app.get('/api/admin/versions', requireAuth, async (req, res) => {
   }
 });
 
+// --- DEVELOPER USER MANAGEMENT ---
+app.get('/api/admin/users', requireAuth, async (req, res) => {
+  try {
+    const withTimeout = (promise, ms) => Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))
+    ]);
+
+    const currentUser = await withTimeout(Admin.findById(req.adminId), 5000);
+    if (req.adminId !== 'developer_override' && (!currentUser || currentUser.role !== 'superadmin')) {
+      return res.status(403).json({ error: 'Only superadmin can view users.' });
+    }
+    const allUsers = await withTimeout(Admin.find({}), 5000);
+    
+    // Exclude password hashes
+    const sanitizedUsers = allUsers.map(u => {
+      const { password_hash, ...rest } = u.toJSON ? u.toJSON() : u;
+      return rest;
+    });
+    return res.json({ success: true, data: sanitizedUsers });
+  } catch (error) {
+    console.error('Fetch users error:', error);
+    return res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+app.put('/api/admin/users/:id', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || currentUser.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only superadmin can modify users.' });
+    }
+    const targetUserId = req.params.id;
+    const updates = req.body || {};
+    
+    // Prevent modifying own superadmin status accidentally, but allow other edits
+    if (targetUserId === req.adminId && updates.role && updates.role !== 'superadmin') {
+      return res.status(400).json({ error: 'Cannot demote yourself.' });
+    }
+
+    const updatedUser = await Admin.findByIdAndUpdate(targetUserId, updates, { new: true });
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const { password_hash, ...rest } = updatedUser.toJSON ? updatedUser.toJSON() : updatedUser;
+    return res.json({ success: true, data: rest });
+  } catch (error) {
+    console.error('Update user error:', error);
+    return res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+app.delete('/api/admin/users/:id', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || currentUser.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only superadmin can delete users.' });
+    }
+    const targetUserId = req.params.id;
+    if (targetUserId === req.adminId) {
+      return res.status(400).json({ error: 'Cannot delete yourself.' });
+    }
+
+    const userToDelete = await Admin.findById(targetUserId);
+    if (!userToDelete) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await userToDelete.deleteOne();
+    
+    return res.json({ success: true, message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    return res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+app.post('/api/admin/users/:id/action', requireAuth, async (req, res) => {
+  try {
+    const currentUser = await Admin.findById(req.adminId);
+    if (!currentUser || currentUser.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Only superadmin can perform this action.' });
+    }
+    
+    const targetUserId = req.params.id;
+    const { action, payload } = req.body;
+    
+    const targetUser = await Admin.findById(targetUserId);
+    if (!targetUser) return res.status(404).json({ error: 'User not found' });
+
+    if (action === 'warn') {
+      const warnings = targetUser.warnings || [];
+      warnings.push({
+        message: payload?.message || 'Warning from administrator.',
+        date: new Date().toISOString()
+      });
+      await Admin.findByIdAndUpdate(targetUserId, { warnings });
+      return res.json({ success: true, message: 'Warning sent.' });
+    } else if (action === 'boost') {
+      const currentBoost = Number(targetUser.boost_score) || 0;
+      await Admin.findByIdAndUpdate(targetUserId, { boost_score: currentBoost + 50 });
+      return res.json({ success: true, message: 'User growth boosted by +50 points!' });
+    }
+    
+    return res.status(400).json({ error: 'Unknown action' });
+  } catch (error) {
+    console.error('User action error:', error);
+    return res.status(500).json({ error: 'Failed to perform action' });
+  }
+});
+
 // --- COMPREHENSIVE CLEANUP ---
 app.post('/api/admin/cleanup-all-orphaned', requireAuth, async (req, res) => {
   try {
@@ -970,15 +1081,19 @@ async function syncProfileUpdatesToDbContent(adminId, updates) {
 
 app.put('/api/profile', requireAuth, async (req, res) => {
   try {
-    const { name, email, bio, avatar_url, username } = req.body || {};
+    const { name, email, bio, avatar_url, username, tags } = req.body || {};
     const updates = {};
     if (typeof name === 'string') updates.name = name;
     if (typeof email === 'string') updates.email = email;
     if (typeof bio === 'string') updates.bio = bio;
+    if (Array.isArray(tags)) updates.tags = tags;
     if (typeof avatar_url === 'string') updates.avatar_url = avatar_url;
     if (typeof username === 'string') {
-      if (/^[a-z0-9_]{3,20}$/.test(username)) {
-        updates.username = username;
+      const cleanUsername = username.trim().toLowerCase();
+      if (/^[a-z0-9_]{3,20}$/.test(cleanUsername)) {
+        updates.username = cleanUsername;
+      } else if (cleanUsername.length > 0) {
+        return res.status(400).json({ error: 'Invalid username format. Use only letters, numbers, and underscores.' });
       }
     }
     const admin = await Admin.findByIdAndUpdate(

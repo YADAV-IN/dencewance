@@ -6,6 +6,7 @@ import {
   UploadCloud, CheckCircle2, AlertCircle, X, ChevronRight, Activity, Users, FileVideo, ShieldCheck,
   TrendingUp, PlayCircle, Wand2, Terminal, Code, Trash2, User
 } from 'lucide-react';
+import DeveloperUserManagement from './DeveloperUserManagement';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -17,6 +18,7 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
   const [trendingLimit, setTrendingLimit] = useState(Number(localStorage.getItem('TRENDING_REELS_LIMIT')) || 12);
   const [trendingHours, setTrendingHours] = useState(Number(localStorage.getItem('TRENDING_REELS_HOURS')) || 24);
   const [showPyqBubble, setShowPyqBubble] = useState(localStorage.getItem('SHOW_PYQ_BUBBLE') === 'true');
+  const [enableSmokeTheme, setEnableSmokeTheme] = useState(localStorage.getItem('ENABLE_SMOKE_THEME') === 'true');
 
   // Post State
   const [postContent, setPostContent] = useState('');
@@ -147,9 +149,11 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
     localStorage.setItem('TRENDING_REELS_LIMIT', trendingLimit);
     localStorage.setItem('TRENDING_REELS_HOURS', trendingHours);
     localStorage.setItem('SHOW_PYQ_BUBBLE', showPyqBubble);
+    localStorage.setItem('ENABLE_SMOKE_THEME', enableSmokeTheme);
     alert('Settings Saved Globally (for this device)! Note: In a real backend, this would sync to all users.');
     window.dispatchEvent(new Event('trendingSettingsUpdated'));
     window.dispatchEvent(new Event('pyqSettingsUpdated'));
+    window.dispatchEvent(new Event('smokeThemeUpdated'));
   };
 
   const handleDeleteDeveloperIdentity = async () => {
@@ -370,6 +374,7 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
           <div className="pt-4 pb-2 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">System</div>
           <MenuButton id="settings" icon={Settings} label="Platform Settings" />
           <MenuButton id="identities" icon={Users} label="Manage Identities" />
+          <MenuButton id="users" icon={Users} label="User Management" />
           <div className="pt-4 pb-2 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Advanced</div>
           <MenuButton id="magic" icon={Wand2} label="Magic System" />
         </div>
@@ -390,12 +395,23 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
       {/* Main Content Area */}
       <div className={`flex-1 flex flex-col overflow-hidden relative ${activeMenu === 'magic' ? 'bg-[#010409]' : 'bg-[#F8F9FA]'}`}>
         {/* Mobile Header */}
-        <div className={`md:hidden flex items-center gap-2 p-4 border-b sticky top-0 z-20 ${activeMenu === 'magic' ? 'bg-[#0D1117] border-gray-800' : 'bg-white border-gray-200'}`}>
+        <div className={`md:hidden flex items-center gap-2 p-4 border-b sticky top-0 z-30 ${activeMenu === 'magic' ? 'bg-[#0D1117] border-gray-800' : 'bg-white border-gray-200'}`}>
           <ShieldCheck className={activeMenu === 'magic' ? "text-[#00FFFF]" : "text-[#3A125E]"} size={24} />
           <h1 className={`font-black text-md tracking-tight flex-1 ${activeMenu === 'magic' ? 'text-white' : 'text-[#3A125E]'}`}>Admin Console</h1>
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#3A125E] to-[#9B51E0] flex items-center justify-center text-white font-bold text-[10px]">
             DEV
           </div>
+        </div>
+
+        {/* Mobile Navigation (Horizontal Scroll) */}
+        <div className={`md:hidden flex overflow-x-auto px-3 py-3 gap-2 hide-scrollbar sticky top-[73px] z-20 shadow-sm border-b ${activeMenu === 'magic' ? 'bg-[#0D1117] border-gray-800' : 'bg-white border-gray-200'}`}>
+          <button onClick={() => setActiveMenu('dashboard')} className={`px-4 py-2 text-xs font-bold rounded-full whitespace-nowrap transition-colors ${activeMenu === 'dashboard' ? 'bg-[#3A125E] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Dashboard</button>
+          <button onClick={() => setActiveMenu('settings')} className={`px-4 py-2 text-xs font-bold rounded-full whitespace-nowrap transition-colors ${activeMenu === 'settings' ? 'bg-[#3A125E] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>⚙️ Settings</button>
+          <button onClick={() => setActiveMenu('reel')} className={`px-4 py-2 text-xs font-bold rounded-full whitespace-nowrap transition-colors ${activeMenu === 'reel' ? 'bg-[#3A125E] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Video Stories</button>
+          <button onClick={() => setActiveMenu('post')} className={`px-4 py-2 text-xs font-bold rounded-full whitespace-nowrap transition-colors ${activeMenu === 'post' ? 'bg-[#3A125E] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Image Posts</button>
+          <button onClick={() => setActiveMenu('music')} className={`px-4 py-2 text-xs font-bold rounded-full shrink-0 transition-colors ${activeMenu === 'music' ? 'bg-[#3A125E] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Music</button>
+          <button onClick={() => setActiveMenu('identities')} className={`px-4 py-2 text-xs font-bold rounded-full shrink-0 transition-colors ${activeMenu === 'identities' ? 'bg-[#3A125E] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Identities</button>
+          <button onClick={() => setActiveMenu('users')} className={`px-4 py-2 text-xs font-bold rounded-full shrink-0 transition-colors ${activeMenu === 'users' ? 'bg-[#3A125E] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Users</button>
         </div>
 
         {/* Scrollable Content */}
@@ -409,6 +425,8 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
               {activeMenu === 'post' && 'Manage Image Posts'}
               {activeMenu === 'music' && 'Music Library'}
               {activeMenu === 'settings' && 'Platform Settings'}
+              {activeMenu === 'identities' && 'Manage Identities'}
+              {activeMenu === 'users' && 'User Management'}
               {activeMenu === 'magic' && 'Advanced Magic System'}
             </h2>
             <p className={`text-sm mt-1 ${activeMenu === 'magic' ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -417,6 +435,8 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
               {activeMenu === 'post' && 'Upload and publish static image posts to the News feed.'}
               {activeMenu === 'music' && 'Manage audio tracks available in the camera studio.'}
               {activeMenu === 'settings' && 'Configure core platform algorithms and features.'}
+              {activeMenu === 'identities' && 'Manage temporary identity seeds.'}
+              {activeMenu === 'users' && 'Manage all platform accounts, roles, verification badges and bans.'}
               {activeMenu === 'magic' && 'Forcefully manipulate the platform via dynamic injection pipelines.'}
             </p>
           </div>
@@ -827,10 +847,33 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                       <p className="text-xs text-gray-500 mt-1">Shows the floating PYQ button globally on the screen for all users.</p>
                     </div>
                     <button
-                      onClick={() => setShowPyqBubble(!showPyqBubble)}
+                      onClick={() => {
+                        const newVal = !showPyqBubble;
+                        setShowPyqBubble(newVal);
+                        localStorage.setItem('SHOW_PYQ_BUBBLE', String(newVal));
+                        window.dispatchEvent(new Event('pyqSettingsUpdated'));
+                      }}
                       className={`w-14 h-7 rounded-full relative transition-colors shadow-inner ${showPyqBubble ? 'bg-[#3A125E]' : 'bg-gray-300'}`}
                     >
                       <div className={`w-5 h-5 rounded-full bg-white absolute top-1 shadow-sm transition-transform ${showPyqBubble ? 'translate-x-8' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl p-5 mt-4">
+                    <div>
+                      <label className="text-sm font-bold text-gray-900 block">Enable Ambient Smoke Theme</label>
+                      <p className="text-xs text-gray-500 mt-1">Shows a colorful ambient smoke animation in clips cards.</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newVal = !enableSmokeTheme;
+                        setEnableSmokeTheme(newVal);
+                        localStorage.setItem('ENABLE_SMOKE_THEME', String(newVal));
+                        window.dispatchEvent(new Event('smokeThemeUpdated'));
+                      }}
+                      className={`w-14 h-7 rounded-full relative transition-colors shadow-inner ${enableSmokeTheme ? 'bg-[#3A125E]' : 'bg-gray-300'}`}
+                    >
+                      <div className={`w-5 h-5 rounded-full bg-white absolute top-1 shadow-sm transition-transform ${enableSmokeTheme ? 'translate-x-8' : 'translate-x-1'}`} />
                     </button>
                   </div>
                 </div>
@@ -913,6 +956,13 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* USER MANAGEMENT SYSTEM */}
+          {activeMenu === 'users' && (
+            <div className="h-full animate-in fade-in slide-in-from-bottom-4">
+              <DeveloperUserManagement token={token} />
             </div>
           )}
 
