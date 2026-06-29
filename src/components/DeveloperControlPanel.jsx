@@ -18,7 +18,7 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
   const [trendingLimit, setTrendingLimit] = useState(Number(localStorage.getItem('TRENDING_REELS_LIMIT')) || 12);
   const [trendingHours, setTrendingHours] = useState(Number(localStorage.getItem('TRENDING_REELS_HOURS')) || 24);
   const [showPyqBubble, setShowPyqBubble] = useState(localStorage.getItem('SHOW_PYQ_BUBBLE') === 'true');
-  const [enableSmokeTheme, setEnableSmokeTheme] = useState(localStorage.getItem('ENABLE_SMOKE_THEME') === 'true');
+  const [enableSmokeTheme, setEnableSmokeTheme] = useState(localStorage.getItem('ENABLE_SMOKE_THEME') !== 'false');
 
   // Post State
   const [postContent, setPostContent] = useState('');

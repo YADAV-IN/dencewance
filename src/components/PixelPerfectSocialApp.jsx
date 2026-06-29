@@ -130,7 +130,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
   const [postLikes, setPostLikes] = useState({});
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [showPyqBubble, setShowPyqBubble] = useState(localStorage.getItem('SHOW_PYQ_BUBBLE') === 'true');
-  const [enableSmokeTheme, setEnableSmokeTheme] = useState(localStorage.getItem('ENABLE_SMOKE_THEME') === 'true');
+  const [enableSmokeTheme, setEnableSmokeTheme] = useState(localStorage.getItem('ENABLE_SMOKE_THEME') !== 'false');
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   useEffect(() => {
@@ -426,7 +426,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
       setShowPyqBubble(localStorage.getItem('SHOW_PYQ_BUBBLE') === 'true');
     };
     const updateSmokeTheme = () => {
-      setEnableSmokeTheme(localStorage.getItem('ENABLE_SMOKE_THEME') === 'true');
+      setEnableSmokeTheme(localStorage.getItem('ENABLE_SMOKE_THEME') !== 'false');
     };
     const handleOpenPyq = () => {
       setActiveTab('pyq');
