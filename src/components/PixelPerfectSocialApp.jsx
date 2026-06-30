@@ -1562,8 +1562,8 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
 
       {/* 3. Bottom Navigation Bar */}
       {activeTab !== 'stories' && activeTab !== 'add' && (
-        <nav className="absolute bottom-0 left-0 right-0 bg-[#F4ECD8] border-t border-gray-200/50 shadow-[0_-4px_25px_rgba(58,18,94,0.06)] z-50 shrink-0 flex flex-col">
-          <div className="flex justify-around items-center h-[64px] px-2 relative">
+        <nav className="absolute bottom-0 left-0 right-0 bg-[#F4ECD8] border-t border-gray-200/50 z-50 shrink-0 flex flex-col pb-[env(safe-area-inset-bottom)]">
+          <div className="flex justify-around items-center h-[48px] px-1">
             
             {/* Tab 1: Home */}
             <button 
@@ -1571,65 +1571,54 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                 setSelectedProfileId(null);
                 setActiveTab('home');
               }}
-              className="flex items-center justify-center w-14 h-full relative group cursor-pointer"
+              className="flex flex-col items-center justify-center flex-1 h-full relative cursor-pointer gap-[2px]"
             >
-              {activeTab === 'home' && (
-                <div className="absolute w-[44px] h-[44px] rounded-full bg-gradient-to-tr from-[#00FFFF] via-[#9B51E0] to-[#3A125E] shadow-[0_4px_12px_rgba(155,81,224,0.4)] animate-in zoom-in duration-200"></div>
-              )}
               <Home 
-                size={22} 
-                className={`relative z-10 transition-colors duration-200 ${activeTab === 'home' ? 'text-white' : 'text-[#3A125E]/60 group-hover:text-[#3A125E]'}`} 
+                size={20} 
+                className={`transition-colors duration-200 ${activeTab === 'home' ? 'text-[#3A125E]' : 'text-[#3A125E]/60'}`} 
                 strokeWidth={activeTab === 'home' ? 2.5 : 2} 
               />
+              <span className={`text-[9px] font-bold ${activeTab === 'home' ? 'text-[#3A125E]' : 'text-[#3A125E]/60'}`}>Home</span>
             </button>
 
-            {/* Tab 2: Stories (Clips) */}
+            {/* Tab 2: Search (Discover) */}
+            <button 
+              onClick={() => setActiveTab('search')}
+              className="flex flex-col items-center justify-center flex-1 h-full relative cursor-pointer gap-[2px]"
+            >
+              <Search 
+                size={20} 
+                className={`transition-colors duration-200 ${activeTab === 'search' ? 'text-[#3A125E]' : 'text-[#3A125E]/60'}`} 
+                strokeWidth={activeTab === 'search' ? 2.5 : 2} 
+              />
+              <span className={`text-[9px] font-bold ${activeTab === 'search' ? 'text-[#3A125E]' : 'text-[#3A125E]/60'}`}>Discover</span>
+            </button>
+
+            {/* Tab 3: Add (TikTok Style) */}
+            <button 
+              onClick={() => setActiveTab('add')}
+              className="flex flex-col items-center justify-center flex-1 h-full relative cursor-pointer"
+            >
+              <div className="w-[38px] h-[26px] bg-[#3A125E] text-white rounded-[8px] flex items-center justify-center relative shadow-[-2px_0_0_#00f2fe,2px_0_0_#fe0979]">
+                <PlusSquare size={18} strokeWidth={3} className="text-white" />
+              </div>
+            </button>
+
+            {/* Tab 4: Stories (Inbox) */}
             <button 
               onClick={() => {
                 setViewingMedia('reel');
                 setActiveStoryIndex(0);
                 setActiveTab('stories');
               }}
-              className="flex items-center justify-center w-14 h-full relative group cursor-pointer"
+              className="flex flex-col items-center justify-center flex-1 h-full relative cursor-pointer gap-[2px]"
             >
-              {activeTab === 'stories' && (
-                <div className="absolute w-[44px] h-[44px] rounded-full bg-gradient-to-tr from-[#00FFFF] via-[#9B51E0] to-[#3A125E] shadow-[0_4px_12px_rgba(155,81,224,0.4)] animate-in zoom-in duration-200"></div>
-              )}
               <Film 
-                size={22} 
-                className={`relative z-10 transition-colors duration-200 ${activeTab === 'stories' ? 'text-white' : 'text-[#3A125E]/60 group-hover:text-[#3A125E]'}`} 
+                size={20} 
+                className={`transition-colors duration-200 ${activeTab === 'stories' ? 'text-[#3A125E]' : 'text-[#3A125E]/60'}`} 
                 strokeWidth={activeTab === 'stories' ? 2.5 : 2} 
               />
-            </button>
-
-            {/* Tab 3: Search */}
-            <button 
-              onClick={() => setActiveTab('search')}
-              className="flex items-center justify-center w-14 h-full relative group cursor-pointer"
-            >
-              {activeTab === 'search' && (
-                <div className="absolute w-[44px] h-[44px] rounded-full bg-gradient-to-tr from-[#00FFFF] via-[#9B51E0] to-[#3A125E] shadow-[0_4px_12px_rgba(155,81,224,0.4)] animate-in zoom-in duration-200"></div>
-              )}
-              <Search 
-                size={22} 
-                className={`relative z-10 transition-colors duration-200 ${activeTab === 'search' ? 'text-white' : 'text-[#3A125E]/60 group-hover:text-[#3A125E]'}`} 
-                strokeWidth={activeTab === 'search' ? 2.5 : 2} 
-              />
-            </button>
-
-            {/* Tab 4: Add */}
-            <button 
-              onClick={() => setActiveTab('add')}
-              className="flex items-center justify-center w-14 h-full relative group cursor-pointer"
-            >
-              {activeTab === 'add' && (
-                <div className="absolute w-[44px] h-[44px] rounded-full bg-gradient-to-tr from-[#00FFFF] via-[#9B51E0] to-[#3A125E] shadow-[0_4px_12px_rgba(155,81,224,0.4)] animate-in zoom-in duration-200"></div>
-              )}
-              <PlusSquare 
-                size={22} 
-                className={`relative z-10 transition-colors duration-200 ${activeTab === 'add' ? 'text-white' : 'text-[#3A125E]/60 group-hover:text-[#3A125E]'}`} 
-                strokeWidth={activeTab === 'add' ? 2.5 : 2} 
-              />
+              <span className={`text-[9px] font-bold ${activeTab === 'stories' ? 'text-[#3A125E]' : 'text-[#3A125E]/60'}`}>Inbox</span>
             </button>
 
             {/* Tab 5: Profile */}
@@ -1638,25 +1627,16 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                 setSelectedProfileId(null);
                 setActiveTab('profile');
               }}
-              className="flex items-center justify-center w-14 h-full relative group cursor-pointer"
+              className="flex flex-col items-center justify-center flex-1 h-full relative cursor-pointer gap-[2px]"
             >
-              {activeTab === 'profile' && (
-                <div className="absolute w-[44px] h-[44px] rounded-full bg-gradient-to-tr from-[#00FFFF] via-[#9B51E0] to-[#3A125E] shadow-[0_4px_12px_rgba(155,81,224,0.4)] animate-in zoom-in duration-200"></div>
-              )}
               <User 
-                size={22} 
-                className={`relative z-10 transition-colors duration-200 ${activeTab === 'profile' ? 'text-white' : 'text-[#3A125E]/60 group-hover:text-[#3A125E]'}`} 
+                size={20} 
+                className={`transition-colors duration-200 ${activeTab === 'profile' ? 'text-[#3A125E]' : 'text-[#3A125E]/60'}`} 
                 strokeWidth={activeTab === 'profile' ? 2.5 : 2} 
               />
+              <span className={`text-[9px] font-bold ${activeTab === 'profile' ? 'text-[#3A125E]' : 'text-[#3A125E]/60'}`}>Profile</span>
             </button>
 
-          </div>
-          
-          {/* Version string under the icons */}
-          <div className="w-full text-center pb-[calc(env(safe-area-inset-bottom)+4px)] pt-0.5 opacity-60">
-            <span className="text-[#3A125E] text-[7.5px] font-extrabold tracking-[0.18em] uppercase select-none block leading-none">
-              Seen.Ly • v{versionData.version} ({versionData.gitHash || 'stable'})
-            </span>
           </div>
         </nav>
       )}
