@@ -36,7 +36,7 @@ const SplashScreen = ({ onComplete }) => {
             textShadow: '0 4px 20px rgba(43, 35, 21, 0.15)'
           }}
         >
-          Dencewance
+          Seen.Ly
         </h1>
         
         {/* Subtitle / Tagline */}

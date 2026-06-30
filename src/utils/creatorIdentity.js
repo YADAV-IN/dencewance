@@ -88,9 +88,9 @@ export const buildCreatorIdentity = ({
       };
     }
 
-    const displayName = name || safeStorage.get('userName') || 'Dencewance Demo';
+    const displayName = name || safeStorage.get('userName') || 'Seen.Ly Demo';
     const displayAvatar = avatar || safeStorage.get('userAvatar') || '';
-    const displayHandle = handle || safeStorage.get('userHandle') || slugify(displayName, 'dencewance-demo');
+    const displayHandle = handle || safeStorage.get('userHandle') || slugify(displayName, 'seen.ly-demo');
     return {
       ...base,
       creator_avatar: displayAvatar,
@@ -114,7 +114,7 @@ export const buildCreatorIdentity = ({
   }
 
   if (normalizedMode === 'male') {
-    const displayName = name || 'Dencewance Boy';
+    const displayName = name || 'Seen.Ly Boy';
     return {
       ...base,
       creator_mode: 'male',
@@ -126,7 +126,7 @@ export const buildCreatorIdentity = ({
   }
 
   if (normalizedMode === 'female') {
-    const displayName = name || 'Dencewance Girl';
+    const displayName = name || 'Seen.Ly Girl';
     return {
       ...base,
       creator_mode: 'female',

@@ -88,12 +88,12 @@ const getReelIdFromHash = (hash = window.location.hash) => {
 const getItemId = (item) => item?.id || item?._id || item?.$id || '';
 
 // Generic Logo Placeholder expecting a file named "logo.png" in the "public" folder
-export const DenceWanceLogo = ({ width = 120, height = 48, style = {} }) => {
+export const Seen.LyLogo = ({ width = 120, height = 48, style = {} }) => {
   const [logoUrl, setLogoUrl] = useState('');
   useEffect(() => {
     // Check locally first for instant load
     try {
-      const raw = localStorage.getItem('dencewance_site_settings_cache');
+      const raw = localStorage.getItem('seen.ly_site_settings_cache');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed?.site_logo_url) setLogoUrl(parsed.site_logo_url);
@@ -106,7 +106,7 @@ export const DenceWanceLogo = ({ width = 120, height = 48, style = {} }) => {
       .then(data => {
         if (data?.data?.site_logo_url) {
           setLogoUrl(data.data.site_logo_url);
-          localStorage.setItem('dencewance_site_settings_cache', JSON.stringify(data.data));
+          localStorage.setItem('seen.ly_site_settings_cache', JSON.stringify(data.data));
           
           try {
              const icon1 = document.getElementById('dynamic-favicon');
@@ -127,7 +127,7 @@ export const DenceWanceLogo = ({ width = 120, height = 48, style = {} }) => {
       onError={(e) => {
          // Fallback if image is broken
          e.target.onerror = null;
-         e.target.src = '/dencewance-logo.jpg';
+         e.target.src = '/seen.ly-logo.jpg';
       }}
     />
   );
@@ -785,7 +785,7 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
           {/* Universal Top Navigation Bar (One Line) */}
           <header className="top-nav-bar">
         <div className="brand-container animated-brand" style={{ paddingLeft: '8px' }}>
-          <DenceWanceLogo width="auto" height={48} style={{ maxWidth: '200px' }} />
+          <Seen.LyLogo width="auto" height={48} style={{ maxWidth: '200px' }} />
         </div>
         
         {/* Opposite side Notification Bell */}
@@ -1010,7 +1010,7 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
                             <div className="search-reel-overlay">
                                <div className="search-reel-title">{r.title || 'Clip'}</div>
                                <div className="search-reel-meta">
-                                 <span>@{r.creator_name || 'DenceWance'}</span>
+                                 <span>@{r.creator_name || 'Seen.Ly'}</span>
                                </div>
                             </div>
                           </div>
@@ -1113,7 +1113,7 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
                               onClick={() => navigateToProfile(p.author_id || p.creator_id || 'anonymous')}
                               style={{ cursor: 'pointer', color: '#00FFFF' }}
                             >
-                              ✍️ {p.author_name || 'DenceWance Scribe'}
+                              ✍️ {p.author_name || 'Seen.Ly Scribe'}
                             </span>
                             <span className="search-post-id">ID: {p.author_id ? p.author_id.substring(0, 8) : '...'}</span>
                             <span>{new Date(p.published_at || Date.now()).toLocaleDateString()}</span>
@@ -1140,7 +1140,7 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
              <ProfileDashboard targetUserId={selectedProfileId} onBack={() => { setSelectedProfileId(null); setActiveTab('home'); }} /> ) : activeTab === 'add' ? ( <DeveloperControlPanel onComplete={handleUploadPanelComplete} />
           ) : isLoading ? (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#fff', flexDirection: 'column' }}>
-              <DenceWanceLogo width={80} height={80} />
+              <Seen.LyLogo width={80} height={80} />
               <h3 style={{ marginTop: '20px', letterSpacing: '1px' }}>Loading...</h3>
             </div>
           ) : (
@@ -1234,7 +1234,7 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
                             title="View Profile"
                           >
                             <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              {post.author_name || 'DenceWance User'}
+                              {post.author_name || 'Seen.Ly User'}
                               <svg viewBox="0 0 24 24" fill="var(--accent)" width="18" height="18" style={{ marginTop: '2px' }}>
                                 <path d="M12 2l2.4 2.8 3.7-.5.9 3.6 3.4 1.5-1.5 3.4.9 3.6-3.7-.5-2.4 2.8L12 18l-3.7.8-2.4-2.8-3.7.5.9-3.6-3.4-1.5 1.5-3.4-.9-3.6 3.7.5 2.4-2.8L12 2z"/>
                                 <path d="M9 12l2 2 4-4" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
@@ -1256,7 +1256,7 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
 
                       {openMenuFor === (post._id || post.id) && (
                         <div className="more-menu" style={{ position: 'absolute', right: 0, top: '32px', background: '#fff', border: '1px solid var(--border-light)', borderRadius: '8px', padding: '6px', zIndex: 9999, minWidth: 140, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }} onClick={(e)=>e.stopPropagation()}>
-                          <button className="more-menu-item" onClick={(e) => { e.stopPropagation(); try { if (navigator.share) { navigator.share({ title: post.title || 'DenceWance', text: post.excerpt || '', url: window.location.href }); } else { alert('Share not supported'); } } catch(_){} setOpenMenuFor(null); }} style={{ display: 'block', width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', color: 'var(--primary-dark)', cursor: 'pointer' }}>Share</button>
+                          <button className="more-menu-item" onClick={(e) => { e.stopPropagation(); try { if (navigator.share) { navigator.share({ title: post.title || 'Seen.Ly', text: post.excerpt || '', url: window.location.href }); } else { alert('Share not supported'); } } catch(_){} setOpenMenuFor(null); }} style={{ display: 'block', width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', color: 'var(--primary-dark)', cursor: 'pointer' }}>Share</button>
                           {((adminData?.role === 'admin') || (adminData?.role === 'superadmin') || (post.author_id === adminId) || (adminData && (post.author_id === adminData._id || post.author_name === adminData.name)) || adminId) ? (
                             <button className="more-menu-item" onClick={(e) => { e.stopPropagation(); setOpenMenuFor(null); handleDeletePost(post.id || post._id); }} style={{ display: 'block', width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer' }}>Delete</button>
                           ) : null}

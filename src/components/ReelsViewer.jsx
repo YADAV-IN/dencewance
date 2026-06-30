@@ -251,7 +251,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
      if (!translation) return key;
      return typeof translation === 'object' ? translation[lang] || translation['en'] : translation;
   };
-  const siteSettings = { site_name: 'DenceWance' };
+  const siteSettings = { site_name: 'Seen.Ly' };
 
 
   const isMobile = window.innerWidth <= 768;
@@ -1173,7 +1173,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                   <button
                     className={`reel-mode-btn ${reelCreatorMode === 'official' ? 'active' : ''}`}
                     onClick={() => setReelCreatorMode('official')}
-                    title="Dencewance demo ID"
+                    title="Seen.Ly demo ID"
                   >
                     Demo ID
                   </button>

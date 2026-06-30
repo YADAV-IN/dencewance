@@ -157,7 +157,7 @@
   color: #ffffff;
   letter-spacing: 0.5px;
   line-height: 1;
-  text-transform: capitalize; /* Cleaner look: 'DenceWance' instead of 'MODEBOOK' */
+  text-transform: capitalize; /* Cleaner look: 'Seen.Ly' instead of 'MODEBOOK' */
 }
 
 .vintage-shimmer {
@@ -206,7 +206,7 @@
 }
 
 /* Animations */
-.dencewance-logo-animated {
+.seen.ly-logo-animated {
   filter: drop-shadow(0 2px 5px rgba(197, 151, 21, 0.3));
 }
 .spin-slow { animation: spin-slow 15s linear infinite; transform-origin: 0 0; }

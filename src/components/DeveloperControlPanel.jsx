@@ -324,7 +324,7 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
       formData.append('artist', musicArtist);
       formData.append('audio', musicFile);
       if (musicCover) formData.append('cover', musicCover);
-      formData.append('developer_secret', 'DENCEWANCE_DEV_2026');
+      formData.append('developer_secret', 'SEEN.LY_DEV_2026');
 
       const res = await fetch(`${API_URL}/api/music`, {
         method: 'POST',
@@ -768,7 +768,7 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                       </div>
                       <button onClick={async () => {
                         if(window.confirm('Are you sure you want to delete this track from the platform library?')) {
-                            await fetch(`${API_URL}/api/music/${track._id || track.id}`, { method: 'DELETE', headers: { 'x-developer-secret': 'DENCEWANCE_DEV_2026' }});
+                            await fetch(`${API_URL}/api/music/${track._id || track.id}`, { method: 'DELETE', headers: { 'x-developer-secret': 'SEEN.LY_DEV_2026' }});
                             loadMusicTracks();
                         }
                       }} className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100">

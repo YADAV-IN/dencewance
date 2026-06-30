@@ -466,7 +466,7 @@ export default function LoginScreen({ onLoginSuccess, onCancel }) {
         )}
 
         <div className="login-brand">
-          <h1 className="login-logo-glow">DenceWance</h1>
+          <h1 className="login-logo-glow">Seen.Ly</h1>
           <p className="login-subtitle">Campus Creator Space</p>
         </div>
 

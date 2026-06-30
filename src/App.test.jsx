@@ -11,8 +11,8 @@ beforeEach(() => {
   );
 });
 
-test('renders DenceWance brand title', () => {
+test('renders Seen.Ly brand title', () => {
   render(<App />);
-  const titles = screen.getAllByText(/DenceWance/i);
+  const titles = screen.getAllByText(/Seen.Ly/i);
   expect(titles.length).toBeGreaterThan(0);
 });

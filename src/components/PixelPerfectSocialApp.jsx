@@ -76,7 +76,7 @@ const getSmokeGradient = (story) => {
   }
   
   // Create dynamic triadic colorful smoke colors based on a hash of the title / creator
-  const seed = story.title || story.creator_name || String(story.id || 'dencewance');
+  const seed = story.title || story.creator_name || String(story.id || 'seen.ly');
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
     hash = seed.charCodeAt(i) + ((hash << 5) - hash);
@@ -567,7 +567,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
          method: 'DELETE',
          headers: { 
            Authorization: `Bearer ${token}`,
-           'X-Developer-Secret': 'DENCEWANCE_DEV_2026'
+           'X-Developer-Secret': 'SEEN.LY_DEV_2026'
          }
       });
       if (res.ok) {
@@ -622,7 +622,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
         <header className="sticky top-0 z-50 bg-[#FAF7EE] border-b border-gray-200/60 px-4 py-3 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => setActiveTab('home')}>
             <span className="font-serif font-black text-[22px] italic tracking-wide text-[#2B2315] leading-none">
-              Dencewance
+              Seen.Ly
             </span>
           </div>
 
@@ -908,7 +908,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
 
                         {/* Tags */}
                         <div className="flex flex-wrap gap-1.5 mt-1">
-                          {(post.tags && post.tags.length > 0 ? post.tags : ['DenceWance', 'CollegeLife']).map((tag) => (
+                          {(post.tags && post.tags.length > 0 ? post.tags : ['Seen.Ly', 'CollegeLife']).map((tag) => (
                             <span 
                               key={tag} 
                               className="text-blue-600 font-semibold cursor-pointer hover:underline text-[13px]"
@@ -1655,7 +1655,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
           {/* Version string under the icons */}
           <div className="w-full text-center pb-[calc(env(safe-area-inset-bottom)+4px)] pt-0.5 opacity-60">
             <span className="text-[#3A125E] text-[7.5px] font-extrabold tracking-[0.18em] uppercase select-none block leading-none">
-              DenceWance • v{versionData.version} ({versionData.gitHash || 'stable'})
+              Seen.Ly • v{versionData.version} ({versionData.gitHash || 'stable'})
             </span>
           </div>
         </nav>
@@ -1826,7 +1826,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               <button 
                 onClick={() => {
                   if (window.confirm("Clear local cache & reset settings?")) {
-                    localStorage.removeItem('dencewance_view_mode');
+                    localStorage.removeItem('seen.ly_view_mode');
                     localStorage.removeItem('ENABLE_SMOKE_THEME');
                     alert("Cache cleared successfully! Reloading...");
                     window.location.reload();

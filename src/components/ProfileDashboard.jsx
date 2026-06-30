@@ -75,7 +75,7 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
            setProfile({
              name: 'User ' + targetId.substring(0, 8),
              id: targetId,
-             bio: 'Creator on DenceWance'
+             bio: 'Creator on Seen.Ly'
            });
          }
 
@@ -220,7 +220,7 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
         method: 'DELETE',
         headers: { 
           'Authorization': `Bearer ${token}`,
-          'X-Developer-Secret': 'DENCEWANCE_DEV_2026'
+          'X-Developer-Secret': 'SEEN.LY_DEV_2026'
         }
       });
       if (res.ok) {
@@ -446,7 +446,7 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
       const authToken = localStorage.getItem('adminToken') || '';
 
       // 3. Create Video Story with the resolved public URL
-      setUploadStatusText('Finalizing inside DenceWance...');
+      setUploadStatusText('Finalizing inside Seen.Ly...');
       const reelRes = await fetch(`${API_URL}/api/reels`, {
         method: 'POST',
         headers: { 
@@ -508,7 +508,7 @@ export default function ProfileDashboard({ targetUserId, onBack }) {
       <div className="flex items-center justify-center h-full w-full bg-black text-white historical-theme p-4">
         <form onSubmit={handleLogin} className="w-full max-w-sm bg-gray-900 border border-gray-800 p-8 rounded-xl flex flex-col gap-4 shadow-2xl">
           <div className="flex justify-center mb-4">
-            <h1 className="text-3xl font-serif tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">DenceWance</h1>
+            <h1 className="text-3xl font-serif tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">Seen.Ly</h1>
           </div>
           <input type="email" placeholder="Phone number, username, or email" required className="bg-black/50 border border-gray-700 rounded p-3 text-sm focus:outline-none focus:border-gray-500" value={email} onChange={e=>setEmail(e.target.value)} />
           <input type="password" placeholder="Password" required className="bg-black/50 border border-gray-700 rounded p-3 text-sm focus:outline-none focus:border-gray-500" value={password} onChange={e=>setPassword(e.target.value)} />

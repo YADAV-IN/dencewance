@@ -1,8 +1,8 @@
-// Language translations for DenceWance Social Platform
+// Language translations for Seen.Ly Social Platform
 export const translations = {
   en: {
     // Header
-    siteName: 'DenceWance',
+    siteName: 'Seen.Ly',
     siteSubtitle: 'BJMC Social',
     admin: 'Admin',
     login: 'Login',
@@ -112,7 +112,7 @@ export const translations = {
   },
   hi: {
     // Header
-    siteName: 'DenceWance',
+    siteName: 'Seen.Ly',
     siteSubtitle: 'बीजेएमसी सोशल',
     admin: 'एडमिन',
     login: 'लॉगिन',

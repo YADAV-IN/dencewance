@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dencewance-cache-v3';
+const CACHE_NAME = 'seen.ly-cache-v3';
 const CORE_ASSETS = ['/', '/manifest.json', '/favicon.ico', '/logo192.png', '/logo512.png'];
 
 self.addEventListener('install', (event) => {

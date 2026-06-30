@@ -7,12 +7,12 @@ function App() {
   const [showSplash, setShowSplash] = useState(true);
 
   const [viewMode, setViewMode] = useState(() => {
-    return localStorage.getItem('dencewance_view_mode') || 'desktop';
+    return localStorage.getItem('seen.ly_view_mode') || 'desktop';
   });
 
   const handleToggleViewMode = (mode) => {
     setViewMode(mode);
-    localStorage.setItem('dencewance_view_mode', mode);
+    localStorage.setItem('seen.ly_view_mode', mode);
   };
 
   useEffect(() => {
@@ -28,7 +28,7 @@ function App() {
 
   const handleSplashComplete = () => {
     setShowSplash(false);
-    sessionStorage.setItem('dencewance_splash_shown', 'true');
+    sessionStorage.setItem('seen.ly_splash_shown', 'true');
   };
 
   return (

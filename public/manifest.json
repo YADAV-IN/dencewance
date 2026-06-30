@@ -1,6 +1,6 @@
 {
-  "short_name": "DenceWance",
-  "name": "DenceWance News",
+  "short_name": "Seen.Ly",
+  "name": "Seen.Ly News",
   "icons": [
     {
       "src": "favicon.ico",
@@ -25,7 +25,7 @@
   "orientation": "portrait",
   "theme_color": "#000000",
   "background_color": "#000000",
-  "description": "DenceWance short video stories and news",
+  "description": "Seen.Ly short video stories and news",
   "shortcuts": [
     {
       "name": "Video Stories",
