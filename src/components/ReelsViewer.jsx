@@ -8,18 +8,18 @@ import CommentsSection from './CommentsSection';
 import LikeButton from './LikeButton';
 import { trackEvent, sendContentReport, sendDeveloperReport } from '../utils/analyticsTracker';
 
-const REEL_PRELOAD_AHEAD = 2; // Increased to 2 for smoother scrolling
-const REEL_KEEP_BEHIND = 1; // Keep 1 previous video loaded to prevent blanking on scroll up
+const REEL_PRELOAD_AHEAD = 5; 
+const REEL_KEEP_BEHIND = 1; 
 
 export const DEFAULT_VISUAL_HUD = [
   { id: 'creatorProfile', type: 'creator', x: 4, y: 78, visible: true },
   { id: 'captionText', type: 'caption', x: 4, y: 85, visible: true },
   { id: 'musicTicker', type: 'music', x: 4, y: 92, visible: true },
-  { id: 'likeBtn', type: 'like', x: 94, y: 55, visible: true },
-  { id: 'commentBtn', type: 'comment', x: 94, y: 65, visible: true },
-  { id: 'shareBtn', type: 'share', x: 94, y: 75, visible: true },
-  { id: 'settingsBtn', type: 'settings', x: 94, y: 85, visible: true },
-  { id: 'saveBtn', type: 'save', x: 94, y: 45, visible: false },
+  { id: 'likeBtn', type: 'like', x: 98, y: 55, visible: true },
+  { id: 'commentBtn', type: 'comment', x: 98, y: 65, visible: true },
+  { id: 'shareBtn', type: 'share', x: 98, y: 75, visible: true },
+  { id: 'settingsBtn', type: 'settings', x: 98, y: 85, visible: true },
+  { id: 'saveBtn', type: 'save', x: 98, y: 45, visible: false },
 ];
 
 const HUD_COMPONENTS_MAP = {
@@ -352,7 +352,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   });
 
   const handleVisualHUDSave = () => {
-    localStorage.setItem('CLIPS_VISUAL_HUD_V3', JSON.stringify(visualHud));
+    localStorage.setItem('CLIPS_VISUAL_HUD_V4', JSON.stringify(visualHud));
     setIsHUDEditMode(false);
     setSelectedHudItem(null);
   };
@@ -889,7 +889,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                             playsInline
                             muted={reelsMuted}
                             autoPlay={isActive && !isPaused}
-                            preload={isActive ? 'auto' : (shouldWarm ? 'metadata' : 'none')}
+                            preload={shouldWarm ? 'auto' : 'none'}
                             poster={item.cover_image_url ? resolveMediaUrl(item.cover_image_url) : undefined}
                             onLoadedMetadata={(event) => {
                               event.currentTarget.volume = 1;
