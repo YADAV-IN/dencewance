@@ -15,11 +15,11 @@ export const DEFAULT_VISUAL_HUD = [
   { id: 'creatorProfile', type: 'creator', x: 4, y: 78, visible: true },
   { id: 'captionText', type: 'caption', x: 4, y: 85, visible: true },
   { id: 'musicTicker', type: 'music', x: 4, y: 92, visible: true },
-  { id: 'likeBtn', type: 'like', x: 98, y: 55, visible: true },
-  { id: 'commentBtn', type: 'comment', x: 98, y: 65, visible: true },
-  { id: 'shareBtn', type: 'share', x: 98, y: 75, visible: true },
-  { id: 'settingsBtn', type: 'settings', x: 98, y: 85, visible: true },
-  { id: 'saveBtn', type: 'save', x: 98, y: 45, visible: false },
+  { id: 'likeBtn', type: 'like', x: 100, y: 55, visible: true },
+  { id: 'commentBtn', type: 'comment', x: 100, y: 65, visible: true },
+  { id: 'shareBtn', type: 'share', x: 100, y: 75, visible: true },
+  { id: 'settingsBtn', type: 'settings', x: 100, y: 85, visible: true },
+  { id: 'saveBtn', type: 'save', x: 100, y: 45, visible: false },
 ];
 
 const HUD_COMPONENTS_MAP = {
@@ -352,7 +352,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   });
 
   const handleVisualHUDSave = () => {
-    localStorage.setItem('CLIPS_VISUAL_HUD_V4', JSON.stringify(visualHud));
+    localStorage.setItem('CLIPS_VISUAL_HUD_V5', JSON.stringify(visualHud));
     setIsHUDEditMode(false);
     setSelectedHudItem(null);
   };
