@@ -3243,23 +3243,25 @@ body.standalone-mode .reel-top-overlay {
   /* MOBILE BOTTOM NAVIGATION */
   .mobile-nav {
     position: fixed;
-    bottom: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(94vw, 480px);
-    min-height: 74px;
-    padding: 8px;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 48px;
+    padding: 0;
     background: var(--mobile-nav-bg);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
-    border: 1px solid var(--mobile-nav-border);
+    border-top: 1px solid var(--mobile-nav-border);
+    border-bottom: none;
+    border-left: none;
+    border-right: none;
     display: flex;
-    justify-content: space-between;
+    justify-content: space-around;
     align-items: stretch;
-    gap: 4px;
+    gap: 0;
     z-index: 950;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.24);
-    border-radius: 28px;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+    border-radius: 0;
   }
 
   .mobile-nav-item {
@@ -3268,43 +3270,43 @@ body.standalone-mode .reel-top-overlay {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 5px;
-    padding: 6px 4px;
+    gap: 2px;
+    padding: 0;
     margin: 0;
-    border-radius: 18px;
+    border-radius: 0;
     border: none;
     background: transparent;
     color: var(--text-muted);
-    font-size: 10px;
+    font-size: 9px;
     cursor: pointer;
     text-align: center;
-    transition: all 0.22s ease;
+    transition: all 0.1s;
   }
 
   .mobile-nav-item.active {
     color: var(--mobile-nav-active-text);
-    background: var(--mobile-nav-active-bg);
-    border: 1px solid rgba(245, 158, 11, 0.24);
-    transform: translateY(-2px);
+    background: transparent;
+    border: none;
+    transform: none;
   }
 
   .mobile-nav-item:hover {
-    background: var(--nav-chip-bg);
+    background: transparent;
     color: var(--text-primary);
   }
 
   .mobile-nav-icon-wrap {
-    width: 34px;
-    height: 34px;
-    border-radius: 12px;
+    width: 24px;
+    height: 24px;
+    border-radius: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg-subtle);
+    background: transparent;
   }
 
   .mobile-nav-item.active .mobile-nav-icon-wrap {
-    background: var(--bg-glow-2);
+    background: transparent;
   }
 
   .mobile-nav-icon {
