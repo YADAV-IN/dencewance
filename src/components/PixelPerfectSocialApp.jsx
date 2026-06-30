@@ -1618,7 +1618,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                 className={`transition-colors duration-200 ${activeTab === 'stories' ? 'text-[#3A125E]' : 'text-[#3A125E]/60'}`} 
                 strokeWidth={activeTab === 'stories' ? 2.5 : 2} 
               />
-              <span className={`text-[9px] font-bold ${activeTab === 'stories' ? 'text-[#3A125E]' : 'text-[#3A125E]/60'}`}>Inbox</span>
+              <span className={`text-[9px] font-bold ${activeTab === 'stories' ? 'text-[#3A125E]' : 'text-[#3A125E]/60'}`}>Clips</span>
             </button>
 
             {/* Tab 5: Profile */}
