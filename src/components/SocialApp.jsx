@@ -1308,13 +1308,29 @@ export default function SocialApp({ viewMode = 'desktop', setViewMode }) {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="mobile-bottom-nav">
-        <button className={activeTab === 'home' ? 'active' : ''} onClick={() => setActiveTab('home')}><HomeIcon /></button>
-        <button className={activeTab === 'stories' ? 'active' : ''} onClick={() => { setActiveStoryIndex(0); setViewingMedia('reel'); setActiveTab('stories'); }}><VideoStoriesIcon /></button>
-        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}><MapIcon /></button>
-        <button className={activeTab === 'add' ? 'active' : ''} onClick={() => setActiveTab('add')}><QuillIcon /></button>
-        <button className={activeTab === 'profile' ? 'active' : ''} onClick={() => { setSelectedProfileId(null); setActiveTab('profile'); }}><EyeIcon /></button>
-      </nav>
+      <nav className="tiktok-bottom-nav">
+          <button className={activeTab === 'home' ? 'active' : ''} onClick={() => setActiveTab('home')}>
+            <HomeIcon />
+            <span>Home</span>
+          </button>
+          <button className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}>
+            <MapIcon />
+            <span>Discover</span>
+          </button>
+          <button className={`add-btn-wrapper ${activeTab === 'add' ? 'active' : ''}`} onClick={() => setActiveTab('add')}>
+            <div className="tiktok-add-btn">
+              <QuillIcon />
+            </div>
+          </button>
+          <button className={activeTab === 'stories' ? 'active' : ''} onClick={() => { setActiveStoryIndex(0); setViewingMedia('reel'); setActiveTab('stories'); }}>
+            <VideoStoriesIcon />
+            <span>Inbox</span>
+          </button>
+          <button className={activeTab === 'profile' ? 'active' : ''} onClick={() => { setSelectedProfileId(null); setActiveTab('profile'); }}>
+            <EyeIcon />
+            <span>Profile</span>
+          </button>
+        </nav>
 
       
     </div>
