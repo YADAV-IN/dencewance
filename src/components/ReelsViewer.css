@@ -49,6 +49,11 @@
   transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   box-shadow: 0 4px 15px rgba(0,0,0,0.1);
   cursor: pointer;
+  /* Force GPU acceleration to prevent layer dropping on scroll */
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .reel-action-btn:hover {

@@ -112,7 +112,9 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
           left: `${config.x}%`,
           top: `${config.y}%`,
           zIndex: 40,
-          transform: `translate(${config.x >= 50 ? '-100%' : '0'}, -50%)`
+          transform: `translate(${config.x >= 50 ? '-100%' : '0'}, -50%) translateZ(0)`,
+          willChange: 'transform',
+          WebkitFontSmoothing: 'antialiased'
         }}
         className={`${isHUDEditMode ? 'transition-all pointer-events-auto cursor-move' : 'pointer-events-none'} ${isSelected ? 'ring-2 ring-[#FF2D55] bg-[#FF2D55]/20 rounded-lg p-2' : ''}`}
         onPointerDown={(e) => onVisualPointerDown(e, config.id)}
