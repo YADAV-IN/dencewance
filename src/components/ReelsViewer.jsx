@@ -12,14 +12,14 @@ const REEL_PRELOAD_AHEAD = 2; // Increased to 2 for smoother scrolling
 const REEL_KEEP_BEHIND = 1; // Keep 1 previous video loaded to prevent blanking on scroll up
 
 export const DEFAULT_VISUAL_HUD = [
-  { id: 'likeBtn', type: 'like', x: 85, y: 55, visible: true },
-  { id: 'commentBtn', type: 'comment', x: 85, y: 65, visible: true },
-  { id: 'saveBtn', type: 'save', x: 85, y: 75, visible: true },
-  { id: 'shareBtn', type: 'share', x: 85, y: 85, visible: true },
-  { id: 'settingsBtn', type: 'settings', x: 85, y: 45, visible: true },
-  { id: 'creatorProfile', type: 'creator', x: 4, y: 75, visible: true },
-  { id: 'captionText', type: 'caption', x: 4, y: 85, visible: true },
+  { id: 'creatorProfile', type: 'creator', x: 4, y: 80, visible: true },
+  { id: 'captionText', type: 'caption', x: 4, y: 86, visible: true },
   { id: 'musicTicker', type: 'music', x: 4, y: 92, visible: true },
+  { id: 'likeBtn', type: 'like', x: 88, y: 55, visible: true },
+  { id: 'commentBtn', type: 'comment', x: 88, y: 65, visible: true },
+  { id: 'shareBtn', type: 'share', x: 88, y: 75, visible: true },
+  { id: 'settingsBtn', type: 'settings', x: 88, y: 85, visible: true },
+  { id: 'saveBtn', type: 'save', x: 88, y: 45, visible: false },
 ];
 
 const HUD_COMPONENTS_MAP = {
@@ -128,42 +128,42 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
             </div>
           )}
           {type === 'comment' && (
-            <div className="reel-action-item">
-              <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); setSelectedReelForComments(item._id); setShowComments(true); }}>
-                <span className="reel-action-icon"><MessageSquare size={24} /></span>
+            <div className="reel-action-item drop-shadow-sm">
+              <button className="reel-action-btn hover:scale-105 active:scale-95 transition-transform" onClick={(e) => { e.stopPropagation(); setSelectedReelForComments(item._id); setShowComments(true); }}>
+                <span className="reel-action-icon"><MessageSquare size={26} strokeWidth={1.5} /></span>
               </button>
-              <span className="reel-action-count">{item.comments_count || (item.comments ? item.comments.length : 0) || 0}</span>
+              <span className="reel-action-count font-medium text-[13px]">{item.comments_count || (item.comments ? item.comments.length : 0) || 0}</span>
             </div>
           )}
           {type === 'save' && (() => {
             const reelId = item._id || item.id;
             const isSaved = savedReels[reelId] !== undefined ? savedReels[reelId] : !!item.is_saved_by_me;
             return (
-              <div className={`reel-action-item ${isSaved ? 'save-active' : ''}`}>
-                <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); handleSaveReel(reelId, !!item.is_saved_by_me); }}>
-                  <span className="reel-action-icon"><Bookmark size={24} fill={isSaved ? "#FFD700" : "none"} className={isSaved ? "text-[#FFD700]" : "text-white"} /></span>
+              <div className={`reel-action-item drop-shadow-sm ${isSaved ? 'save-active' : ''}`}>
+                <button className="reel-action-btn hover:scale-105 active:scale-95 transition-transform" onClick={(e) => { e.stopPropagation(); handleSaveReel(reelId, !!item.is_saved_by_me); }}>
+                  <span className="reel-action-icon"><Bookmark size={26} strokeWidth={1.5} fill={isSaved ? "#FFFFFF" : "none"} className="text-white" /></span>
                 </button>
-                <span className="reel-action-count">{isSaved ? "Saved" : "Save"}</span>
+                <span className="reel-action-count font-medium text-[13px]">{isSaved ? "Saved" : "Save"}</span>
               </div>
             );
           })()}
           {type === 'share' && (
-            <div className="reel-action-item">
-              <button className="reel-action-btn" onClick={(e) => { 
+            <div className="reel-action-item drop-shadow-sm">
+              <button className="reel-action-btn hover:scale-105 active:scale-95 transition-transform" onClick={(e) => { 
                 e.stopPropagation(); 
                 if (navigator.share) { navigator.share({ title: item.title, text: item.caption, url: window.location.href }).catch(() => {}); }
                 else { alert("Share link copied to clipboard!"); navigator.clipboard.writeText(window.location.href); }
               }}>
-                <span className="reel-action-icon"><Share2 size={24} /></span>
+                <span className="reel-action-icon"><Share2 size={26} strokeWidth={1.5} /></span>
               </button>
-              <span className="reel-action-count">{item.shares || 0}</span>
+              <span className="reel-action-count font-medium text-[13px]">{item.shares || 0}</span>
             </div>
           )}
           {type === 'settings' && (
-            <div className="reel-action-item">
+            <div className="reel-action-item drop-shadow-sm">
               <div className="relative">
-                <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); setActiveDropdownIndex(activeDropdownIndex === idx ? null : idx); }}>
-                  <span className="reel-action-icon"><MoreVertical size={24} /></span>
+                <button className="reel-action-btn hover:scale-105 active:scale-95 transition-transform" onClick={(e) => { e.stopPropagation(); setActiveDropdownIndex(activeDropdownIndex === idx ? null : idx); }}>
+                  <span className="reel-action-icon"><MoreVertical size={26} strokeWidth={1.5} /></span>
                 </button>
                 {activeDropdownIndex === idx && !isHUDEditMode && (
                   <div className="absolute right-full mr-2 bottom-0 w-48 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-2 shadow-2xl z-[60] flex flex-col gap-1">
@@ -185,23 +185,32 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
             </div>
           )}
           {type === 'creator' && (
-            <div className="reel-creator-line flex items-center gap-2" style={{ pointerEvents: 'auto' }}>
-              <button className="reel-creator-pill" onClick={(e) => { e.stopPropagation(); const handle = item.creator_handle || item.creator_name || 'user'; if (onNavigateToProfile) onNavigateToProfile(item.creator_id || handle); else window.location.href = `/profile/${handle}`; }}>
-                <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20">
-                  <img src={getViewerAvatar(item.creator_handle, item.creator_name, item.creator_avatar)} alt="Creator" className="w-full h-full object-cover" />
+            <div className="flex items-center gap-2 pointer-events-auto group" onClick={(e) => { e.stopPropagation(); const handle = item.creator_handle || item.creator_name || 'user'; if (onNavigateToProfile) onNavigateToProfile(item.creator_id || handle); else window.location.href = `/profile/${handle}`; }}>
+              <div className="w-[34px] h-[34px] rounded-full overflow-hidden border-[1.5px] border-white/50 shadow-sm cursor-pointer group-active:scale-95 transition-transform">
+                <img src={getViewerAvatar(item.creator_handle, item.creator_name, item.creator_avatar)} alt="Creator" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex flex-col items-start cursor-pointer drop-shadow-md">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-white font-semibold text-[15px] leading-tight">
+                    {slugifyText(item.creator_handle || item.creator_name || 'user')}
+                  </span>
+                  <span className="w-1 h-1 bg-white rounded-full opacity-60"></span>
+                  <button className="text-white font-semibold text-[12px] bg-transparent border border-white/40 px-2 py-[2px] rounded-md hover:bg-white/20 transition-colors backdrop-blur-sm">
+                    Follow
+                  </button>
                 </div>
-                <span className="reel-creator-name truncate max-w-[120px]">@{slugifyText(item.creator_handle || item.creator_name || 'user')}</span>
-              </button>
+              </div>
             </div>
           )}
           {type === 'caption' && (
-            <div className="reel-caption-line max-w-[250px] pointer-events-none">
-              <p className="text-white text-sm drop-shadow-md line-clamp-2">{item.caption || item.title || ''}</p>
+            <div className="reel-caption-line max-w-[280px] pointer-events-none mt-1">
+              <p className="text-white text-[14px] font-normal leading-tight drop-shadow-sm line-clamp-2">{item.caption || item.title || ''}</p>
             </div>
           )}
           {type === 'music' && (
-            <div className="reel-music-line flex items-center gap-2 mt-1 pointer-events-none">
-              <span className="text-white text-xs opacity-80 drop-shadow flex items-center gap-1">🎵 {item.music_title || 'Original Audio'}</span>
+            <div className="reel-music-line flex items-center gap-1.5 mt-1.5 pointer-events-none bg-black/20 backdrop-blur-md px-2.5 py-1 rounded-full w-max">
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-white"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+              <span className="text-white text-[13px] font-medium drop-shadow-sm flex items-center gap-1 truncate max-w-[150px]">{item.music_title || 'Original audio'}</span>
             </div>
           )}
         </div>
@@ -321,7 +330,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   });
 
   const handleVisualHUDSave = () => {
-    localStorage.setItem('CLIPS_VISUAL_HUD', JSON.stringify(visualHud));
+    localStorage.setItem('CLIPS_VISUAL_HUD_V2', JSON.stringify(visualHud));
     setIsHUDEditMode(false);
     setSelectedHudItem(null);
   };
@@ -391,7 +400,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
 
   useEffect(() => {
     const fetchVisualZones = () => {
-      const stored = localStorage.getItem('CLIPS_VISUAL_HUD');
+      const stored = localStorage.getItem('CLIPS_VISUAL_HUD_V2');
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
