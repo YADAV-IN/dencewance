@@ -621,7 +621,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
       {activeTab !== 'stories' && activeTab !== 'add' && (
         <header className="sticky top-0 z-50 bg-[#FAF7EE] border-b border-gray-200/60 px-4 py-2 flex justify-between items-center shrink-0">
           <div className="flex items-center cursor-pointer select-none" onClick={() => setActiveTab('home')}>
-              <img src="/seenly-logo.png" alt="Seen.Ly Logo" className="h-[28px] object-contain drop-shadow-sm" style={{ mixBlendMode: 'multiply' }} />
+              <img src="/seenly-logo.png" alt="Seen.Ly Logo" className="h-[36px] object-contain drop-shadow-sm" style={{ mixBlendMode: 'multiply' }} />
             </div>
 
           <div className="flex items-center gap-[12px]">
