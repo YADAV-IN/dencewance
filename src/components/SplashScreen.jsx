@@ -68,7 +68,7 @@ const SplashScreen = ({ onComplete }) => {
         style={{ animation: 'fadeIn 1s ease-out forwards 1.5s' }}
       >
         <span className="text-[11px] text-[#2B2315]/50 tracking-widest font-medium uppercase mb-0.5">from</span>
-        <span className="text-lg font-bold tracking-widest bg-clip-text text-transparent bg-gradient-to-r from-[#9B51E0] via-[#D4AF37] to-[#00FFFF]">
+        <span className="text-lg font-bold tracking-widest text-[#2B2315] opacity-80" style={{ letterSpacing: "0.2em" }}>
           Microbyte
         </span>
       </div>
