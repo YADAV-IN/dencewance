@@ -1003,7 +1003,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     </div>
 
                     {/* Visual HUD Render Engine */}
-                    {visualHud.map(v => renderVisualComponent(v.type, item, idx))}
+                    {Math.abs(idx - activeReelIndex) <= 2 && visualHud.map(v => renderVisualComponent(v.type, item, idx))}
 
                     {/* Reel counter (top-right) */}
                     {/* Reel counter removed */}
