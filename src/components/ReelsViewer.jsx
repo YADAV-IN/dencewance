@@ -178,12 +178,14 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
               <div className="relative">
                 <button className="reel-action-btn hover:scale-105 active:scale-95 transition-transform" onClick={(e) => { e.stopPropagation(); setActiveDropdownIndex(activeDropdownIndex === idx ? null : idx); }}>
                   <span className="reel-action-icon">
-                    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="3" y1="6" x2="21" y2="6"></line>
-                      <line x1="3" y1="12" x2="21" y2="12"></line>
-                      <line x1="3" y1="18" x2="14.5" y2="18"></line>
-                      <circle cx="17.5" cy="18" r="2.5"></circle>
-                      <path d="M17.5 13.5v2 M17.5 20.5v2 M15 15.5l1.5 1.5 M15 20.5l1.5-1.5 M20 15.5l-1.5 1.5 M20 20.5l-1.5-1.5"></path>
+                      <line x1="3" y1="12" x2="10" y2="12"></line>
+                      <line x1="3" y1="18" x2="7" y2="18"></line>
+                      <g transform="translate(10.4, 9.4) scale(0.55)" strokeWidth="2.72">
+                        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </g>
                     </svg>
                   </span>
                 </button>
