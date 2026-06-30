@@ -12,14 +12,14 @@ const REEL_PRELOAD_AHEAD = 2; // Increased to 2 for smoother scrolling
 const REEL_KEEP_BEHIND = 1; // Keep 1 previous video loaded to prevent blanking on scroll up
 
 export const DEFAULT_VISUAL_HUD = [
-  { id: 'creatorProfile', type: 'creator', x: 4, y: 80, visible: true },
-  { id: 'captionText', type: 'caption', x: 4, y: 86, visible: true },
+  { id: 'creatorProfile', type: 'creator', x: 4, y: 78, visible: true },
+  { id: 'captionText', type: 'caption', x: 4, y: 85, visible: true },
   { id: 'musicTicker', type: 'music', x: 4, y: 92, visible: true },
-  { id: 'likeBtn', type: 'like', x: 88, y: 55, visible: true },
-  { id: 'commentBtn', type: 'comment', x: 88, y: 65, visible: true },
-  { id: 'shareBtn', type: 'share', x: 88, y: 75, visible: true },
-  { id: 'settingsBtn', type: 'settings', x: 88, y: 85, visible: true },
-  { id: 'saveBtn', type: 'save', x: 88, y: 45, visible: false },
+  { id: 'likeBtn', type: 'like', x: 94, y: 55, visible: true },
+  { id: 'commentBtn', type: 'comment', x: 94, y: 65, visible: true },
+  { id: 'shareBtn', type: 'share', x: 94, y: 75, visible: true },
+  { id: 'settingsBtn', type: 'settings', x: 94, y: 85, visible: true },
+  { id: 'saveBtn', type: 'save', x: 94, y: 45, visible: false },
 ];
 
 const HUD_COMPONENTS_MAP = {
@@ -102,6 +102,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
     if (!config || !config.visible) return null;
 
     const isSelected = isHUDEditMode && selectedHudItem === config.id;
+    const isActionItem = ['like', 'comment', 'share', 'save', 'settings'].includes(type);
     
     return (
       <div 
@@ -116,7 +117,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
         className={`transition-all ${isHUDEditMode ? 'pointer-events-auto cursor-move' : 'pointer-events-none'} ${isSelected ? 'ring-2 ring-[#FF2D55] bg-[#FF2D55]/20 rounded-lg p-2' : ''}`}
         onPointerDown={(e) => onVisualPointerDown(e, config.id)}
       >
-        <div style={{ pointerEvents: isHUDEditMode ? 'none' : 'auto' }} className="flex flex-col items-center gap-2">
+        <div style={{ pointerEvents: isHUDEditMode ? 'none' : 'auto' }} className={`flex flex-col items-center gap-2 ${isActionItem ? 'w-[60px]' : ''}`}>
           {type === 'like' && (
             <div className="reel-action-item">
               <LikeButton
@@ -351,7 +352,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   });
 
   const handleVisualHUDSave = () => {
-    localStorage.setItem('CLIPS_VISUAL_HUD_V2', JSON.stringify(visualHud));
+    localStorage.setItem('CLIPS_VISUAL_HUD_V3', JSON.stringify(visualHud));
     setIsHUDEditMode(false);
     setSelectedHudItem(null);
   };
@@ -421,7 +422,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
 
   useEffect(() => {
     const fetchVisualZones = () => {
-      const stored = localStorage.getItem('CLIPS_VISUAL_HUD_V2');
+      const stored = localStorage.getItem('CLIPS_VISUAL_HUD_V3');
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
