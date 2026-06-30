@@ -56,28 +56,32 @@ export default function LikeButton({ reelId, userId, initialLikes = 0 }) {
     <button
       onClick={handleLike}
       disabled={loading}
+      className={`hover:scale-105 active:scale-95 transition-transform ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       style={{
         background: 'none',
         border: 'none',
-        cursor: loading ? 'not-allowed' : 'pointer',
-        padding: '8px 12px',
+        padding: '0',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
-        gap: 6,
-        fontSize: 14,
-        fontWeight: 700,
-        color: liked ? '#FF1493' : '#fff',
-        transition: 'all 0.3s',
-        opacity: loading ? 0.5 : 1,
-        textShadow: '0 2px 4px rgba(0,0,0,0.5)'
+        gap: '4px',
+        color: '#fff',
       }}
-      onMouseEnter={(e) => !loading && (e.currentTarget.style.transform = 'scale(1.1)')}
-      onMouseLeave={(e) => !loading && (e.currentTarget.style.transform = 'scale(1)')}
     >
-      <span style={{ fontSize: '18px', transition: 'transform 0.3s', display: 'inline-block' }}>
-        {liked ? '❤️' : '🤍'}
-      </span>
-      {likes > 0 && <span>{likes}</span>}
+      <div style={{ filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.5))' }}>
+        <svg 
+          viewBox="0 0 24 24" 
+          width="28" 
+          height="28" 
+          stroke={liked ? "#FF2D55" : "currentColor"} 
+          strokeWidth="1.5" 
+          fill={liked ? "#FF2D55" : "none"} 
+          className="transition-colors duration-300"
+        >
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+        </svg>
+      </div>
+      {likes > 0 && <span className="font-medium text-[13px] drop-shadow-sm">{likes}</span>}
     </button>
   );
 }

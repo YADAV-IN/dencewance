@@ -130,7 +130,11 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
           {type === 'comment' && (
             <div className="reel-action-item drop-shadow-sm">
               <button className="reel-action-btn hover:scale-105 active:scale-95 transition-transform" onClick={(e) => { e.stopPropagation(); setSelectedReelForComments(item._id); setShowComments(true); }}>
-                <span className="reel-action-icon"><MessageSquare size={26} strokeWidth={1.5} /></span>
+                <span className="reel-action-icon">
+                  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'scaleX(-1)' }}>
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                  </svg>
+                </span>
               </button>
               <span className="reel-action-count font-medium text-[13px]">{item.comments_count || (item.comments ? item.comments.length : 0) || 0}</span>
             </div>
@@ -141,7 +145,11 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
             return (
               <div className={`reel-action-item drop-shadow-sm ${isSaved ? 'save-active' : ''}`}>
                 <button className="reel-action-btn hover:scale-105 active:scale-95 transition-transform" onClick={(e) => { e.stopPropagation(); handleSaveReel(reelId, !!item.is_saved_by_me); }}>
-                  <span className="reel-action-icon"><Bookmark size={26} strokeWidth={1.5} fill={isSaved ? "#FFFFFF" : "none"} className="text-white" /></span>
+                  <span className="reel-action-icon">
+                    <svg viewBox="0 0 24 24" width="28" height="28" fill={isSaved ? "#FFFFFF" : "none"} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                  </span>
                 </button>
                 <span className="reel-action-count font-medium text-[13px]">{isSaved ? "Saved" : "Save"}</span>
               </div>
@@ -154,7 +162,12 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                 if (navigator.share) { navigator.share({ title: item.title, text: item.caption, url: window.location.href }).catch(() => {}); }
                 else { alert("Share link copied to clipboard!"); navigator.clipboard.writeText(window.location.href); }
               }}>
-                <span className="reel-action-icon"><Share2 size={26} strokeWidth={1.5} /></span>
+                <span className="reel-action-icon">
+                  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(15deg) translateY(-2px)' }}>
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                  </svg>
+                </span>
               </button>
               <span className="reel-action-count font-medium text-[13px]">{item.shares || 0}</span>
             </div>
@@ -163,7 +176,13 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
             <div className="reel-action-item drop-shadow-sm">
               <div className="relative">
                 <button className="reel-action-btn hover:scale-105 active:scale-95 transition-transform" onClick={(e) => { e.stopPropagation(); setActiveDropdownIndex(activeDropdownIndex === idx ? null : idx); }}>
-                  <span className="reel-action-icon"><MoreVertical size={26} strokeWidth={1.5} /></span>
+                  <span className="reel-action-icon">
+                    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                      <line x1="3" y1="6" x2="21" y2="6"></line>
+                      <line x1="3" y1="12" x2="21" y2="12"></line>
+                      <line x1="3" y1="18" x2="14" y2="18"></line>
+                    </svg>
+                  </span>
                 </button>
                 {activeDropdownIndex === idx && !isHUDEditMode && (
                   <div className="absolute right-full mr-2 bottom-0 w-48 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-2 shadow-2xl z-[60] flex flex-col gap-1">
