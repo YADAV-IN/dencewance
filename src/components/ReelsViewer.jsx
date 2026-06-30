@@ -5,6 +5,8 @@ import './ReelsViewer.css';
 import { translations as tAll } from '../translations';
 import UserProfileView from './UserProfileView';
 import CommentsSection from './CommentsSection';
+import GestureSettingsModal, { DEFAULT_GESTURE_PREFS } from './GestureSettingsModal';
+import LikeButton from './LikeButton';
 import LikeButton from './LikeButton';
 import { trackEvent, sendContentReport, sendDeveloperReport } from '../utils/analyticsTracker';
 
@@ -170,6 +172,18 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const [likedTracking, setLikedTracking] = useState({}); // Track local likes
   const [likedReels, setLikedReels] = useState({}); // { [reelId]: { liked: boolean, count: number } }
   const [savedReels, setSavedReels] = useState({}); // { [reelId]: boolean }
+
+  const [isGestureModalOpen, setIsGestureModalOpen] = useState(false);
+  const [gesturePrefs, setGesturePrefs] = useState(DEFAULT_GESTURE_PREFS);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('CLIPS_GESTURE_PREFS');
+    if (stored) {
+      try {
+        setGesturePrefs(JSON.parse(stored));
+      } catch(e) {}
+    }
+  }, []);
 
   const handleLikeReel = async (reelId, initialLikes, isLikedByMe) => {
     const adminId = localStorage.getItem('adminId');
@@ -375,6 +389,52 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   }, [activeReelIndex, currentPageKey, reels.length]);
 
 
+  const executeGesture = (gestureName, item, videoRef, ytRef, idx, isYouTube, isPaused) => {
+    const action = gesturePrefs.mappings[gestureName];
+    if (!action || action === 'none') return;
+    
+    if (action === 'play_pause') {
+      if (!isYouTube && videoRef) {
+        if (videoRef.paused) {
+          videoRef.play().catch(() => {});
+          setReelPaused((prev) => { const n = new Set(prev); n.delete(idx); return n; });
+        } else {
+          videoRef.pause();
+          setReelPaused((prev) => { const n = new Set(prev); n.add(idx); return n; });
+        }
+      } else if (isYouTube && ytRef) {
+        if (isPaused) {
+          postYouTubeCommand(ytRef, 'playVideo');
+          setReelPaused((prev) => { const n = new Set(prev); n.delete(idx); return n; });
+        } else {
+          postYouTubeCommand(ytRef, 'pauseVideo');
+          setReelPaused((prev) => { const n = new Set(prev); n.add(idx); return n; });
+        }
+      }
+    } else if (action === 'mute_unmute') {
+      setReelsMuted(prev => !prev);
+    } else if (action === 'like') {
+      const reelId = item._id || item.id;
+      const initialLikes = item.likes || 0;
+      const isLikedByMe = !!item.is_liked_by_me;
+      handleLikeReel(reelId, initialLikes, isLikedByMe);
+    } else if (action === 'open_comments') {
+      setSelectedReelForComments(item._id);
+      setShowComments(true);
+    } else if (action === 'next') {
+      const container = reelsContainerRef.current;
+      if (container) {
+        const nextEl = container.querySelector(`[data-reel-idx="${idx + 1}"]`);
+        if (nextEl) nextEl.scrollIntoView({ behavior: 'smooth' });
+      }
+    } else if (action === 'prev') {
+      const container = reelsContainerRef.current;
+      if (container) {
+        const prevEl = container.querySelector(`[data-reel-idx="${idx - 1}"]`);
+        if (prevEl) prevEl.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  };
 
   return (
 <div className="reels-container" ref={reelsContainerRef}>
@@ -414,32 +474,62 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     className={`reel-frame${isActive ? ' reel-active' : ''}`}
                     data-reel-idx={idx}
                   >
-                    {/* Video layer — tap to pause/play */}
+                    {/* Video layer — gesture detection overlay */}
                     <div
                       className="reel-video-wrap"
-                      onClick={() => {
+                      onPointerDown={(e) => {
                         const v = reelVideoRefs.current[idx];
-                        if (v) {
-                          if (v.paused) {
-                            v.play().catch(() => {});
-                            setReelPaused((prev) => { const n = new Set(prev); n.delete(idx); return n; });
-                          } else {
-                            v.pause();
-                            setReelPaused((prev) => { const n = new Set(prev); n.add(idx); return n; });
-                          }
-                          return;
-                        }
-
                         const y = reelYouTubeRefs.current[idx];
-                        if (isYouTube && y) {
-                          if (isPaused) {
-                            postYouTubeCommand(y, 'playVideo');
-                            setReelPaused((prev) => { const n = new Set(prev); n.delete(idx); return n; });
-                          } else {
-                            postYouTubeCommand(y, 'pauseVideo');
-                            setReelPaused((prev) => { const n = new Set(prev); n.add(idx); return n; });
+                        
+                        // Ignore if we clicked a button inside (though there shouldn't be any here)
+                        
+                        let touchStartX = e.clientX;
+                        let touchStartY = e.clientY;
+                        let touchStartTime = Date.now();
+
+                        const handlePointerUp = (upEvent) => {
+                          window.removeEventListener('pointerup', handlePointerUp);
+                          
+                          let touchEndX = upEvent.clientX;
+                          let touchEndY = upEvent.clientY;
+                          let touchEndTime = Date.now();
+                          let duration = touchEndTime - touchStartTime;
+                          let dx = touchEndX - touchStartX;
+                          let dy = touchEndY - touchStartY;
+                          
+                          // Determine gesture
+                          let gesture = 'singleTap';
+                          if (duration < 300 && Math.abs(dx) < 20 && Math.abs(dy) < 20) {
+                            // Tap detected. Check for double tap.
+                            const lastTap = window.lastVideoTapTime || 0;
+                            if (touchEndTime - lastTap < 300) {
+                              gesture = 'doubleTap';
+                              window.lastVideoTapTime = 0; // reset
+                            } else {
+                              window.lastVideoTapTime = touchEndTime;
+                              // Delay single tap execution to allow for double tap
+                              setTimeout(() => {
+                                if (window.lastVideoTapTime === touchEndTime) {
+                                  executeGesture('singleTap', item, v, y, idx, isYouTube, isPaused);
+                                }
+                              }, 300);
+                              return; // Wait for timeout
+                            }
+                          } else if (duration < 500) {
+                            // Swipe detected
+                            if (Math.abs(dx) > Math.abs(dy)) {
+                              if (dx > 50) gesture = 'swipeRight';
+                              else if (dx < -50) gesture = 'swipeLeft';
+                            } else {
+                              if (dy > 50) gesture = 'swipeDown';
+                              else if (dy < -50) gesture = 'swipeUp';
+                            }
                           }
-                        }
+
+                          executeGesture(gesture, item, v, y, idx, isYouTube, isPaused);
+                        };
+                        
+                        window.addEventListener('pointerup', handlePointerUp);
                       }}
                     >
                       {isYouTube ? (
@@ -582,7 +672,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                         
                         {activeDropdownIndex === idx && (
                           <div className="absolute right-0 top-11 bg-black/85 border border-white/15 rounded-xl p-1.5 shadow-2xl z-[150] min-w-[130px]  animate-in fade-in slide-in-from-top-2 duration-150" onClick={(e) => e.stopPropagation()}>
-                             {((adminData?.role === 'admin' || adminData?.role === 'superadmin') || (item.creator_id && item.creator_id === localStorage.getItem('adminId')) || (adminData && (item.creator_id === adminData.id || item.creator_id === adminData._id || (item.creator_name && item.creator_name === adminData.name)))) && onDelete ? (
+                             {((adminData?.role === 'admin' || adminData?.role === 'superadmin') || (item.creator_id && item.creator_id === localStorage.getItem('adminId')) || (adminData && (item.creator_id === adminData.id || item.creator_id === adminData._id || (item.creator_name && item.creator_name === adminData.name)))) && onDelete && (
                               <button 
                                 className="w-full text-left px-3 py-2 text-xs font-bold text-red-400 hover:bg-red-950/40 rounded-lg flex items-center gap-2 cursor-pointer transition-colors"
                                 onClick={(e) => {
@@ -594,11 +684,18 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                               >
                                 🗑️ Delete Clip
                               </button>
-                            ) : (
-                              <div className="px-3 py-2 text-[9px] text-gray-500 font-bold uppercase tracking-wider text-center">
-                                No Actions
-                              </div>
                             )}
+                            <button 
+                              className="w-full text-left px-3 py-2 text-xs font-bold text-white hover:bg-white/10 rounded-lg flex items-center gap-2 cursor-pointer transition-colors mt-1"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setActiveDropdownIndex(null);
+                                setIsGestureModalOpen(true);
+                              }}
+                            >
+                              👆 Gesture Settings
+                            </button>
                           </div>
                         )}
                       </div>
@@ -655,7 +752,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                         const reelId = item._id || item.id;
                         const likeState = likedReels[reelId] || { liked: !!item.is_liked_by_me, count: item.likes || 0 };
                         return (
-                          <div className="reel-action-item">
+                          <div className={`reel-action-item ${likeState.liked ? 'like-active' : ''}`}>
                             <button
                               className="reel-action-btn"
                               onClick={(e) => { e.stopPropagation(); handleLikeReel(reelId, item.likes || 0, !!item.is_liked_by_me); }}
@@ -691,7 +788,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                         const reelId = item._id || item.id;
                         const isSaved = savedReels[reelId] !== undefined ? savedReels[reelId] : !!item.is_saved_by_me;
                         return (
-                          <div className="reel-action-item">
+                          <div className={`reel-action-item ${isSaved ? 'save-active' : ''}`}>
                             <button
                               className="reel-action-btn"
                               onClick={(e) => { e.stopPropagation(); handleSaveReel(reelId, !!item.is_saved_by_me); }}
@@ -1055,6 +1152,12 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                   <span>❌ {videoUploadState.message}</span>
                 </div>
               )}
+              
+              <GestureSettingsModal
+                isOpen={isGestureModalOpen}
+                onClose={() => setIsGestureModalOpen(false)}
+                onSave={(newPrefs) => setGesturePrefs(newPrefs)}
+              />
             </div>
   );
 }
