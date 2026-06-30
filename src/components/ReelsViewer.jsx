@@ -5,12 +5,33 @@ import './ReelsViewer.css';
 import { translations as tAll } from '../translations';
 import UserProfileView from './UserProfileView';
 import CommentsSection from './CommentsSection';
-import HudCustomizer, { DEFAULT_HUD_ZONES } from './HudCustomizer';
+import LikeButton from './LikeButton';
 import LikeButton from './LikeButton';
 import { trackEvent, sendContentReport, sendDeveloperReport } from '../utils/analyticsTracker';
 
 const REEL_PRELOAD_AHEAD = 2; // Increased to 2 for smoother scrolling
 const REEL_KEEP_BEHIND = 1; // Keep 1 previous video loaded to prevent blanking on scroll up
+
+export const DEFAULT_HUD_ZONES = [
+  { id: 'z1', action: 'play_pause', gesture: 'singleTap', x: 0, y: 10, w: 100, h: 70 },
+  { id: 'z2', action: 'like', gesture: 'doubleTap', x: 0, y: 10, w: 100, h: 70 },
+];
+const HUD_ACTIONS = [
+  { value: 'play_pause', label: 'Play / Pause' },
+  { value: 'mute_unmute', label: 'Mute / Unmute' },
+  { value: 'like', label: 'Like Clip' },
+  { value: 'open_comments', label: 'Open Comments' },
+  { value: 'next', label: 'Next Clip' },
+  { value: 'prev', label: 'Previous Clip' },
+];
+const HUD_GESTURES = [
+  { value: 'singleTap', label: 'Single Tap' },
+  { value: 'doubleTap', label: 'Double Tap' },
+  { value: 'swipeUp', label: 'Swipe Up' },
+  { value: 'swipeDown', label: 'Swipe Down' },
+  { value: 'swipeLeft', label: 'Swipe Left' },
+  { value: 'swipeRight', label: 'Swipe Right' },
+];
 
 const getEmbedSource = (input) => {
   if (!input || typeof input !== 'string') return { type: 'unknown', src: '', id: '' };
@@ -172,8 +193,102 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const [likedReels, setLikedReels] = useState({}); // { [reelId]: { liked: boolean, count: number } }
   const [savedReels, setSavedReels] = useState({}); // { [reelId]: boolean }
 
-  const [isGestureModalOpen, setIsGestureModalOpen] = useState(false);
+  const [isHUDEditMode, setIsHUDEditMode] = useState(false);
+  const [selectedHUDZone, setSelectedHUDZone] = useState(null);
   const [hudZones, setHudZones] = useState(DEFAULT_HUD_ZONES);
+
+  const hudDragRef = useRef({
+    isDragging: false,
+    isResizing: false,
+    zoneId: null,
+    startX: 0,
+    startY: 0,
+    startW: 0,
+    startH: 0,
+    startZoneX: 0,
+    startZoneY: 0
+  });
+
+  const handleHUDSave = () => {
+    localStorage.setItem('CLIPS_HUD_LAYOUT', JSON.stringify(hudZones));
+    setIsHUDEditMode(false);
+    setSelectedHUDZone(null);
+  };
+
+  const handleHUDAddZone = () => {
+    const newZone = {
+      id: 'z' + Date.now(),
+      action: 'play_pause',
+      gesture: 'singleTap',
+      x: 25, y: 25, w: 50, h: 50
+    };
+    setHudZones([...hudZones, newZone]);
+    setSelectedHUDZone(newZone.id);
+  };
+
+  const updateHUDZone = (id, updates) => {
+    setHudZones(prev => prev.map(z => z.id === id ? { ...z, ...updates } : z));
+  };
+
+  const deleteHUDZone = (id) => {
+    setHudZones(prev => prev.filter(z => z.id !== id));
+    if (selectedHUDZone === id) setSelectedHUDZone(null);
+  };
+
+  const onHUDPointerDown = (e, zoneId, isResizing) => {
+    e.stopPropagation();
+    setSelectedHUDZone(zoneId);
+    
+    const zone = hudZones.find(z => z.id === zoneId);
+    if (!zone) return;
+
+    hudDragRef.current = {
+      isDragging: !isResizing,
+      isResizing: isResizing,
+      zoneId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startW: zone.w,
+      startH: zone.h,
+      startZoneX: zone.x,
+      startZoneY: zone.y
+    };
+
+    window.addEventListener('pointermove', onHUDPointerMove);
+    window.addEventListener('pointerup', onHUDPointerUp);
+  };
+
+  const onHUDPointerMove = (e) => {
+    const drag = hudDragRef.current;
+    if (!drag.zoneId) return;
+
+    const container = document.querySelector('.reel-active .reel-video-wrap');
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const dx = ((e.clientX - drag.startX) / rect.width) * 100;
+    const dy = ((e.clientY - drag.startY) / rect.height) * 100;
+
+    if (drag.isDragging) {
+      let newX = drag.startZoneX + dx;
+      let newY = drag.startZoneY + dy;
+      newX = Math.max(0, Math.min(newX, 100 - drag.startW));
+      newY = Math.max(0, Math.min(newY, 100 - drag.startH));
+      updateHUDZone(drag.zoneId, { x: newX, y: newY });
+    } else if (drag.isResizing) {
+      let newW = drag.startW + dx;
+      let newH = drag.startH + dy;
+      newW = Math.max(10, Math.min(newW, 100 - drag.startZoneX));
+      newH = Math.max(10, Math.min(newH, 100 - drag.startZoneY));
+      updateHUDZone(drag.zoneId, { w: newW, h: newH });
+    }
+  };
+
+  const onHUDPointerUp = () => {
+    hudDragRef.current.isDragging = false;
+    hudDragRef.current.isResizing = false;
+    window.removeEventListener('pointermove', onHUDPointerMove);
+    window.removeEventListener('pointerup', onHUDPointerUp);
+  };
 
   useEffect(() => {
     const fetchZones = () => {
@@ -442,7 +557,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   };
 
   return (
-<div className="reels-container" ref={reelsContainerRef}>
+<div className="reels-container" ref={reelsContainerRef} style={{ overflowY: isHUDEditMode ? 'hidden' : 'auto' }}>
               {reelItems.length === 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100dvh', background: '#000', padding: '20px', zIndex: 999 }}>
                   <div style={{ width: '100%', height: '80%', background: '#222', borderRadius: '12px', animation: 'skeleton-pulse 1.5s infinite ease-in-out' }}></div>
@@ -483,6 +598,8 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     <div
                       className="reel-video-wrap"
                       onPointerDown={(e) => {
+                        if (isHUDEditMode && isActive) return; // Disable standard gestures in edit mode
+
                         const v = reelVideoRefs.current[idx];
                         const y = reelYouTubeRefs.current[idx];
                         
@@ -550,6 +667,85 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                         window.addEventListener('pointerup', handlePointerUp);
                       }}
                     >
+                      {isHUDEditMode && isActive && (
+                        <div className="absolute inset-0 z-50 pointer-events-none border-4 border-[#FF2D55]/50">
+                          {hudZones.map((zone) => {
+                            const isSelected = selectedHUDZone === zone.id;
+                            return (
+                              <div
+                                key={zone.id}
+                                className={`absolute flex items-center justify-center border-2 overflow-hidden transition-colors pointer-events-auto ${isSelected ? 'border-[#FF2D55] bg-[#FF2D55]/30 z-50' : 'border-white/50 bg-white/20 z-40 hover:border-white/80'}`}
+                                style={{
+                                  left: `${zone.x}%`, top: `${zone.y}%`, width: `${zone.w}%`, height: `${zone.h}%`,
+                                  cursor: 'move',
+                                  touchAction: 'none'
+                                }}
+                                onPointerDown={(e) => onHUDPointerDown(e, zone.id, false)}
+                              >
+                                <div className="flex flex-col items-center pointer-events-none text-center px-1">
+                                  <span className={`text-[12px] font-black uppercase drop-shadow-md ${isSelected ? 'text-[#FF2D55]' : 'text-white'}`}>
+                                    {HUD_ACTIONS.find(a => a.value === zone.action)?.label}
+                                  </span>
+                                  <span className="text-[9px] font-bold text-white/80 uppercase">
+                                    {HUD_GESTURES.find(g => g.value === zone.gesture)?.label}
+                                  </span>
+                                </div>
+                                {isSelected && (
+                                  <div 
+                                    className="absolute bottom-0 right-0 w-8 h-8 bg-[#FF2D55] rounded-tl-xl cursor-se-resize flex items-center justify-center shadow-lg pointer-events-auto"
+                                    onPointerDown={(e) => onHUDPointerDown(e, zone.id, true)}
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                      <polyline points="21 15 21 21 15 21"></polyline>
+                                      <line x1="21" y1="21" x2="15" y2="15"></line>
+                                    </svg>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          
+                          <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center bg-black/60 backdrop-blur-md pointer-events-auto border-b border-white/20">
+                            <span className="text-white font-black italic tracking-wider text-sm">HUD EDIT MODE</span>
+                            <div className="flex gap-2">
+                              <button onClick={(e) => { e.stopPropagation(); handleHUDAddZone(); }} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded font-bold text-xs cursor-pointer">Add Zone</button>
+                              <button onClick={(e) => { e.stopPropagation(); handleHUDSave(); }} className="px-3 py-1.5 bg-[#FF2D55] hover:bg-[#ff1a47] text-white rounded font-bold text-xs shadow-[0_0_10px_rgba(255,45,85,0.5)] cursor-pointer">Save</button>
+                            </div>
+                          </div>
+
+                          {selectedHUDZone && (
+                            <div className="absolute bottom-20 left-4 right-16 p-4 bg-black/80 backdrop-blur-md rounded-xl border border-white/20 pointer-events-auto shadow-2xl animate-in slide-in-from-bottom-4">
+                              <div className="flex justify-between items-center mb-3">
+                                <span className="text-white text-xs font-bold uppercase tracking-wider text-[#FF2D55]">Zone Properties</span>
+                                <button onClick={(e) => { e.stopPropagation(); deleteHUDZone(selectedHUDZone); }} className="text-red-400 text-xs font-bold px-2 py-1 bg-red-500/20 hover:bg-red-500/40 rounded cursor-pointer transition-colors">Delete</button>
+                              </div>
+                              <div className="flex gap-2">
+                                <div className="flex-1 flex flex-col gap-1">
+                                  <label className="text-[9px] text-white/50 uppercase font-bold">Action</label>
+                                  <select 
+                                    className="bg-white/10 border border-white/20 rounded p-1.5 text-xs text-white outline-none cursor-pointer focus:border-[#FF2D55]"
+                                    value={hudZones.find(z => z.id === selectedHUDZone)?.action}
+                                    onChange={(e) => updateHUDZone(selectedHUDZone, { action: e.target.value })}
+                                  >
+                                    {HUD_ACTIONS.map(a => <option key={a.value} value={a.value} className="bg-gray-900">{a.label}</option>)}
+                                  </select>
+                                </div>
+                                <div className="flex-1 flex flex-col gap-1">
+                                  <label className="text-[9px] text-white/50 uppercase font-bold">Gesture</label>
+                                  <select 
+                                    className="bg-white/10 border border-white/20 rounded p-1.5 text-xs text-white outline-none cursor-pointer focus:border-[#FF2D55]"
+                                    value={hudZones.find(z => z.id === selectedHUDZone)?.gesture}
+                                    onChange={(e) => updateHUDZone(selectedHUDZone, { gesture: e.target.value })}
+                                  >
+                                    {HUD_GESTURES.map(g => <option key={g.value} value={g.value} className="bg-gray-900">{g.label}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
                       {isYouTube ? (
                         (isActive || shouldWarm) ? (
                           <>
@@ -709,10 +905,10 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setActiveDropdownIndex(null);
-                                setIsGestureModalOpen(true);
+                                setIsHUDEditMode(true);
                               }}
                             >
-                              👆 Gesture Settings
+                              👆 Edit Gesture HUD
                             </button>
                           </div>
                         )}
@@ -1170,11 +1366,6 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                   <span>❌ {videoUploadState.message}</span>
                 </div>
               )}
-              
-              <HudCustomizer
-                isOpen={isGestureModalOpen}
-                onClose={() => setIsGestureModalOpen(false)}
-              />
             </div>
   );
 }
