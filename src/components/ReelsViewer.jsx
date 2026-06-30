@@ -6,32 +6,32 @@ import { translations as tAll } from '../translations';
 import UserProfileView from './UserProfileView';
 import CommentsSection from './CommentsSection';
 import LikeButton from './LikeButton';
-import LikeButton from './LikeButton';
 import { trackEvent, sendContentReport, sendDeveloperReport } from '../utils/analyticsTracker';
 
 const REEL_PRELOAD_AHEAD = 2; // Increased to 2 for smoother scrolling
 const REEL_KEEP_BEHIND = 1; // Keep 1 previous video loaded to prevent blanking on scroll up
 
-export const DEFAULT_HUD_ZONES = [
-  { id: 'z1', action: 'play_pause', gesture: 'singleTap', x: 0, y: 10, w: 100, h: 70 },
-  { id: 'z2', action: 'like', gesture: 'doubleTap', x: 0, y: 10, w: 100, h: 70 },
+export const DEFAULT_VISUAL_HUD = [
+  { id: 'likeBtn', type: 'like', x: 85, y: 55, visible: true },
+  { id: 'commentBtn', type: 'comment', x: 85, y: 65, visible: true },
+  { id: 'saveBtn', type: 'save', x: 85, y: 75, visible: true },
+  { id: 'shareBtn', type: 'share', x: 85, y: 85, visible: true },
+  { id: 'settingsBtn', type: 'settings', x: 85, y: 45, visible: true },
+  { id: 'creatorProfile', type: 'creator', x: 4, y: 75, visible: true },
+  { id: 'captionText', type: 'caption', x: 4, y: 85, visible: true },
+  { id: 'musicTicker', type: 'music', x: 4, y: 92, visible: true },
 ];
-const HUD_ACTIONS = [
-  { value: 'play_pause', label: 'Play / Pause' },
-  { value: 'mute_unmute', label: 'Mute / Unmute' },
-  { value: 'like', label: 'Like Clip' },
-  { value: 'open_comments', label: 'Open Comments' },
-  { value: 'next', label: 'Next Clip' },
-  { value: 'prev', label: 'Previous Clip' },
-];
-const HUD_GESTURES = [
-  { value: 'singleTap', label: 'Single Tap' },
-  { value: 'doubleTap', label: 'Double Tap' },
-  { value: 'swipeUp', label: 'Swipe Up' },
-  { value: 'swipeDown', label: 'Swipe Down' },
-  { value: 'swipeLeft', label: 'Swipe Left' },
-  { value: 'swipeRight', label: 'Swipe Right' },
-];
+
+const HUD_COMPONENTS_MAP = {
+  like: { icon: '❤️', label: 'Like' },
+  comment: { icon: '💬', label: 'Comment' },
+  save: { icon: '🔖', label: 'Save' },
+  share: { icon: '🔗', label: 'Share' },
+  settings: { icon: '⚙️', label: 'Settings' },
+  creator: { icon: '👤', label: 'Profile' },
+  caption: { icon: '📝', label: 'Caption' },
+  music: { icon: '🎵', label: 'Music' }
+};
 
 const getEmbedSource = (input) => {
   if (!input || typeof input !== 'string') return { type: 'unknown', src: '', id: '' };
@@ -96,6 +96,120 @@ const enableVideoImmersiveMode = () => {};
 const disableVideoImmersiveMode = () => {};
 
 export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0, onClose, onDelete, adminData, onNavigateToProfile }) {
+
+    const renderVisualComponent = (type, item, idx) => {
+    const config = visualHud.find(v => v.type === type);
+    if (!config || !config.visible) return null;
+
+    const isSelected = isHUDEditMode && selectedHudItem === config.id;
+    
+    return (
+      <div 
+        key={config.id} 
+        style={{
+          position: 'absolute',
+          left: `${config.x}%`,
+          top: `${config.y}%`,
+          zIndex: 40,
+          transform: 'translate(0, -50%)'
+        }}
+        className={`transition-all ${isHUDEditMode ? 'pointer-events-auto cursor-move' : 'pointer-events-none'} ${isSelected ? 'ring-2 ring-[#FF2D55] bg-[#FF2D55]/20 rounded-lg p-2' : ''}`}
+        onPointerDown={(e) => onVisualPointerDown(e, config.id)}
+      >
+        <div style={{ pointerEvents: isHUDEditMode ? 'none' : 'auto' }} className="flex flex-col items-center gap-2">
+          {type === 'like' && (
+            <div className="reel-action-item">
+              <LikeButton
+                reelId={item._id || item.id}
+                initialLikes={item.likes_count || item.likes || 0}
+                isLikedByMe={!!item.is_liked_by_me}
+                onLikeToggle={handleLikeReel}
+              />
+            </div>
+          )}
+          {type === 'comment' && (
+            <div className="reel-action-item">
+              <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); setSelectedReelForComments(item._id); setShowComments(true); }}>
+                <span className="reel-action-icon"><MessageSquare size={24} /></span>
+              </button>
+              <span className="reel-action-count">{item.comments_count || (item.comments ? item.comments.length : 0) || 0}</span>
+            </div>
+          )}
+          {type === 'save' && (() => {
+            const reelId = item._id || item.id;
+            const isSaved = savedReels[reelId] !== undefined ? savedReels[reelId] : !!item.is_saved_by_me;
+            return (
+              <div className={`reel-action-item ${isSaved ? 'save-active' : ''}`}>
+                <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); handleSaveReel(reelId, !!item.is_saved_by_me); }}>
+                  <span className="reel-action-icon"><Bookmark size={24} fill={isSaved ? "#FFD700" : "none"} className={isSaved ? "text-[#FFD700]" : "text-white"} /></span>
+                </button>
+                <span className="reel-action-count">{isSaved ? "Saved" : "Save"}</span>
+              </div>
+            );
+          })()}
+          {type === 'share' && (
+            <div className="reel-action-item">
+              <button className="reel-action-btn" onClick={(e) => { 
+                e.stopPropagation(); 
+                if (navigator.share) { navigator.share({ title: item.title, text: item.caption, url: window.location.href }).catch(() => {}); }
+                else { alert("Share link copied to clipboard!"); navigator.clipboard.writeText(window.location.href); }
+              }}>
+                <span className="reel-action-icon"><Share2 size={24} /></span>
+              </button>
+              <span className="reel-action-count">{item.shares || 0}</span>
+            </div>
+          )}
+          {type === 'settings' && (
+            <div className="reel-action-item">
+              <div className="relative">
+                <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); setActiveDropdownIndex(activeDropdownIndex === idx ? null : idx); }}>
+                  <span className="reel-action-icon"><MoreVertical size={24} /></span>
+                </button>
+                {activeDropdownIndex === idx && !isHUDEditMode && (
+                  <div className="absolute right-full mr-2 bottom-0 w-48 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-2 shadow-2xl z-[60] flex flex-col gap-1">
+                    <button className="w-full text-left px-3 py-2 text-xs font-bold text-white hover:bg-white/10 rounded-lg flex items-center gap-2 cursor-pointer transition-colors" onClick={(e) => { e.stopPropagation(); toggleReelsMute(); setActiveDropdownIndex(null); }}>
+                      {reelsMuted ? '🔊 Unmute Audio' : '🔇 Mute Audio'}
+                    </button>
+                    <button className="w-full text-left px-3 py-2 text-xs font-bold text-white hover:bg-white/10 rounded-lg flex items-center gap-2 cursor-pointer transition-colors mt-1" onClick={(e) => { e.stopPropagation(); trackEvent('report_open', item._id); setReportReelId(item._id); setShowReportSheet(true); setReportSuccess(false); setReportReason(''); setReportDetails(''); setActiveDropdownIndex(null); }}>
+                      🚩 Report Clip
+                    </button>
+                    <button className="w-full text-left px-3 py-2 text-xs font-bold text-white hover:bg-white/10 rounded-lg flex items-center gap-2 cursor-pointer transition-colors mt-1" onClick={(e) => { e.stopPropagation(); trackEvent('dev_report', item._id); sendDeveloperReport('user_feedback', `Clip ${item._id} issue reported by user`, { video_id: item._id }); alert('Bug report sent to developer!'); setActiveDropdownIndex(null); }}>
+                      🐛 Report Bug
+                    </button>
+                    <button className="w-full text-left px-3 py-2 text-xs font-bold text-white hover:bg-white/10 rounded-lg flex items-center gap-2 cursor-pointer transition-colors mt-1" onClick={(e) => { e.stopPropagation(); setActiveDropdownIndex(null); setIsHUDEditMode(true); }}>
+                      👆 Edit HUD Layout
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {type === 'creator' && (
+            <div className="reel-creator-line flex items-center gap-2" style={{ pointerEvents: 'auto' }}>
+              <button className="reel-creator-pill" onClick={(e) => { e.stopPropagation(); const handle = item.creator_handle || item.creator_name || 'user'; if (onNavigateToProfile) onNavigateToProfile(item.creator_id || handle); else window.location.href = `/profile/${handle}`; }}>
+                <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20">
+                  <img src={getViewerAvatar(item.creator_handle, item.creator_name, item.creator_avatar)} alt="Creator" className="w-full h-full object-cover" />
+                </div>
+                <span className="reel-creator-name truncate max-w-[120px]">@{slugifyText(item.creator_handle || item.creator_name || 'user')}</span>
+              </button>
+            </div>
+          )}
+          {type === 'caption' && (
+            <div className="reel-caption-line max-w-[250px] pointer-events-none">
+              <p className="text-white text-sm drop-shadow-md line-clamp-2">{item.caption || item.title || ''}</p>
+            </div>
+          )}
+          {type === 'music' && (
+            <div className="reel-music-line flex items-center gap-2 mt-1 pointer-events-none">
+              <span className="text-white text-xs opacity-80 drop-shadow flex items-center gap-1">🎵 {item.music_title || 'Original Audio'}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+
   const language = localStorage.getItem('socialAppLanguage') || 'en';
   const t = (key, lang) => {
      const translation = tAll[key];
@@ -194,73 +308,66 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const [savedReels, setSavedReels] = useState({}); // { [reelId]: boolean }
 
   const [isHUDEditMode, setIsHUDEditMode] = useState(false);
-  const [selectedHUDZone, setSelectedHUDZone] = useState(null);
-  const [hudZones, setHudZones] = useState(DEFAULT_HUD_ZONES);
+  const [visualHud, setVisualHud] = useState(DEFAULT_VISUAL_HUD);
+  const [selectedHudItem, setSelectedHudItem] = useState(null);
 
-  const hudDragRef = useRef({
+  const visualDragRef = useRef({
     isDragging: false,
-    isResizing: false,
-    zoneId: null,
+    id: null,
     startX: 0,
     startY: 0,
-    startW: 0,
-    startH: 0,
-    startZoneX: 0,
-    startZoneY: 0
+    startItemX: 0,
+    startItemY: 0
   });
 
-  const handleHUDSave = () => {
-    localStorage.setItem('CLIPS_HUD_LAYOUT', JSON.stringify(hudZones));
+  const handleVisualHUDSave = () => {
+    localStorage.setItem('CLIPS_VISUAL_HUD', JSON.stringify(visualHud));
     setIsHUDEditMode(false);
-    setSelectedHUDZone(null);
+    setSelectedHudItem(null);
   };
 
-  const handleHUDAddZone = () => {
-    const newZone = {
-      id: 'z' + Date.now(),
-      action: 'play_pause',
-      gesture: 'singleTap',
-      x: 25, y: 25, w: 50, h: 50
-    };
-    setHudZones([...hudZones, newZone]);
-    setSelectedHUDZone(newZone.id);
+  const resetVisualHUD = () => {
+    setVisualHud(DEFAULT_VISUAL_HUD);
+  };
+  
+  const clearVisualHUD = () => {
+    setVisualHud(prev => prev.map(item => ({ ...item, visible: false })));
   };
 
-  const updateHUDZone = (id, updates) => {
-    setHudZones(prev => prev.map(z => z.id === id ? { ...z, ...updates } : z));
+  const toggleVisualItemVisibility = (type) => {
+    setVisualHud(prev => {
+      const exists = prev.find(i => i.type === type);
+      if (exists) {
+        return prev.map(i => i.type === type ? { ...i, visible: !i.visible } : i);
+      }
+      return [...prev, { id: type + Date.now(), type, x: 50, y: 50, visible: true }];
+    });
   };
 
-  const deleteHUDZone = (id) => {
-    setHudZones(prev => prev.filter(z => z.id !== id));
-    if (selectedHUDZone === id) setSelectedHUDZone(null);
-  };
-
-  const onHUDPointerDown = (e, zoneId, isResizing) => {
+  const onVisualPointerDown = (e, id) => {
+    if (!isHUDEditMode) return;
     e.stopPropagation();
-    setSelectedHUDZone(zoneId);
+    setSelectedHudItem(id);
     
-    const zone = hudZones.find(z => z.id === zoneId);
-    if (!zone) return;
+    const item = visualHud.find(z => z.id === id);
+    if (!item) return;
 
-    hudDragRef.current = {
-      isDragging: !isResizing,
-      isResizing: isResizing,
-      zoneId,
+    visualDragRef.current = {
+      isDragging: true,
+      id,
       startX: e.clientX,
       startY: e.clientY,
-      startW: zone.w,
-      startH: zone.h,
-      startZoneX: zone.x,
-      startZoneY: zone.y
+      startItemX: item.x,
+      startItemY: item.y
     };
 
-    window.addEventListener('pointermove', onHUDPointerMove);
-    window.addEventListener('pointerup', onHUDPointerUp);
+    window.addEventListener('pointermove', onVisualPointerMove);
+    window.addEventListener('pointerup', onVisualPointerUp);
   };
 
-  const onHUDPointerMove = (e) => {
-    const drag = hudDragRef.current;
-    if (!drag.zoneId) return;
+  const onVisualPointerMove = (e) => {
+    const drag = visualDragRef.current;
+    if (!drag.isDragging || !drag.id) return;
 
     const container = document.querySelector('.reel-active .reel-video-wrap');
     if (!container) return;
@@ -268,42 +375,37 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
     const dx = ((e.clientX - drag.startX) / rect.width) * 100;
     const dy = ((e.clientY - drag.startY) / rect.height) * 100;
 
-    if (drag.isDragging) {
-      let newX = drag.startZoneX + dx;
-      let newY = drag.startZoneY + dy;
-      newX = Math.max(0, Math.min(newX, 100 - drag.startW));
-      newY = Math.max(0, Math.min(newY, 100 - drag.startH));
-      updateHUDZone(drag.zoneId, { x: newX, y: newY });
-    } else if (drag.isResizing) {
-      let newW = drag.startW + dx;
-      let newH = drag.startH + dy;
-      newW = Math.max(10, Math.min(newW, 100 - drag.startZoneX));
-      newH = Math.max(10, Math.min(newH, 100 - drag.startZoneY));
-      updateHUDZone(drag.zoneId, { w: newW, h: newH });
-    }
+    let newX = drag.startItemX + dx;
+    let newY = drag.startItemY + dy;
+    newX = Math.max(0, Math.min(newX, 95));
+    newY = Math.max(0, Math.min(newY, 95));
+
+    setVisualHud(prev => prev.map(i => i.id === drag.id ? { ...i, x: newX, y: newY } : i));
   };
 
-  const onHUDPointerUp = () => {
-    hudDragRef.current.isDragging = false;
-    hudDragRef.current.isResizing = false;
-    window.removeEventListener('pointermove', onHUDPointerMove);
-    window.removeEventListener('pointerup', onHUDPointerUp);
+  const onVisualPointerUp = () => {
+    visualDragRef.current.isDragging = false;
+    window.removeEventListener('pointermove', onVisualPointerMove);
+    window.removeEventListener('pointerup', onVisualPointerUp);
   };
 
   useEffect(() => {
-    const fetchZones = () => {
-      const stored = localStorage.getItem('CLIPS_HUD_LAYOUT');
+    const fetchVisualZones = () => {
+      const stored = localStorage.getItem('CLIPS_VISUAL_HUD');
       if (stored) {
         try {
-          setHudZones(JSON.parse(stored));
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setVisualHud(parsed);
+            return;
+          }
         } catch(e) {}
-      } else {
-        setHudZones(DEFAULT_HUD_ZONES);
       }
+      setVisualHud(DEFAULT_VISUAL_HUD);
     };
-    fetchZones();
-    window.addEventListener('hudLayoutUpdated', fetchZones);
-    return () => window.removeEventListener('hudLayoutUpdated', fetchZones);
+    fetchVisualZones();
+    window.addEventListener('visualHudLayoutUpdated', fetchVisualZones);
+  return () => window.removeEventListener('visualHudLayoutUpdated', fetchVisualZones);
   }, []);
 
   const handleLikeReel = async (reelId, initialLikes, isLikedByMe) => {
@@ -364,7 +466,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
     }
   };
   const toggleReelsMute = (e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     setReelsMuted(!reelsMuted);
   };
 
@@ -600,6 +702,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       onPointerDown={(e) => {
                         if (isHUDEditMode && isActive) return; // Disable standard gestures in edit mode
 
+                        const currentTarget = e.currentTarget;
                         const v = reelVideoRefs.current[idx];
                         const y = reelYouTubeRefs.current[idx];
                         
@@ -648,18 +751,13 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                           processGesture(gesture);
                           
                           function processGesture(detectedGesture) {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const touchXPercent = ((touchStartX - rect.left) / rect.width) * 100;
-                            const touchYPercent = ((touchStartY - rect.top) / rect.height) * 100;
-                            
-                            const activeZone = [...hudZones].reverse().find(z => 
-                              touchXPercent >= z.x && touchXPercent <= (z.x + z.w) &&
-                              touchYPercent >= z.y && touchYPercent <= (z.y + z.h) &&
-                              z.gesture === detectedGesture
-                            );
+                            let action = 'none';
+                            if (detectedGesture === 'singleTap') action = 'play_pause';
+                            else if (detectedGesture === 'doubleTap') action = 'like';
+                            else if (detectedGesture === 'swipeLeft') action = 'profile';
 
-                            if (activeZone) {
-                              executeGesture(activeZone.action, item, v, y, idx, isYouTube, isPaused);
+                            if (action !== 'none') {
+                              executeGesture(action, item, v, y, idx, isYouTube, isPaused);
                             }
                           }
                         };
@@ -668,81 +766,37 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       }}
                     >
                       {isHUDEditMode && isActive && (
-                        <div className="absolute inset-0 z-50 pointer-events-none border-4 border-[#FF2D55]/50">
-                          {hudZones.map((zone) => {
-                            const isSelected = selectedHUDZone === zone.id;
-                            return (
-                              <div
-                                key={zone.id}
-                                className={`absolute flex items-center justify-center border-2 overflow-hidden transition-colors pointer-events-auto ${isSelected ? 'border-[#FF2D55] bg-[#FF2D55]/30 z-50' : 'border-white/50 bg-white/20 z-40 hover:border-white/80'}`}
-                                style={{
-                                  left: `${zone.x}%`, top: `${zone.y}%`, width: `${zone.w}%`, height: `${zone.h}%`,
-                                  cursor: 'move',
-                                  touchAction: 'none'
-                                }}
-                                onPointerDown={(e) => onHUDPointerDown(e, zone.id, false)}
-                              >
-                                <div className="flex flex-col items-center pointer-events-none text-center px-1">
-                                  <span className={`text-[12px] font-black uppercase drop-shadow-md ${isSelected ? 'text-[#FF2D55]' : 'text-white'}`}>
-                                    {HUD_ACTIONS.find(a => a.value === zone.action)?.label}
-                                  </span>
-                                  <span className="text-[9px] font-bold text-white/80 uppercase">
-                                    {HUD_GESTURES.find(g => g.value === zone.gesture)?.label}
-                                  </span>
-                                </div>
-                                {isSelected && (
-                                  <div 
-                                    className="absolute bottom-0 right-0 w-8 h-8 bg-[#FF2D55] rounded-tl-xl cursor-se-resize flex items-center justify-center shadow-lg pointer-events-auto"
-                                    onPointerDown={(e) => onHUDPointerDown(e, zone.id, true)}
-                                  >
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                      <polyline points="21 15 21 21 15 21"></polyline>
-                                      <line x1="21" y1="21" x2="15" y2="15"></line>
-                                    </svg>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                          
-                          <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center bg-black/60 backdrop-blur-md pointer-events-auto border-b border-white/20">
-                            <span className="text-white font-black italic tracking-wider text-sm">HUD EDIT MODE</span>
-                            <div className="flex gap-2">
-                              <button onClick={(e) => { e.stopPropagation(); handleHUDAddZone(); }} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded font-bold text-xs cursor-pointer">Add Zone</button>
-                              <button onClick={(e) => { e.stopPropagation(); handleHUDSave(); }} className="px-3 py-1.5 bg-[#FF2D55] hover:bg-[#ff1a47] text-white rounded font-bold text-xs shadow-[0_0_10px_rgba(255,45,85,0.5)] cursor-pointer">Save</button>
-                            </div>
-                          </div>
-
-                          {selectedHUDZone && (
-                            <div className="absolute bottom-20 left-4 right-16 p-4 bg-black/80 backdrop-blur-md rounded-xl border border-white/20 pointer-events-auto shadow-2xl animate-in slide-in-from-bottom-4">
-                              <div className="flex justify-between items-center mb-3">
-                                <span className="text-white text-xs font-bold uppercase tracking-wider text-[#FF2D55]">Zone Properties</span>
-                                <button onClick={(e) => { e.stopPropagation(); deleteHUDZone(selectedHUDZone); }} className="text-red-400 text-xs font-bold px-2 py-1 bg-red-500/20 hover:bg-red-500/40 rounded cursor-pointer transition-colors">Delete</button>
-                              </div>
+                        <div className="absolute inset-0 z-50 pointer-events-none border-4 border-dashed border-[#FF2D55]/50 flex flex-col justify-between">
+                          {/* Top Toolbar */}
+                          <div className="p-2 sm:p-4 bg-black/80 backdrop-blur-md pointer-events-auto border-b border-white/20 flex flex-col gap-3">
+                            <div className="flex justify-between items-center">
+                              <span className="text-white font-black italic tracking-wider text-sm">VISUAL HUD EDITOR</span>
                               <div className="flex gap-2">
-                                <div className="flex-1 flex flex-col gap-1">
-                                  <label className="text-[9px] text-white/50 uppercase font-bold">Action</label>
-                                  <select 
-                                    className="bg-white/10 border border-white/20 rounded p-1.5 text-xs text-white outline-none cursor-pointer focus:border-[#FF2D55]"
-                                    value={hudZones.find(z => z.id === selectedHUDZone)?.action}
-                                    onChange={(e) => updateHUDZone(selectedHUDZone, { action: e.target.value })}
-                                  >
-                                    {HUD_ACTIONS.map(a => <option key={a.value} value={a.value} className="bg-gray-900">{a.label}</option>)}
-                                  </select>
-                                </div>
-                                <div className="flex-1 flex flex-col gap-1">
-                                  <label className="text-[9px] text-white/50 uppercase font-bold">Gesture</label>
-                                  <select 
-                                    className="bg-white/10 border border-white/20 rounded p-1.5 text-xs text-white outline-none cursor-pointer focus:border-[#FF2D55]"
-                                    value={hudZones.find(z => z.id === selectedHUDZone)?.gesture}
-                                    onChange={(e) => updateHUDZone(selectedHUDZone, { gesture: e.target.value })}
-                                  >
-                                    {HUD_GESTURES.map(g => <option key={g.value} value={g.value} className="bg-gray-900">{g.label}</option>)}
-                                  </select>
-                                </div>
+                                <button onClick={(e) => { e.stopPropagation(); clearVisualHUD(); }} className="px-3 py-1.5 bg-gray-500/30 hover:bg-gray-500/50 text-white rounded font-bold text-xs cursor-pointer">Clear All</button>
+                                <button onClick={(e) => { e.stopPropagation(); resetVisualHUD(); }} className="px-3 py-1.5 bg-gray-500/30 hover:bg-gray-500/50 text-white rounded font-bold text-xs cursor-pointer">Reset</button>
+                                <button onClick={(e) => { e.stopPropagation(); handleVisualHUDSave(); }} className="px-3 py-1.5 bg-[#FF2D55] hover:bg-[#ff1a47] text-white rounded font-bold text-xs shadow-[0_0_10px_rgba(255,45,85,0.5)] cursor-pointer">Save & Exit</button>
                               </div>
                             </div>
-                          )}
+                            
+                            {/* Icon Bar (Toolbox) */}
+                            <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
+                              {Object.entries(HUD_COMPONENTS_MAP).map(([type, config]) => {
+                                const isVisible = visualHud.find(v => v.type === type)?.visible;
+                              
+  return (
+                                  <button
+                                    key={type}
+                                    onClick={(e) => { e.stopPropagation(); toggleVisualItemVisibility(type); }}
+                                    className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full border ${isVisible ? 'border-[#FF2D55] bg-[#FF2D55]/20 text-[#FF2D55]' : 'border-white/20 bg-white/10 text-white/50 hover:bg-white/20 hover:text-white'}`}
+                                  >
+                                    <span className="text-sm">{config.icon}</span>
+                                    <span className="text-[10px] font-bold uppercase">{config.label}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <div className="text-[9px] text-white/50 text-center font-bold">DRAG ITEMS TO MOVE THEM AROUND THE SCREEN</div>
+                          </div>
                         </div>
                       )}
                       
@@ -915,240 +969,8 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                       </div>
                     </div>
 
-                    {/* Right action column (TikTok-style) */}
-                    <div className="reel-actions-col">
-                      {/* Creator avatar + follow pill */}
-                      <button
-                        className="reel-creator-pill"
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          const targetId = item.creator_id || '69d663c300013ae31bb4';
-                          if (onNavigateToProfile) {
-                            onNavigateToProfile(targetId);
-                          } else {
-                            setSelectedUserId(targetId); 
-                          }
-                        }}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                      >
-                        <img 
-                          loading="lazy" 
-                          src={getViewerAvatar(item.creator_handle, item.creator_name, creatorAvatar)} 
-                          alt="creator" 
-                          className="reel-creator-avatar-sm" 
-                          style={{ objectFit: 'cover', background: '#333' }} 
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = getViewerAvatar('User', '', null);
-                          }}
-                        />
-                        {(() => {
-                          const creatorId = item.creator_id || '69d663c300013ae31bb4';
-                          const isFollowing = followedCreators[creatorId] !== undefined ? followedCreators[creatorId] : !!item.is_following_creator;
-                          const isMe = creatorId === localStorage.getItem('adminId');
-                          
-                          if (isMe) return null;
-                          return (
-                            <button
-                              className="reel-follow-fab-btn"
-                              style={{ background: isFollowing ? '#333' : '#FF2D55' }}
-                              onClick={(e) => { e.stopPropagation(); toggleFollowCreator(item); }}
-                              title={isFollowing ? "Unfollow" : "Follow creator"}
-                            >
-                              {isFollowing ? '✓' : '＋'}
-                            </button>
-                          );
-                        })()}
-                      </button>
-
-                      {/* Like */}
-                      {(() => {
-                        const reelId = item._id || item.id;
-                        const likeState = likedReels[reelId] || { liked: !!item.is_liked_by_me, count: item.likes || 0 };
-                        return (
-                          <div className={`reel-action-item ${likeState.liked ? 'like-active' : ''}`}>
-                            <button
-                              className="reel-action-btn"
-                              onClick={(e) => { e.stopPropagation(); handleLikeReel(reelId, item.likes || 0, !!item.is_liked_by_me); }}
-                            >
-                              <span className="reel-action-icon">
-                                <Heart size={24} fill={likeState.liked ? "#FF2D55" : "none"} className={likeState.liked ? "text-[#FF2D55] scale-110" : "text-white"} />
-                              </span>
-                            </button>
-                            <span className="reel-action-count">
-                              {likeState.count}
-                            </span>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Comment / Open comments panel */}
-                      <div className="reel-action-item">
-                        <button
-                          className="reel-action-btn"
-                          onClick={(e) => { e.stopPropagation(); setSelectedReelForComments(item._id); setShowComments(true); }}
-                        >
-                          <span className="reel-action-icon">
-                            <MessageSquare size={24} />
-                          </span>
-                        </button>
-                        <span className="reel-action-count">
-                          {item.comments_count || (item.comments ? item.comments.length : 0) || 0}
-                        </span>
-                      </div>
-
-                      {/* Bookmark (Save) */}
-                      {(() => {
-                        const reelId = item._id || item.id;
-                        const isSaved = savedReels[reelId] !== undefined ? savedReels[reelId] : !!item.is_saved_by_me;
-                        return (
-                          <div className={`reel-action-item ${isSaved ? 'save-active' : ''}`}>
-                            <button
-                              className="reel-action-btn"
-                              onClick={(e) => { e.stopPropagation(); handleSaveReel(reelId, !!item.is_saved_by_me); }}
-                            >
-                              <span className="reel-action-icon">
-                                <Bookmark size={24} fill={isSaved ? "#FFD700" : "none"} className={isSaved ? "text-[#FFD700]" : "text-white"} />
-                              </span>
-                            </button>
-                            <span className="reel-action-count">
-                              {isSaved ? "Saved" : "Save"}
-                            </span>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Share */}
-                      <div className="reel-action-item">
-                        <button
-                          className="reel-action-btn"
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            if (navigator.share) {
-                              navigator.share({
-                                title: item.title,
-                                text: item.caption,
-                                url: window.location.href
-                              }).catch(() => {});
-                            } else {
-                              alert("Share link copied to clipboard!");
-                              navigator.clipboard.writeText(window.location.href);
-                            }
-                          }}
-                        >
-                          <span className="reel-action-icon">
-                            <Share2 size={24} />
-                          </span>
-                        </button>
-                        <span className="reel-action-count">
-                          {item.shares || 0}
-                        </span>
-                      </div>
-
-                      {/* Sound */}
-                      <div className="reel-action-item">
-                        <button className="reel-action-btn" onClick={toggleReelsMute}>
-                          <span className="reel-action-icon">
-                            {reelsMuted ? (
-                              <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
-                                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
-                              </svg>
-                            ) : (
-                              <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
-                                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-                              </svg>
-                            )}
-                          </span>
-                        </button>
-                        <span className="reel-action-count">{reelsMuted ? 'Off' : 'On'}</span>
-                      </div>
-
-                      {/* Report */}
-                      <div className="reel-action-item">
-                        <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); trackEvent('report_open', item._id); setReportReelId(item._id); setShowReportSheet(true); setReportSuccess(false); setReportReason(''); setReportDetails(''); }}>
-                          <span className="reel-action-icon">
-                            <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
-                              <path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/>
-                            </svg>
-                          </span>
-                        </button>
-                        <span className="reel-action-count">Report</span>
-                      </div>
-
-                      {/* Dev Report */}
-                      <div className="reel-action-item">
-                        <button className="reel-action-btn" onClick={(e) => { e.stopPropagation(); trackEvent('dev_report', item._id); sendDeveloperReport('user_feedback', `Clip ${item._id} issue reported by user`, { video_id: item._id }); alert('Bug report sent to developer! 🛠️'); }}>
-                          <span className="reel-action-icon">
-                            <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
-                              <path d="M20 8h-2.81c-.45-.78-1.07-1.45-1.82-1.96L17 4.41 15.59 3l-2.17 2.17C12.96 5.06 12.49 5 12 5c-.49 0-.96.06-1.41.17L8.41 3 7 4.41l1.62 1.63C7.88 6.55 7.26 7.22 6.81 8H4v2h2.09c-.05.33-.09.66-.09 1v1H4v2h2v1c0 .34.04.67.09 1H4v2h2.81c1.04 1.79 2.97 3 5.19 3s4.15-1.21 5.19-3H20v-2h-2.09c.05-.33.09-.66.09-1v-1h2v-2h-2v-1c0-.34-.04-.67-.09-1H20V8zm-6 8h-4v-2h4v2zm0-4h-4v-2h4v2z"/>
-                            </svg>
-                          </span>
-                        </button>
-                        <span className="reel-action-count">Bug</span>
-                      </div>
-
-                      {/* Admin: Delete */}
-                      {adminToken && onDelete && (
-                        <div className="reel-action-item">
-                          <button
-                            className="reel-action-btn reel-delete-btn"
-                            onClick={(e) => { e.stopPropagation(); onDelete(item.id || item._id); }}
-                          >
-                            <span className="reel-action-icon">
-                              <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
-                                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                              </svg>
-                            </span>
-                          </button>
-                          <span className="reel-action-count">Del</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Bottom info area (TikTok-style caption zone) */}
-                    
-                    <div className="reel-bottom-info">
-                      <div className="reel-creator-line">
-                        <button 
-                          className="reel-creator-handle" 
-                          style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', font: 'inherit' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const targetId = item.creator_id || '69d663c300013ae31bb4';
-                            if (onNavigateToProfile) {
-                              onNavigateToProfile(targetId);
-                            }
-                          }}
-                        >
-                          @{item.creator_handle || slugifyText(item.creator_name || 'creator').replace(/-/g, '')}
-                          {item.is_official_creator && (
-                            <svg viewBox="0 0 24 24" fill="#00FFFF" width="16" height="16" style={{ filter: 'drop-shadow(0 0 2px rgba(0, 255, 255, 0.4))' }}>
-                              <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1.8 14.8L6.4 13l1.4-1.4 2.4 2.4 6-6L17.6 9l-7.4 7.8z"/>
-                            </svg>
-                          )}
-                        </button>
-                        {item.is_demo_creator && <span className="reel-category-badge">Demo</span>}
-                        {item.category && <span className="reel-category-badge">{item.category}</span>}
-                      </div>
-                      <p className="reel-caption-text">
-                        {(item.caption || item.excerpt || (item.title && !item.title.includes('/') ? item.title : '')).slice(0, 120)}
-                      </p>
-                      {item.tags && item.tags.length > 0 && (
-                        <div className="reel-hashtag-row">
-                          {item.tags.slice(0, 4).map((tag) => (
-                            <span key={tag}>#{tag}</span>
-                          ))}
-                        </div>
-                      )}
-                      <div className="reel-audio-ticker">
-                        <span className="reel-audio-disc">🎵</span>
-                        <div className="reel-audio-text-wrap">
-                          <span className="reel-audio-text">
-                            {item.creator_name || 'Original Creator'} • Original Audio
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                    {/* Visual HUD Render Engine */}
+                    {visualHud.map(v => renderVisualComponent(v.type, item, idx))}
 
                     {/* Reel counter (top-right) */}
                     {/* Reel counter removed */}
