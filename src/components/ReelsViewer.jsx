@@ -177,10 +177,12 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
               <div className="relative">
                 <button className="reel-action-btn hover:scale-105 active:scale-95 transition-transform" onClick={(e) => { e.stopPropagation(); setActiveDropdownIndex(activeDropdownIndex === idx ? null : idx); }}>
                   <span className="reel-action-icon">
-                    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="3" y1="6" x2="21" y2="6"></line>
                       <line x1="3" y1="12" x2="21" y2="12"></line>
-                      <line x1="3" y1="18" x2="14" y2="18"></line>
+                      <line x1="3" y1="18" x2="13.5" y2="18"></line>
+                      <circle cx="17" cy="18" r="2.2"></circle>
+                      <path d="M17 14v1.5 M17 20.5v1.5 M12.5 18h1.5 M20 18h1.5 M14.5 15.5l1 1 M18.5 19.5l1 1 M14.5 20.5l1-1 M18.5 15.5l1 1"></path>
                     </svg>
                   </span>
                 </button>
