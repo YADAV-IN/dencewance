@@ -8,8 +8,8 @@ import CommentsSection from './CommentsSection';
 import LikeButton from './LikeButton';
 import { trackEvent, sendContentReport, sendDeveloperReport } from '../utils/analyticsTracker';
 
-const REEL_PRELOAD_AHEAD = 5; 
 const REEL_KEEP_BEHIND = 1; 
+const REEL_PRELOAD_AHEAD = 2;
 
 export const DEFAULT_VISUAL_HUD = [
   { id: 'creatorProfile', type: 'creator', x: 4, y: 78, visible: true },
@@ -114,7 +114,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
           zIndex: 40,
           transform: `translate(${config.x >= 50 ? '-100%' : '0'}, -50%)`
         }}
-        className={`transition-all ${isHUDEditMode ? 'pointer-events-auto cursor-move' : 'pointer-events-none'} ${isSelected ? 'ring-2 ring-[#FF2D55] bg-[#FF2D55]/20 rounded-lg p-2' : ''}`}
+        className={`${isHUDEditMode ? 'transition-all pointer-events-auto cursor-move' : 'pointer-events-none'} ${isSelected ? 'ring-2 ring-[#FF2D55] bg-[#FF2D55]/20 rounded-lg p-2' : ''}`}
         onPointerDown={(e) => onVisualPointerDown(e, config.id)}
       >
         <div style={{ pointerEvents: isHUDEditMode ? 'none' : 'auto' }} className={`flex flex-col items-center gap-2 ${isActionItem ? 'w-[60px]' : ''}`}>
@@ -891,7 +891,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                             playsInline
                             muted={reelsMuted}
                             autoPlay={isActive && !isPaused}
-                            preload={shouldWarm ? 'auto' : 'none'}
+                            preload={idx === activeReelIndex + 1 || isActive ? 'auto' : 'metadata'}
                             poster={item.cover_image_url ? resolveMediaUrl(item.cover_image_url) : undefined}
                             onLoadedMetadata={(event) => {
                               event.currentTarget.volume = 1;
