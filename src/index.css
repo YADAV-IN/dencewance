@@ -159,7 +159,7 @@ code {
   position: absolute;
   inset: -1.5px; /* thin border */
   border-radius: 11px;
-  background: conic-gradient(from var(--angle), #ff4545, #00ff99, #006aff, #ff0095, #ff4545);
+  background: conic-gradient(from var(--angle), #00FFFF, #9B51E0, #3A125E, #9B51E0, #00FFFF);
   animation: spin-gradient 3s linear infinite;
   z-index: 0;
 }
