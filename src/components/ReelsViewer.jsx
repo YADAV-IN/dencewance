@@ -5,8 +5,7 @@ import './ReelsViewer.css';
 import { translations as tAll } from '../translations';
 import UserProfileView from './UserProfileView';
 import CommentsSection from './CommentsSection';
-import GestureSettingsModal, { DEFAULT_GESTURE_PREFS } from './GestureSettingsModal';
-import LikeButton from './LikeButton';
+import HudCustomizer, { DEFAULT_HUD_ZONES } from './HudCustomizer';
 import LikeButton from './LikeButton';
 import { trackEvent, sendContentReport, sendDeveloperReport } from '../utils/analyticsTracker';
 
@@ -174,15 +173,22 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   const [savedReels, setSavedReels] = useState({}); // { [reelId]: boolean }
 
   const [isGestureModalOpen, setIsGestureModalOpen] = useState(false);
-  const [gesturePrefs, setGesturePrefs] = useState(DEFAULT_GESTURE_PREFS);
+  const [hudZones, setHudZones] = useState(DEFAULT_HUD_ZONES);
 
   useEffect(() => {
-    const stored = localStorage.getItem('CLIPS_GESTURE_PREFS');
-    if (stored) {
-      try {
-        setGesturePrefs(JSON.parse(stored));
-      } catch(e) {}
-    }
+    const fetchZones = () => {
+      const stored = localStorage.getItem('CLIPS_HUD_LAYOUT');
+      if (stored) {
+        try {
+          setHudZones(JSON.parse(stored));
+        } catch(e) {}
+      } else {
+        setHudZones(DEFAULT_HUD_ZONES);
+      }
+    };
+    fetchZones();
+    window.addEventListener('hudLayoutUpdated', fetchZones);
+    return () => window.removeEventListener('hudLayoutUpdated', fetchZones);
   }, []);
 
   const handleLikeReel = async (reelId, initialLikes, isLikedByMe) => {
@@ -389,8 +395,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
   }, [activeReelIndex, currentPageKey, reels.length]);
 
 
-  const executeGesture = (gestureName, item, videoRef, ytRef, idx, isYouTube, isPaused) => {
-    const action = gesturePrefs.mappings[gestureName];
+  const executeGesture = (action, item, videoRef, ytRef, idx, isYouTube, isPaused) => {
     if (!action || action === 'none') return;
     
     if (action === 'play_pause') {
@@ -500,23 +505,20 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                           // Determine gesture
                           let gesture = 'singleTap';
                           if (duration < 300 && Math.abs(dx) < 20 && Math.abs(dy) < 20) {
-                            // Tap detected. Check for double tap.
                             const lastTap = window.lastVideoTapTime || 0;
                             if (touchEndTime - lastTap < 300) {
                               gesture = 'doubleTap';
-                              window.lastVideoTapTime = 0; // reset
+                              window.lastVideoTapTime = 0;
                             } else {
                               window.lastVideoTapTime = touchEndTime;
-                              // Delay single tap execution to allow for double tap
                               setTimeout(() => {
                                 if (window.lastVideoTapTime === touchEndTime) {
-                                  executeGesture('singleTap', item, v, y, idx, isYouTube, isPaused);
+                                  processGesture('singleTap');
                                 }
                               }, 300);
-                              return; // Wait for timeout
+                              return;
                             }
                           } else if (duration < 500) {
-                            // Swipe detected
                             if (Math.abs(dx) > Math.abs(dy)) {
                               if (dx > 50) gesture = 'swipeRight';
                               else if (dx < -50) gesture = 'swipeLeft';
@@ -526,7 +528,23 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                             }
                           }
 
-                          executeGesture(gesture, item, v, y, idx, isYouTube, isPaused);
+                          processGesture(gesture);
+                          
+                          function processGesture(detectedGesture) {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const touchXPercent = ((touchStartX - rect.left) / rect.width) * 100;
+                            const touchYPercent = ((touchStartY - rect.top) / rect.height) * 100;
+                            
+                            const activeZone = [...hudZones].reverse().find(z => 
+                              touchXPercent >= z.x && touchXPercent <= (z.x + z.w) &&
+                              touchYPercent >= z.y && touchYPercent <= (z.y + z.h) &&
+                              z.gesture === detectedGesture
+                            );
+
+                            if (activeZone) {
+                              executeGesture(activeZone.action, item, v, y, idx, isYouTube, isPaused);
+                            }
+                          }
                         };
                         
                         window.addEventListener('pointerup', handlePointerUp);
@@ -1153,10 +1171,9 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                 </div>
               )}
               
-              <GestureSettingsModal
+              <HudCustomizer
                 isOpen={isGestureModalOpen}
                 onClose={() => setIsGestureModalOpen(false)}
-                onSave={(newPrefs) => setGesturePrefs(newPrefs)}
               />
             </div>
   );
