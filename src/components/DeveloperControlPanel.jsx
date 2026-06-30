@@ -4,9 +4,10 @@ import { buildCreatorIdentity, getPreferredCreatorMode } from '../utils/creatorI
 import { 
   LayoutDashboard, Settings, Video, Image as ImageIcon, Music, Save, 
   UploadCloud, CheckCircle2, AlertCircle, X, ChevronRight, Activity, Users, FileVideo, ShieldCheck,
-  TrendingUp, PlayCircle, Wand2, Terminal, Code, Trash2, User
+  TrendingUp, PlayCircle, Wand2, Terminal, Code, Trash2, User, Database
 } from 'lucide-react';
 import DeveloperUserManagement from './DeveloperUserManagement';
+import DeveloperIDList from './DeveloperIDList';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -375,6 +376,7 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
           <MenuButton id="settings" icon={Settings} label="Platform Settings" />
           <MenuButton id="identities" icon={Users} label="Manage Identities" />
           <MenuButton id="users" icon={Users} label="User Management" />
+          <MenuButton id="ids" icon={Database} label="Database IDs" />
           <div className="pt-4 pb-2 px-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Advanced</div>
           <MenuButton id="magic" icon={Wand2} label="Magic System" />
         </div>
@@ -427,6 +429,7 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
               {activeMenu === 'settings' && 'Platform Settings'}
               {activeMenu === 'identities' && 'Manage Identities'}
               {activeMenu === 'users' && 'User Management'}
+              {activeMenu === 'ids' && 'Database IDs'}
               {activeMenu === 'magic' && 'Advanced Magic System'}
             </h2>
             <p className={`text-sm mt-1 ${activeMenu === 'magic' ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -437,6 +440,7 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
               {activeMenu === 'settings' && 'Configure core platform algorithms and features.'}
               {activeMenu === 'identities' && 'Manage temporary identity seeds.'}
               {activeMenu === 'users' && 'Manage all platform accounts, roles, verification badges and bans.'}
+              {activeMenu === 'ids' && 'View all database IDs (Users, Posts, Reels) in a single line.'}
               {activeMenu === 'magic' && 'Forcefully manipulate the platform via dynamic injection pipelines.'}
             </p>
           </div>
@@ -963,6 +967,12 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
           {activeMenu === 'users' && (
             <div className="h-full animate-in fade-in slide-in-from-bottom-4">
               <DeveloperUserManagement token={token} />
+            </div>
+          )}
+
+          {activeMenu === 'ids' && (
+            <div className="h-full animate-in fade-in slide-in-from-bottom-4">
+              <DeveloperIDList token={token} />
             </div>
           )}
 
