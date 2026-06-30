@@ -116,3 +116,56 @@ textarea {
 code {
   font-family: var(--font-mono);
 }
+
+@keyframes spin-gradient {
+  0% { --angle: 0deg; }
+  100% { --angle: 360deg; }
+}
+
+@property --angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.magic-add-wrapper {
+  position: relative;
+  width: 42px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+}
+
+.magic-add-btn {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: rgba(10, 10, 10, 0.7); /* glass transparent dark black */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+/* The spinning gradient border and glow */
+.magic-add-wrapper::before,
+.magic-add-wrapper::after {
+  content: '';
+  position: absolute;
+  inset: -1.5px; /* thin border */
+  border-radius: 11px;
+  background: conic-gradient(from var(--angle), #ff4545, #00ff99, #006aff, #ff0095, #ff4545);
+  animation: spin-gradient 3s linear infinite;
+  z-index: 0;
+}
+
+/* Glow effect that spreads around */
+.magic-add-wrapper::before {
+  filter: blur(8px);
+  opacity: 0.8;
+}

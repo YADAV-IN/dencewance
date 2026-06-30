@@ -1599,8 +1599,10 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
               onClick={() => setActiveTab('add')}
               className="flex flex-col items-center justify-center flex-1 h-full relative cursor-pointer"
             >
-              <div className="w-[38px] h-[26px] bg-[#3A125E] text-white rounded-[8px] flex items-center justify-center relative shadow-[-2px_0_0_#00f2fe,2px_0_0_#fe0979]">
-                <PlusSquare size={18} strokeWidth={3} className="text-white" />
+              <div className="magic-add-wrapper">
+                <div className="magic-add-btn">
+                  <PlusSquare size={18} strokeWidth={3} className="text-white z-20" />
+                </div>
               </div>
             </button>
 
