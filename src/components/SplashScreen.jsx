@@ -62,6 +62,17 @@ const SplashScreen = ({ onComplete }) => {
         </div>
       </div>
       
+      {/* Footer Branding like Meta */}
+      <div 
+        className="absolute bottom-10 flex flex-col items-center opacity-0"
+        style={{ animation: 'fadeIn 1s ease-out forwards 1.5s' }}
+      >
+        <span className="text-[11px] text-[#2B2315]/50 tracking-widest font-medium uppercase mb-0.5">from</span>
+        <span className="text-lg font-bold tracking-widest bg-clip-text text-transparent bg-gradient-to-r from-[#9B51E0] via-[#D4AF37] to-[#00FFFF]">
+          Microbyte
+        </span>
+      </div>
+      
       {/* Keyframes embedded for this component */}
       <style>{`
         @keyframes slideUpFade {
