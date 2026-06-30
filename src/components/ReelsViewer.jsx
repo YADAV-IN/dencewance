@@ -111,7 +111,7 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
           left: `${config.x}%`,
           top: `${config.y}%`,
           zIndex: 40,
-          transform: 'translate(0, -50%)'
+          transform: `translate(${config.x >= 50 ? '-100%' : '0'}, -50%)`
         }}
         className={`transition-all ${isHUDEditMode ? 'pointer-events-auto cursor-move' : 'pointer-events-none'} ${isSelected ? 'ring-2 ring-[#FF2D55] bg-[#FF2D55]/20 rounded-lg p-2' : ''}`}
         onPointerDown={(e) => onVisualPointerDown(e, config.id)}
@@ -180,9 +180,9 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                     <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="3" y1="6" x2="21" y2="6"></line>
                       <line x1="3" y1="12" x2="21" y2="12"></line>
-                      <line x1="3" y1="18" x2="13.5" y2="18"></line>
-                      <circle cx="17" cy="18" r="2.2"></circle>
-                      <path d="M17 14v1.5 M17 20.5v1.5 M12.5 18h1.5 M20 18h1.5 M14.5 15.5l1 1 M18.5 19.5l1 1 M14.5 20.5l1-1 M18.5 15.5l1 1"></path>
+                      <line x1="3" y1="18" x2="14.5" y2="18"></line>
+                      <circle cx="17.5" cy="18" r="2.5"></circle>
+                      <path d="M17.5 13.5v2 M17.5 20.5v2 M15 15.5l1.5 1.5 M15 20.5l1.5-1.5 M20 15.5l-1.5 1.5 M20 20.5l-1.5-1.5"></path>
                     </svg>
                   </span>
                 </button>
