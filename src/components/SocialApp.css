@@ -559,26 +559,26 @@
   
   border-top: 1px solid rgba(0,0,0,0.05);
   display: flex;
-  height: calc(48px + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
+  height: 44px !important;
+  max-height: 44px !important;
+  padding: 0 !important;
   align-items: stretch;
   z-index: 100;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
 }
 
 .mobile-bottom-nav button {
-  background: none; border: none; padding: 0; margin: 0; flex: 1; height: 48px; cursor: pointer; color: #a1a1aa;
-  display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: transparent; border: none; padding: 0 !important; margin: 0; flex: 1; height: 100%; cursor: pointer; color: #a1a1aa;
+  display: flex; align-items: center; justify-content: center; transition: all 0.2s;
 }
 
 .mobile-bottom-nav button.active {
-  color: #fff; 
-  background: linear-gradient(135deg, var(--accent), var(--primary-dark));
-  box-shadow: 0 4px 15px rgba(58, 18, 94, 0.3);
-  transform: translateY(-5px);
+  color: var(--primary-dark); 
+  background: transparent;
+  border-top: 2px solid var(--primary-dark);
 }
 
-.mobile-bottom-nav button:hover:not(.active) { color: var(--primary-dark); transform: translateY(-2px); }
+.mobile-bottom-nav button:hover:not(.active) { color: var(--primary-dark); }
 
 /* Mode: Phone View overrides */
 .historical-theme.mode-phone .desktop-sidebar {
