@@ -679,7 +679,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
       {/* 2. Main Content Area */}
       <main className="flex-1 overflow-y-auto hide-scrollbar relative overscroll-y-none">
         {activeTab === 'home' && (
-          <div className="p-4 pb-24 flex flex-col gap-5">
+          <div className="pb-24 pt-2 flex flex-col gap-5">
             {/* Global Trending Status Horizontal Scroll */}
             <div className="flex flex-col py-1">
               <style>{`
