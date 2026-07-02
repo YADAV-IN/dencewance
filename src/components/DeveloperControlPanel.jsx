@@ -969,28 +969,46 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                                 try {
                                   const payload = { badge_type: newType || '', is_verified: !!newType, author_is_verified: !!newType };
                                   
-                                  // Update Admin profile if applicable
+                                  // 1. Try to update user/admin profile
                                   await fetch(`${API_URL}/api/admins/${identity.id}`, {
                                     method: 'PUT',
                                     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                                     body: JSON.stringify(payload)
                                   }).catch(() => {});
                                   
-                                  // Update User profile directly
-                                  await fetch(`${API_URL}/api/users/${identity.id}`, {
-                                    method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                                    body: JSON.stringify(payload)
-                                  }).catch(() => {});
+                                  // 2. Fetch all reels and posts to force update their badge fields
+                                  const [reelsRes, postsRes] = await Promise.all([
+                                      fetch(`${API_URL}/api/reels`).catch(()=>null),
+                                      fetch(`${API_URL}/api/posts`).catch(()=>null)
+                                  ]);
                                   
-                                  // Update User verify route fallback
-                                  await fetch(`${API_URL}/api/users/${identity.id}/verify`, {
-                                    method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                                    body: JSON.stringify(payload)
-                                  }).catch(() => {});
+                                  if (reelsRes && reelsRes.ok) {
+                                      const reelsData = await reelsRes.json();
+                                      const myReels = (reelsData.data || []).filter(r => r.creator_id === identity.id || (r.creator && (r.creator.id === identity.id || r.creator._id === identity.id)));
+                                      for (const reel of myReels) {
+                                          const rId = reel._id || reel.id;
+                                          await fetch(`${API_URL}/api/reels/${rId}`, {
+                                              method: 'PUT',
+                                              headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                                              body: JSON.stringify(payload)
+                                          }).catch(()=>{});
+                                      }
+                                  }
+                                  
+                                  if (postsRes && postsRes.ok) {
+                                      const postsData = await postsRes.json();
+                                      const myPosts = (postsData.data || []).filter(p => p.creator_id === identity.id || (p.creator && (p.creator.id === identity.id || p.creator._id === identity.id)));
+                                      for (const post of myPosts) {
+                                          const pId = post._id || post.id;
+                                          await fetch(`${API_URL}/api/posts/${pId}`, {
+                                              method: 'PUT',
+                                              headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                                              body: JSON.stringify(payload)
+                                          }).catch(()=>{});
+                                      }
+                                  }
 
-                                  console.log(`Live sync: Verified user ${identity.id} as ${newType || 'unverified'} in database.`);
+                                  console.log(`Live sync: Verified user ${identity.id} as ${newType || 'unverified'} in database across all their posts/reels.`);
                                 } catch (err) {
                                   console.error("Live save failed", err);
                                 }
