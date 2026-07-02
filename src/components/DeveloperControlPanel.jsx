@@ -993,7 +993,7 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                                       const myPosts = (postsData.data || []).filter(p => p.creator_id === identity.id || (p.creator && (p.creator.id === identity.id || p.creator._id === identity.id)));
                                       for (const post of myPosts) {
                                           const pId = post._id || post.id;
-                                          await fetch(`${API_URL}/api/posts/${pId}`, {
+                                          await fetch(`${API_URL}/api/news/${pId}`, {
                                               method: 'PUT',
                                               headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                                               body: JSON.stringify(payload)
