@@ -954,7 +954,11 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                               onChange={async (e) => {
                                 const newType = e.target.value;
                                 
-                                // LIVE AUTO-SAVE TO BACKEND (Real-time DB Sync)
+                                // Optimistic update to prevent "None" flicker
+                                setCustomIdentities(prev => prev.map(idItem => 
+                                  idItem.id === identity.id ? { ...idItem, badge_type: newType, is_verified: !!newType } : idItem
+                                ));
+                                
                                 try {
                                   const payload = { badge_type: newType || '', is_verified: !!newType, author_is_verified: !!newType };
                                   
@@ -988,7 +992,7 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                                   
                                   if (postsRes && postsRes.ok) {
                                       const postsData = await postsRes.json();
-                                      const myPosts = (postsData.data || []).filter(p => p.creator_id === identity.id || (p.creator && (p.creator.id === identity.id || p.creator._id === identity.id)));
+                                      const myPosts = (postsData.data || []).filter(p => p.author_id === identity.id || p.creator_id === identity.id || (p.creator && (p.creator.id === identity.id || p.creator._id === identity.id)));
                                       for (const post of myPosts) {
                                           const pId = post._id || post.id;
                                           if (pId) {
@@ -1003,7 +1007,8 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
 
                                   console.log(`Live sync: Verified user ${identity.id} as ${newType || 'unverified'} in database across all their posts/reels.`);
                                   // Re-fetch from DB to update UI strictly from DB
-                                  setTimeout(loadIdentities, 500); 
+                                  // Wait longer to ensure Appwrite cache clears
+                                  setTimeout(loadIdentities, 1500); 
                                 } catch (err) {
                                   console.error("Live save failed", err);
                                 }
