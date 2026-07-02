@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
 import { buildCreatorIdentity, getPreferredCreatorMode } from '../utils/creatorIdentity';
-import { 
-  LayoutDashboard, Settings, Video, Image as ImageIcon, Music, Save, 
-  UploadCloud, CheckCircle2, AlertCircle, X, ChevronRight, Activity, Users, FileVideo, ShieldCheck,
-  TrendingUp, PlayCircle, Wand2, Terminal, Code, Trash2, User, Database
-} from 'lucide-react';
+import { Upload, X, Key, Info, Layout, Share2, Video, Database, CheckCircle, Smartphone, AlertTriangle, LayoutDashboard, Settings, Image as ImageIcon, Music, Save, UploadCloud, CheckCircle2, AlertCircle, ChevronRight, Activity, Users, FileVideo, ShieldCheck, TrendingUp, PlayCircle, Wand2, Terminal, Code, Trash2, User } from 'lucide-react';
+import { databases } from '../appwrite';
+const APPWRITE_DB_ID = import.meta.env.VITE_APPWRITE_DB_ID || '69d60fe8000c9bd92750';
 import DeveloperUserManagement from './DeveloperUserManagement';
 import DeveloperIDList from './DeveloperIDList';
 
@@ -962,17 +960,16 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                                 try {
                                   const payload = { badge_type: newType || '', is_verified: !!newType, author_is_verified: !!newType };
                                   
-                                  // 1. Try to update user/admin profile
-                                  await fetch(`${API_URL}/api/admins/${identity.id}`, {
-                                    method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                                    body: JSON.stringify(payload)
+                                  // 1. Update Admin profile via Appwrite
+                                  await databases.updateDocument(APPWRITE_DB_ID, 'admins', identity.id, {
+                                      badge_type: payload.badge_type,
+                                      is_verified: payload.is_verified
                                   }).catch(() => {});
                                   
                                   // 2. Fetch all reels and posts to force update their badge fields
                                   const [reelsRes, postsRes] = await Promise.all([
                                       fetch(`${API_URL}/api/reels`).catch(()=>null),
-                                      fetch(`${API_URL}/api/posts`).catch(()=>null)
+                                      fetch(`${API_URL}/api/news`).catch(()=>null)
                                   ]);
                                   
                                   if (reelsRes && reelsRes.ok) {
@@ -980,11 +977,12 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                                       const myReels = (reelsData.data || []).filter(r => r.creator_id === identity.id || (r.creator && (r.creator.id === identity.id || r.creator._id === identity.id)));
                                       for (const reel of myReels) {
                                           const rId = reel._id || reel.id;
-                                          await fetch(`${API_URL}/api/reels/${rId}`, {
-                                              method: 'PUT',
-                                              headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                                              body: JSON.stringify(payload)
-                                          }).catch(()=>{});
+                                          if (rId) {
+                                              await databases.updateDocument(APPWRITE_DB_ID, 'reels', rId, {
+                                                  badge_type: payload.badge_type,
+                                                  creator_is_verified: payload.is_verified
+                                              }).catch(()=>{});
+                                          }
                                       }
                                   }
                                   
@@ -993,11 +991,12 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                                       const myPosts = (postsData.data || []).filter(p => p.creator_id === identity.id || (p.creator && (p.creator.id === identity.id || p.creator._id === identity.id)));
                                       for (const post of myPosts) {
                                           const pId = post._id || post.id;
-                                          await fetch(`${API_URL}/api/news/${pId}`, {
-                                              method: 'PUT',
-                                              headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                                              body: JSON.stringify(payload)
-                                          }).catch(()=>{});
+                                          if (pId) {
+                                              await databases.updateDocument(APPWRITE_DB_ID, 'news', pId, {
+                                                  badge_type: payload.badge_type,
+                                                  author_is_verified: payload.is_verified
+                                              }).catch(()=>{});
+                                          }
                                       }
                                   }
 
