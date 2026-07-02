@@ -49,6 +49,33 @@
   box-sizing: border-box;
 }
 
+/* App Native Feel: Prevent long-press context menus and image dragging/downloading */
+body {
+  -webkit-touch-callout: none; /* iOS Safari */
+  -webkit-user-select: none; /* Safari */
+  user-select: none; /* Non-prefixed version */
+}
+
+img, video {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-drag: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Allow text selection on specific text elements */
+p, span, h1, h2, h3, h4, h5, h6, input, textarea, .allow-select {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Ensure buttons and links are not selectable */
+button, a {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* Scrollbar Hide Utility */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;

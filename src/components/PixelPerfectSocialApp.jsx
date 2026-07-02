@@ -20,7 +20,8 @@ import {
   Share2,
   Trash2,
   AlertCircle,
-  Settings
+  Settings,
+  GitBranch
 } from 'lucide-react';
 
 import ReelsViewer from './ReelsViewer';
@@ -33,18 +34,37 @@ import SkeletonImage from './SkeletonImage';
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
 import { buildCreatorIdentity, getPreferredCreatorMode } from '../utils/creatorIdentity';
 import versionData from '../version.json';
+import ThreadsView from './ThreadsView';
+import VerifiedBadge from './VerifiedBadge';
+import PostCaption from './PostCaption';
+import { trimImageWhitespace } from '../utils/imageTrimmer';
+
+// Component to handle auto-cropping images smoothly
+const AutoCroppedImage = ({ src, alt, className, onError }) => {
+  const [processedSrc, setProcessedSrc] = useState(null);
+  
+  useEffect(() => {
+    let mounted = true;
+    if (src) {
+      trimImageWhitespace(src).then(trimmed => {
+        if (mounted) setProcessedSrc(trimmed);
+      });
+    }
+    return () => { mounted = false; };
+  }, [src]);
+
+  return (
+    <img 
+      src={processedSrc || src} 
+      alt={alt} 
+      loading="lazy"
+      className={`${className} ${processedSrc ? 'opacity-100' : 'opacity-50 blur-sm'} transition-all duration-300`}
+      onError={onError}
+    />
+  );
+};
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-
-// Custom SVG verified badge for exact matching
-const GoldVerifiedBadge = ({ size = 20, className = "" }) => (
-  <div className={`relative inline-flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="#FFD700" stroke="#3A125E" strokeWidth="1.5">
-      <path d="M12 2l2.4 2.8 3.7-.5.9 3.6 3.4 1.5-1.5 3.4.9 3.6-3.7-.5-2.4 2.8L12 18l-3.7.8-2.4-2.8-3.7.5.9-3.6-3.4-1.5 1.5-3.4-.9-3.6 3.7.5 2.4-2.8L12 2z" />
-      <path d="M9 12l2 2 4-4" stroke="#3A125E" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  </div>
-);
 
 // Normalize reel IDs to ensure string format for proper matching
 const normalizeReelData = (reel) => {
@@ -145,6 +165,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
 
   const videoRefs = useRef({});
   const [savedPosts, setSavedPosts] = useState({});
+  const [activeThreadPost, setActiveThreadPost] = useState(null);
 
   // Profile Specific State
   const [profileViewMode, setProfileViewMode] = useState('dashboard'); // 'dashboard' or 'content'
@@ -615,11 +636,11 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
   };
 
   return (
-    <div className="relative max-w-[420px] mx-auto h-[100dvh] flex flex-col overflow-hidden bg-[#FAF7EE] font-sans shadow-2xl border-x border-gray-200 overscroll-none overscroll-y-none">
+    <div className="relative w-full md:max-w-[420px] mx-auto h-[100dvh] flex flex-col overflow-hidden bg-gray-100 font-sans shadow-2xl border-x border-gray-200 overscroll-none overscroll-y-none">
       
       {/* 1. Global Header */}
       {activeTab !== 'stories' && activeTab !== 'add' && (
-        <header className="sticky top-0 z-50 bg-[#FAF7EE] border-b border-gray-200/60 px-4 py-2 flex justify-between items-center shrink-0">
+        <header className="sticky top-0 z-50 bg-white border-b border-gray-200 px-4 py-2 flex justify-between items-center shrink-0">
           <div className="flex items-center cursor-pointer select-none" onClick={() => setActiveTab('home')}>
               <img src="/seenly-logo.png" alt="Seen.Ly Logo" className="h-[36px] object-contain drop-shadow-sm" style={{ mixBlendMode: 'multiply' }} />
             </div>
@@ -843,14 +864,15 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                           {/* Refined Post Avatar (No gradient ring) */}
                           <div 
                             className="w-[46px] h-[46px] rounded-full p-[1.5px] bg-[#2B2315]/10 cursor-pointer shrink-0 flex items-center justify-center"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setSelectedProfileId(authorId);
                               setActiveTab('profile');
                             }}
                           >
-                            <div className="w-full h-full rounded-full border-[1.5px] border-white overflow-hidden bg-white">
+                            <div className="w-full h-full rounded-full border border-gray-200 overflow-hidden bg-white">
                               <img 
-                                src={getRefinedAvatar(post.author_name, post.source)} 
+                                src={post.author_avatar || post.avatar_url || (post.author_id === adminId ? adminData?.avatar_url : null) || getRefinedAvatar(post.author_name, post.source)} 
                                 alt="Avatar"
                                 className="w-full h-full object-cover"
                               />
@@ -858,73 +880,57 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                           </div>
                           <div className="flex flex-col">
                             <h3 
-                              className="font-extrabold text-[14px] text-[#2B2315] leading-tight flex items-center gap-1.5 cursor-pointer tracking-wide hover:underline uppercase"
-                              onClick={() => {
+                              className="font-bold text-[15px] text-[#111] leading-tight flex items-center gap-1.5 cursor-pointer hover:underline"
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setSelectedProfileId(authorId);
                                 setActiveTab('profile');
                               }}
                             >
-                              {post.author_name || 'PREETAM SINGH YADAV'}
-                              {((post.author_id === adminId && adminData?.is_verified) || post.author_is_verified) && <GoldVerifiedBadge size={16} />}
+                              {post.author_name || 'User'}
+                              {((post.author_id === adminId && adminData?.is_verified) || post.author_is_verified || (JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[post.author_id])) && (
+                                <VerifiedBadge 
+                                  type={(() => {
+                                    try {
+                                      const assigned = JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}');
+                                      return assigned[post.author_id] || post.badge_type || 'blue';
+                                    } catch (e) { return post.badge_type || 'blue'; }
+                                  })()} 
+                                  size={15} 
+                                />
+                              )}
                             </h3>
-                            <span className="text-gray-400 font-semibold text-[11px] mt-0.5">
-                              {new Date(post.published_at || post.created_at || Date.now()).toLocaleDateString()} • Pre-recorded
+                            <span className="text-gray-500 font-medium text-[13px] mt-0.5">
+                              @{(post.author_id === adminId ? (adminData?.username || adminData?.handle) : (post.author_handle || post.author_username)) || (typeof post.author_name === 'string' ? post.author_name.trim().toLowerCase().replace(/\s+/g, '') : 'user')} • {new Date(post.published_at || post.created_at || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric'})}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Text details (Likes & Caption) */}
-                      <div className="mt-4.5 z-10 flex flex-col gap-2">
-                        <span className="text-[12.5px] font-extrabold text-[#2B2315] leading-normal tracking-wide">
-                          {post.author_name || 'PREETAM SINGH YADAV'} • {post.title || 'Ramlal Anand College'} 
-                          <span className="text-gray-400 font-semibold text-[11px] ml-1.5">
-                            (Pre-recorded • {new Date(post.published_at || post.created_at || Date.now()).toLocaleDateString()})
-                          </span>
-                        </span>
+                      {/* Post Caption (Now rendered above media) */}
+                      <div className="mt-2 px-1 relative z-10">
+                        <PostCaption content={post.content || post.excerpt} />
                         
-                        {/* Liked count */}
-                        {(() => {
-                          const postId = post.id || post._id;
-                          const postLikeState = postLikes[postId] || { liked: false, count: post.likes || 0 };
-                          return (
-                            <div className="text-[12px] font-extrabold text-[#2B2315] mt-0.5 leading-none">
-                              {postLikeState.count} {postLikeState.count === 1 ? 'like' : 'likes'}
-                            </div>
-                          );
-                        })()}
-
-                        {/* Caption */}
-                        <div className="text-[#2B2315] text-[13px] leading-relaxed font-medium mt-1">
-                          <span className="font-extrabold mr-1.5">
-                            {typeof post.author_name === 'string' ? post.author_name.trim().toLowerCase().replace(/\s+/g, '') : 'preetam_yadav'}
-                          </span>
-                          <span className="whitespace-pre-wrap">
-                            {post.content || post.excerpt}
-                          </span>
-                        </div>
-
                         {/* Tags */}
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                          {(post.tags && post.tags.length > 0 ? post.tags : ['Seen.Ly', 'CollegeLife']).map((tag) => (
-                            <span 
-                              key={tag} 
-                              className="text-blue-600 font-semibold cursor-pointer hover:underline text-[13px]"
-                            >
-                              #{tag.replace(/^#/, '')}
-                            </span>
-                          ))}
-                        </div>
+                        {post.tags && post.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-1 mb-2">
+                            {post.tags.map((tag) => (
+                              <span key={tag} className="text-blue-500 font-medium cursor-pointer hover:underline text-[13px]">
+                                #{tag.replace(/^#/, '')}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
-                      {/* Post Image Container: Full length width, adaptive auto height */}
+
+                      {/* Post Image Container: Rounded corners and managed white space */}
                       {(post.cover_image_url || post.image_url) && (
-                        <div className="mt-4 -mx-5 bg-black border-y border-gray-100 z-10 relative overflow-hidden flex justify-center items-center">
-                          <img 
+                        <div className="mt-2 bg-gray-50/50 border border-gray-100 z-10 relative overflow-hidden flex justify-center items-center rounded-2xl">
+                          <AutoCroppedImage 
                             src={resolveMediaUrl(post.cover_image_url || post.image_url)} 
                             alt={post.title || 'Feed Image'} 
-                            loading="lazy"
-                            className="w-full h-auto max-h-[460px] object-contain block transition-opacity duration-200"
+                            className="w-full h-auto max-h-[460px] object-contain block"
                             onError={(e) => {
                               e.target.style.display = 'none';
                             }}
@@ -933,14 +939,16 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                       )}
 
                       {/* Unified Post Action Bar (Below image) */}
-                      <div className="mt-4 flex justify-between items-center z-10 px-0.5">
-                        <div className="flex gap-4 items-center">
+                      <div className="mt-4 grid grid-cols-3 items-center z-10 px-0.5 w-full">
+                        {/* Left Actions */}
+                        <div className="flex gap-4 items-center justify-start">
                           {(() => {
                             const postId = post.id || post._id;
                             const postLikeState = postLikes[postId] || { liked: false, count: post.likes || 0 };
                             return (
                               <button 
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setPostLikes(prev => {
                                     const current = prev[postId] || { liked: false, count: post.likes || 0 };
                                     const nextLiked = !current.liked;
@@ -959,10 +967,10 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                               </button>
                             );
                           })()}
-                          <button className="text-gray-500 hover:text-blue-500 transition-colors cursor-pointer">
+                          <button onClick={(e) => e.stopPropagation()} className="text-gray-500 hover:text-blue-500 transition-colors cursor-pointer">
                             <MessageSquare size={21} strokeWidth={2} />
                           </button>
-                          <button className="text-gray-500 hover:text-[#9B51E0] transition-colors cursor-pointer -rotate-12 mt-[-2px]">
+                          <button onClick={(e) => e.stopPropagation()} className="text-gray-500 hover:text-[#9B51E0] transition-colors cursor-pointer -rotate-12 mt-[-2px]">
                             <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <line x1="22" y1="2" x2="11" y2="13"></line>
                               <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -970,14 +978,32 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                           </button>
                         </div>
                         
-                        <div className="flex gap-4 items-center relative">
+                        {/* CENTER ACTION: PROFESSIONAL INBUILT PILL */}
+                        <div className="flex justify-center items-center">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveThreadPost(post);
+                            }}
+                            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 hover:text-black transition-all group"
+                          >
+                            <GitBranch size={16} strokeWidth={2} className="text-gray-500 group-hover:text-black transition-colors" />
+                            <span className="text-[12.5px] font-bold tracking-tight">
+                              {(post.threadsCount || ((post.likes || 0) % 15) + 3)} Threads
+                            </span>
+                          </button>
+                        </div>
+                        
+                        {/* Right Actions */}
+                        <div className="flex gap-4 items-center justify-end relative z-10">
                           {/* Save Button */}
                           {(() => {
                             const postId = post.id || post._id;
                             const isSaved = !!savedPosts[postId];
                             return (
                               <button 
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setSavedPosts(prev => ({
                                     ...prev,
                                     [postId]: !prev[postId]
@@ -1021,6 +1047,19 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                             </>
                           )}
                         </div>
+                      </div>
+
+                      {/* Likes Count (Below Action Bar) */}
+                      <div className="mt-3 px-1 z-10 relative">
+                        {(() => {
+                          const postId = post.id || post._id;
+                          const postLikeState = postLikes[postId] || { liked: false, count: post.likes || 0 };
+                          return (
+                            <div className="text-[13px] font-extrabold text-[#2B2315] mb-1">
+                              {postLikeState.count} {postLikeState.count === 1 ? 'like' : 'likes'}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   );
@@ -1221,7 +1260,15 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                               <img src={getRefinedAvatar(u.name || u.username || 'User', u.avatar_url)} alt="Avatar" className="w-full h-full object-cover" />
                             </div>
                             <div className="flex flex-col">
-                              <span className="text-[#3A125E] font-bold text-xs flex items-center gap-1 uppercase">{u.name} {u.is_verified && <GoldVerifiedBadge size={14} />}</span>
+                              <span className="text-[#3A125E] font-bold text-xs flex items-center gap-1 uppercase">
+                                {u.name} 
+                                {(u.is_verified || (JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[u.id])) && (
+                                  <VerifiedBadge 
+                                    type={JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[u.id] || u.badge_type || 'blue'}
+                                    size={14} 
+                                  />
+                                )}
+                              </span>
                               <span className="text-gray-400 font-semibold text-[10px] mt-0.5">@{u.handle || 'dancer'}</span>
                             </div>
                           </div>
@@ -1311,10 +1358,16 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                 
                 <div className="flex flex-col justify-start flex-1 min-w-0 pt-1">
                   <div className="flex items-center gap-1.5">
-                    <h2 className="font-sans font-black text-[13px] text-[#3A125E] leading-tight uppercase tracking-normal truncate">
+                    <h2 className="text-[17px] font-black text-black leading-tight">
                       {adminData?.name || 'Creator'}
                     </h2>
-                    {adminData?.is_verified && <GoldVerifiedBadge size={16} className="shrink-0" />}
+                    {(adminData?.is_verified || (JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[adminData?.id])) && (
+                      <VerifiedBadge 
+                        type={JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[adminData?.id] || adminData?.badge_type || 'blue'}
+                        size={16} 
+                        className="shrink-0" 
+                      />
+                    )}
                   </div>
                   
                   <p className="text-[#3A125E]/60 font-extrabold text-[10px] uppercase tracking-wider mt-1">
@@ -1808,6 +1861,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                   if (window.confirm("Clear local cache & reset settings?")) {
                     localStorage.removeItem('seen.ly_view_mode');
                     localStorage.removeItem('ENABLE_SMOKE_THEME');
+                    localStorage.removeItem('DEV_TEST_BADGE');
                     alert("Cache cleared successfully! Reloading...");
                     window.location.reload();
                   }
@@ -1867,6 +1921,29 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
         </div>
       )}
 
+      {/* Render Threads View if active */}
+      {activeThreadPost && (
+        <ThreadsView
+          post={activeThreadPost}
+          onClose={() => setActiveThreadPost(null)}
+          adminData={adminData}
+          onLikeToggle={(postId) => {
+            setPostLikes(prev => {
+              const current = prev[postId] || { liked: false, count: activeThreadPost.likes || 0 };
+              const nextLiked = !current.liked;
+              return {
+                ...prev,
+                [postId]: {
+                  liked: nextLiked,
+                  count: nextLiked ? current.count + 1 : Math.max(0, current.count - 1)
+                }
+              };
+            });
+          }}
+          isLiked={postLikes[activeThreadPost.id || activeThreadPost._id]?.liked || false}
+          initialLikesCount={postLikes[activeThreadPost.id || activeThreadPost._id]?.count || activeThreadPost.likes || 0}
+        />
+      )}
     </div>
   );
 }

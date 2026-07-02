@@ -53,6 +53,20 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* Anti-FOUC: Hide root until React and Tailwind load */
+      #root:empty {
+        display: none;
+      }
+      body {
+        opacity: 0;
+        animation: fadeIn 0.4s ease-in forwards;
+        animation-delay: 0.2s; /* Give CDN a tiny bit of time */
+      }
+      @keyframes fadeIn {
+        to { opacity: 1; }
+      }
+    </style>
   </head>
   <body><script>window.onerror = function(msg, url, lineNo, columnNo, error) { var d = document.createElement("div"); d.style.cssText = "position:fixed;top:0;left:0;width:100%;background:red;color:white;z-index:999999;padding:20px;white-space:pre-wrap;font-family:monospace;"; d.innerText = "ERROR: " + msg + "\n" + (error && error.stack ? error.stack : ""); document.body.appendChild(d); return false; };</script>
     <noscript>You need to enable JavaScript to run this app.</noscript>

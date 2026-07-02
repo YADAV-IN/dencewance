@@ -946,12 +946,41 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                             </div>
                           </div>
                         </div>
-                        <button 
-                          onClick={() => handleDeleteSpecificIdentity(identity.id)}
-                          className="px-4 py-2 bg-red-100 text-red-600 hover:bg-red-600 hover:text-white rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
-                        >
-                          <Trash2 size={16} /> Delete Identity Content
-                        </button>
+                        
+                        <div className="flex flex-col md:flex-row items-end md:items-center gap-4">
+                          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Badge:</span>
+                            <select 
+                              className="text-xs font-bold text-gray-800 bg-transparent border-none focus:ring-0 outline-none cursor-pointer"
+                              value={JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[identity.id] || ''}
+                              onChange={(e) => {
+                                const badges = JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}');
+                                if (e.target.value) {
+                                  badges[identity.id] = e.target.value;
+                                } else {
+                                  delete badges[identity.id];
+                                }
+                                localStorage.setItem('DEV_ASSIGNED_BADGES', JSON.stringify(badges));
+                                window.dispatchEvent(new Event('badgeUpdate'));
+                                loadIdentities(); // Force re-render
+                              }}
+                            >
+                              <option value="">None</option>
+                              <option value="blue">Blue (Standard)</option>
+                              <option value="gold">Gold (Premium)</option>
+                              <option value="gray">Gray (Gov)</option>
+                              <option value="green">Green (Eco)</option>
+                              <option value="official">Red Ribbon (Official)</option>
+                            </select>
+                          </div>
+                          
+                          <button 
+                            onClick={() => handleDeleteSpecificIdentity(identity.id)}
+                            className="px-4 py-2 bg-red-100 text-red-600 hover:bg-red-600 hover:text-white rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
+                          >
+                            <Trash2 size={16} /> Delete Identity Content
+                          </button>
+                        </div>
                       </div>
                     ))}
                     {customIdentities.length === 0 && (
