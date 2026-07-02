@@ -220,7 +220,12 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                 <div className="flex items-center gap-1.5">
                   <span className="text-white font-semibold text-[15px] leading-tight flex items-center gap-1">
                     {slugifyText(item.creator_handle || item.creator_name || 'user')}
-                    <VerifiedBadge userId={item.creator_id || item.author_id || item.id} width={14} height={14} />
+                    {((item.creator_is_verified || item.author_is_verified || (JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[item.creator_id || item.author_id || item.user_id]))) && (
+                      <VerifiedBadge 
+                        type={JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[item.creator_id || item.author_id || item.user_id] || item.badge_type || 'blue'} 
+                        size={14} 
+                      />
+                    )}
                   </span>
                   <span className="w-1 h-1 bg-white rounded-full opacity-60"></span>
                   <button className="text-white font-semibold text-[12px] bg-transparent border border-white/40 px-2 py-[2px] rounded-md hover:bg-white/20 transition-colors backdrop-blur-sm">

@@ -4,12 +4,7 @@ import {
   Sparkles, ShieldAlert, Share, ArrowRight
 } from 'lucide-react';
 
-const VerifiedBadge = ({ size = 16, className = "" }) => (
-  <svg viewBox="0 0 24 24" width={size} height={size} fill="#000000" className={className}>
-    <path d="M12 2l2.4 2.8 3.7-.5.9 3.6 3.4 1.5-1.5 3.4.9 3.6-3.7-.5-2.4 2.8L12 18l-3.7.8-2.4-2.8-3.7.5.9-3.6-3.4-1.5 1.5-3.4-.9-3.6 3.7.5 2.4-2.8L12 2z" />
-    <path d="M9 12l2 2 4-4" stroke="#ffffff" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
+import VerifiedBadge from './VerifiedBadge';
 
 const resolveMediaUrl = (url) => {
   if (!url || typeof url !== 'string' || url === 'null' || url === 'undefined') return '';
@@ -88,7 +83,12 @@ export default function XInstaHybridModal({ post, onClose, adminData, onLikeTogg
                 <div className="flex flex-col">
                   <span className="font-bold text-[16px] text-black tracking-tight flex items-center gap-1.5">
                     {authorName}
-                    <VerifiedBadge size={16} />
+                    {((authorId === adminData?.id && adminData?.is_verified) || post.author_is_verified || (JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[authorId])) && (
+                      <VerifiedBadge 
+                        type={JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[authorId] || post.badge_type || 'blue'}
+                        size={16} 
+                      />
+                    )}
                   </span>
                   <span className="text-gray-500 text-[14px] font-medium tracking-tight">@{authorHandle}</span>
                 </div>
