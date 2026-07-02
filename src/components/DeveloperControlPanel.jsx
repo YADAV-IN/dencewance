@@ -227,7 +227,9 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
               name: item.creator_name || item.author_name || (item.creator && item.creator.name) || 'Unknown',
               avatar: item.creator_avatar || item.author_avatar || item.source || (item.creator && item.creator.avatar_url) || '',
               reelsCount: 0,
-              postsCount: 0
+              postsCount: 0,
+              is_verified: item.author_is_verified || item.creator_is_verified || (item.creator && item.creator.is_verified) || false,
+              badge_type: item.badge_type || item.author_badge_type || item.creator_badge_type || (item.creator && item.creator.badge_type) || ''
             });
           }
         });
@@ -952,18 +954,9 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                             <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Badge:</span>
                             <select 
                               className="text-xs font-bold text-gray-800 bg-transparent border-none focus:ring-0 outline-none cursor-pointer"
-                              value={JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[identity.id] || ''}
+                              value={identity.badge_type || ''}
                               onChange={async (e) => {
                                 const newType = e.target.value;
-                                const badges = JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}');
-                                if (newType) {
-                                  badges[identity.id] = newType;
-                                } else {
-                                  delete badges[identity.id];
-                                }
-                                localStorage.setItem('DEV_ASSIGNED_BADGES', JSON.stringify(badges));
-                                window.dispatchEvent(new Event('badgeUpdate'));
-                                loadIdentities(); // Force re-render
                                 
                                 // LIVE AUTO-SAVE TO BACKEND (Real-time DB Sync)
                                 try {
@@ -1009,6 +1002,8 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                                   }
 
                                   console.log(`Live sync: Verified user ${identity.id} as ${newType || 'unverified'} in database across all their posts/reels.`);
+                                  // Re-fetch from DB to update UI strictly from DB
+                                  setTimeout(loadIdentities, 500); 
                                 } catch (err) {
                                   console.error("Live save failed", err);
                                 }

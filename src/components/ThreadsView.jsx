@@ -135,15 +135,10 @@ export default function ThreadsView({ post, onClose, adminData, onLikeToggle, is
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1 cursor-pointer">
                     <span className="font-bold text-[15px] text-black leading-none">{authorName}</span>
-                    {((post.author_id === adminData?.id && adminData?.is_verified) || post.author_is_verified || (JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[post.author_id])) && (
+                    {((post.author_id === adminData?.id && adminData?.is_verified) || post.author_is_verified || post.badge_type) && (
                       <VerifiedBadge 
-                        type={(() => {
-                          try {
-                            const assigned = JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}');
-                            return assigned[post.author_id] || post.badge_type || 'blue';
-                          } catch (e) { return post.badge_type || 'blue'; }
-                        })()} 
-                        size={15} 
+                        type={post.badge_type || 'blue'}
+                        size={14} 
                       />
                     )}
                   </div>
@@ -215,14 +210,9 @@ export default function ThreadsView({ post, onClose, adminData, onLikeToggle, is
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1 cursor-pointer">
                         <span className="font-bold text-[15px] text-black leading-none">{thread.author_name}</span>
-                        {(thread.is_verified || (JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[thread.author_id || thread.id])) && (
+                        {(thread.is_verified || thread.badge_type) && (
                           <VerifiedBadge 
-                            type={(() => {
-                              try {
-                                const assigned = JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}');
-                                return assigned[thread.author_id || thread.id] || thread.badge_type || 'blue';
-                              } catch (e) { return thread.badge_type || 'blue'; }
-                            })()}
+                            type={thread.badge_type || 'blue'}
                             size={14} 
                           />
                         )}

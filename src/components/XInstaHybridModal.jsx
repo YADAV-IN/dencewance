@@ -83,9 +83,9 @@ export default function XInstaHybridModal({ post, onClose, adminData, onLikeTogg
                 <div className="flex flex-col">
                   <span className="font-bold text-[16px] text-black tracking-tight flex items-center gap-1.5">
                     {authorName}
-                    {((authorId === adminData?.id && adminData?.is_verified) || post.author_is_verified || (JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[authorId])) && (
+                    {((authorId === adminData?.id && adminData?.is_verified) || post.author_is_verified || post.badge_type) && (
                       <VerifiedBadge 
-                        type={JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[authorId] || post.badge_type || 'blue'}
+                        type={post.badge_type || 'blue'}
                         size={16} 
                       />
                     )}

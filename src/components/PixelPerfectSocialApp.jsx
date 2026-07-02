@@ -888,14 +888,10 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                               }}
                             >
                               {post.author_name || 'User'}
-                              {((post.author_id === adminId && adminData?.is_verified) || post.author_is_verified || (JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[post.author_id])) && (
+                              {((post.author_id === adminId && adminData?.is_verified) || post.author_is_verified || post.badge_type) && (
                                 <VerifiedBadge 
-                                  type={(() => {
-                                    try {
-                                      const assigned = JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}');
-                                      return assigned[post.author_id] || post.badge_type || 'blue';
-                                    } catch (e) { return post.badge_type || 'blue'; }
-                                  })()} 
+                                  className="ml-1 shrink-0 mt-0.5 shadow-sm rounded-full" 
+                                  type={post.badge_type || 'blue'} 
                                   size={15} 
                                 />
                               )}
@@ -1262,9 +1258,9 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                             <div className="flex flex-col">
                               <span className="text-[#3A125E] font-bold text-xs flex items-center gap-1 uppercase">
                                 {u.name} 
-                                {(u.is_verified || (JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[u.id])) && (
+                                {(u.is_verified || u.badge_type) && (
                                   <VerifiedBadge 
-                                    type={JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[u.id] || u.badge_type || 'blue'}
+                                    type={u.badge_type || 'blue'}
                                     size={14} 
                                   />
                                 )}
@@ -1361,9 +1357,9 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                     <h2 className="text-[17px] font-black text-black leading-tight">
                       {adminData?.name || 'Creator'}
                     </h2>
-                    {(adminData?.is_verified || (JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[adminData?.id])) && (
+                    {(adminData?.is_verified || adminData?.badge_type) && (
                       <VerifiedBadge 
-                        type={JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[adminData?.id] || adminData?.badge_type || 'blue'}
+                        type={adminData?.badge_type || 'blue'}
                         size={16} 
                         className="shrink-0" 
                       />

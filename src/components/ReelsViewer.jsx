@@ -220,9 +220,9 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
                 <div className="flex items-center gap-1.5">
                   <span className="text-white font-semibold text-[15px] leading-tight flex items-center gap-1">
                     {slugifyText(item.creator_handle || item.creator_name || 'user')}
-                    {((item.creator_is_verified || item.author_is_verified || (JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[item.creator_id || item.author_id || item.user_id]))) && (
+                    {((item.creator_is_verified || item.author_is_verified || item.badge_type)) && (
                       <VerifiedBadge 
-                        type={JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[item.creator_id || item.author_id || item.user_id] || item.badge_type || 'blue'} 
+                        type={item.badge_type || 'blue'} 
                         size={14} 
                       />
                     )}
