@@ -816,12 +816,9 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
 
                               {/* Title / User text at the bottom */}
                               <div className="absolute bottom-2.5 left-1 right-1 flex flex-col items-center justify-center leading-[1.1] text-center z-10">
-                                <div className="flex items-center gap-[2px] justify-center">
-                                  <span className={`text-[9px] font-extrabold ${theme.textColor} tracking-wide text-center lowercase break-words max-w-full px-0.5 line-clamp-1`}>
-                                    @{story.creator_handle || story.creator_name || 'admin'}
-                                  </span>
-                                  <VerifiedBadge userId={story.creator_id || story.author_id || story.id} width={10} height={10} />
-                                </div>
+                                <span className={`text-[9px] font-extrabold ${theme.textColor} tracking-wide text-center lowercase break-words max-w-full px-0.5 line-clamp-1`}>
+                                  @{story.creator_handle || story.creator_name || 'admin'}
+                                </span>
                               </div>
 
                             </div>

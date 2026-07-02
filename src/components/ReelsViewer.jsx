@@ -6,6 +6,7 @@ import { translations as tAll } from '../translations';
 import UserProfileView from './UserProfileView';
 import CommentsSection from './CommentsSection';
 import LikeButton from './LikeButton';
+import VerifiedBadge from './VerifiedBadge';
 import { trackEvent, sendContentReport, sendDeveloperReport } from '../utils/analyticsTracker';
 
 const REEL_KEEP_BEHIND = 1; 
@@ -217,8 +218,9 @@ export default function ReelsViewer({ reels: fallbackData = [], initialIndex = 0
               </div>
               <div className="flex flex-col items-start cursor-pointer drop-shadow-md">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-white font-semibold text-[15px] leading-tight">
+                  <span className="text-white font-semibold text-[15px] leading-tight flex items-center gap-1">
                     {slugifyText(item.creator_handle || item.creator_name || 'user')}
+                    <VerifiedBadge userId={item.creator_id || item.author_id || item.id} width={14} height={14} />
                   </span>
                   <span className="w-1 h-1 bg-white rounded-full opacity-60"></span>
                   <button className="text-white font-semibold text-[12px] bg-transparent border border-white/40 px-2 py-[2px] rounded-md hover:bg-white/20 transition-colors backdrop-blur-sm">
