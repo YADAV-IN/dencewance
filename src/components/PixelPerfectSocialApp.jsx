@@ -709,7 +709,7 @@ export default function PixelPerfectSocialApp({ viewMode = 'desktop', setViewMod
                   filter: blur(12px);
                 }
               `}</style>
-              <h2 className="text-[#2B2315] font-sans font-bold text-base tracking-tight mb-4 flex items-center gap-1.5">
+              <h2 className="text-[#2B2315] font-sans font-bold text-base tracking-tight mb-2 ml-3 flex items-center gap-1.5">
                 Explore Trending Clips
               </h2>
 
