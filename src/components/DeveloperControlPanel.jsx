@@ -953,16 +953,47 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                             <select 
                               className="text-xs font-bold text-gray-800 bg-transparent border-none focus:ring-0 outline-none cursor-pointer"
                               value={JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}')[identity.id] || ''}
-                              onChange={(e) => {
+                              onChange={async (e) => {
+                                const newType = e.target.value;
                                 const badges = JSON.parse(localStorage.getItem('DEV_ASSIGNED_BADGES') || '{}');
-                                if (e.target.value) {
-                                  badges[identity.id] = e.target.value;
+                                if (newType) {
+                                  badges[identity.id] = newType;
                                 } else {
                                   delete badges[identity.id];
                                 }
                                 localStorage.setItem('DEV_ASSIGNED_BADGES', JSON.stringify(badges));
                                 window.dispatchEvent(new Event('badgeUpdate'));
                                 loadIdentities(); // Force re-render
+                                
+                                // LIVE AUTO-SAVE TO BACKEND (Real-time DB Sync)
+                                try {
+                                  const payload = { badge_type: newType || '', is_verified: !!newType, author_is_verified: !!newType };
+                                  
+                                  // Update Admin profile if applicable
+                                  await fetch(`${API_URL}/api/admins/${identity.id}`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                                    body: JSON.stringify(payload)
+                                  }).catch(() => {});
+                                  
+                                  // Update User profile directly
+                                  await fetch(`${API_URL}/api/users/${identity.id}`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                                    body: JSON.stringify(payload)
+                                  }).catch(() => {});
+                                  
+                                  // Update User verify route fallback
+                                  await fetch(`${API_URL}/api/users/${identity.id}/verify`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                                    body: JSON.stringify(payload)
+                                  }).catch(() => {});
+
+                                  console.log(`Live sync: Verified user ${identity.id} as ${newType || 'unverified'} in database.`);
+                                } catch (err) {
+                                  console.error("Live save failed", err);
+                                }
                               }}
                             >
                               <option value="">None</option>
