@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { uploadMediaToAppwrite } from '../utils/appwriteClient';
 import { buildCreatorIdentity, getPreferredCreatorMode } from '../utils/creatorIdentity';
 import { Upload, X, Key, Info, Layout, Share2, Video, Database, CheckCircle, Smartphone, AlertTriangle, LayoutDashboard, Settings, Image as ImageIcon, Music, Save, UploadCloud, CheckCircle2, AlertCircle, ChevronRight, Activity, Users, FileVideo, ShieldCheck, TrendingUp, PlayCircle, Wand2, Terminal, Code, Trash2, User } from 'lucide-react';
-import { databases } from '../appwrite';
-const APPWRITE_DB_ID = import.meta.env.VITE_APPWRITE_DB_ID || '69d60fe8000c9bd92750';
 import DeveloperUserManagement from './DeveloperUserManagement';
 import DeveloperIDList from './DeveloperIDList';
 
@@ -960,10 +958,11 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                                 try {
                                   const payload = { badge_type: newType || '', is_verified: !!newType, author_is_verified: !!newType };
                                   
-                                  // 1. Update Admin profile via Appwrite
-                                  await databases.updateDocument(APPWRITE_DB_ID, 'admins', identity.id, {
-                                      badge_type: payload.badge_type,
-                                      is_verified: payload.is_verified
+                                  // 1. Try to update user/admin profile
+                                  await fetch(`${API_URL}/api/admins/${identity.id}`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                                    body: JSON.stringify(payload)
                                   }).catch(() => {});
                                   
                                   // 2. Fetch all reels and posts to force update their badge fields
@@ -978,9 +977,10 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                                       for (const reel of myReels) {
                                           const rId = reel._id || reel.id;
                                           if (rId) {
-                                              await databases.updateDocument(APPWRITE_DB_ID, 'reels', rId, {
-                                                  badge_type: payload.badge_type,
-                                                  creator_is_verified: payload.is_verified
+                                              await fetch(`${API_URL}/api/reels/${rId}`, {
+                                                  method: 'PUT',
+                                                  headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                                                  body: JSON.stringify(payload)
                                               }).catch(()=>{});
                                           }
                                       }
@@ -992,9 +992,10 @@ export default function DeveloperControlPanel({ token: propToken, onComplete }) 
                                       for (const post of myPosts) {
                                           const pId = post._id || post.id;
                                           if (pId) {
-                                              await databases.updateDocument(APPWRITE_DB_ID, 'news', pId, {
-                                                  badge_type: payload.badge_type,
-                                                  author_is_verified: payload.is_verified
+                                              await fetch(`${API_URL}/api/news/${pId}`, {
+                                                  method: 'PUT',
+                                                  headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                                                  body: JSON.stringify(payload)
                                               }).catch(()=>{});
                                           }
                                       }
